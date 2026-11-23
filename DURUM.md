@@ -78,6 +78,19 @@ Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş 
 Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictMode çift isteği, eşzamanlı refresh yarışı (CMS oturum kaybı), CMS listesinde geç gelen cevap yarışı, önizlemede viewport'a göre yanlış yerleşim.
 **Android/iOS: Capacitor henüz yok; hiçbir mobil kontrol yapılmadı.** Bulgu raporunun 13. bölümü F2.5/F6 kabul listesine taşındı.
 
+## Üye UX fazı (23.11 akşam, commit edilmedi — onay bekleniyor)
+- **Yaklaşım:** `docs/ux/YAKLASIM.md`. **Önce/sonra görüntüleri:** `docs/ux/before`, `docs/ux/after` (izole yığın, gerçek test kullanıcıları).
+- **Yapılanlar:**
+  - Yeni başlık ve hesap menüsü (tema ve çıkış menüye taşındı).
+  - Duruma göre tek birincil eylemli ana sayfa (yeni / devam / sıradaki / hepsi bitti).
+  - Adım listesi biçiminde öğrenme yolu, taranabilir eğitim kartları.
+  - Sertifikalarım sayfası, gerçek kurallardan "Puanlar nasıl kazanılır?".
+  - Ders ekranında yapışkan menü, mobilde kapalı içerik menüsü, Önceki/Sonraki.
+  - Yeniden tasarlanan doğrulama sayfası.
+- **Salt okunur backend eklemeleri:** Eğitim kartı alanları (`summary`, `itemCount`, `completedItems`, `currentKey`, `lastActivityAt`) ve `GET /api/point-rules`. Veri modeli ve iş kuralı değişmedi.
+- **Testler:** backend 34/34; typecheck ve build temiz; izole e2e **16/16** (yeni `e2e/ux.spec.ts`: 8 kabul senaryosu, %200 metin büyütme dahil).
+- **Yan düzeltme:** CMS'te liste yüklenmeden "Taslak oluştur" basılınca yeni Journey'in sırası 1 oluyordu; artık düğme liste yüklenene kadar pasif.
+
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.
 
