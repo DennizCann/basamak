@@ -16,6 +16,10 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U basamak" --health-interval 5s --health-timeout 5s --health-retries 10
+      # Same fake SMTP as local dev, so the actuator mail health check is real in CI too.
+      mailpit:
+        image: axllent/mailpit:v1.27
+        ports: ["1025:1025", "8025:8025"]
     env:
       DB_HOST: localhost
       DB_PORT: 5432
@@ -26,10 +30,14 @@ jobs:
       JWT_SECRET: Y2ktb25seS1qd3Qtc2VjcmV0LWNpLW9ubHktand0LXNlY3JldC1jaS1vbmx5LWp3dC1zZWNyZXQtY2ktb25seQ==
       ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       CERT_SECRET: ci-only-cert-secret
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
+      - name: Wait for Mailpit SMTP
+        run: for i in $(seq 1 30); do (echo > /dev/tcp/localhost/1025) 2>/dev/null && exit 0; sleep 1; done; echo "Mailpit not reachable"; exit 1
       - name: Test and build
         working-directory: backend
         run: ./mvnw -B verify
