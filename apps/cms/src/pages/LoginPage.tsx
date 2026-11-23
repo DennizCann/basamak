@@ -17,9 +17,10 @@ export function LoginPage() {
   const [qr, setQr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (step?.otpauthUri) QRCode.toDataURL(step.otpauthUri, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(null));
+    if (step?.otpauthUri) QRCode.toDataURL(step.otpauthUri, { margin: 1, width: 240 }).then(setQr).catch(() => setQr(null));
   }, [step]);
 
   async function passwordStep(e: FormEvent) {
@@ -58,17 +59,40 @@ export function LoginPage() {
           </form>
         ) : (
           <form onSubmit={totpStep} className="stack">
-            {step.setupRequired && (
-              <Alert kind="info">
-                <p><strong>İki aşamalı doğrulamayı kurun.</strong> Doğrulayıcı uygulamanızla (Google Authenticator, Microsoft Authenticator, Aegis…) bu QR kodu okutun.</p>
-                {qr && <img src={qr} alt="Doğrulayıcı uygulama için QR kod" width={220} height={220} />}
-                <p>QR okutamıyorsanız bu anahtarı elle girin: <code style={{ wordBreak: "break-all" }}>{step.secret}</code></p>
-              </Alert>
+            {step.setupRequired ? (
+              <div className="stack">
+                <h2 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>İki aşamalı doğrulamayı kur (bir kerelik)</h2>
+                <ol className="stack" style={{ paddingLeft: "1.25rem", margin: 0 }}>
+                  <li>Telefonuna ücretsiz bir doğrulayıcı uygulama kur: <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong> ya da <strong>Aegis</strong>.</li>
+                  <li>Uygulamada <strong>“+” → “QR kodu tara”</strong> seçeneğini aç ve bu kodu okut. Uygulamada <strong>“Basamak CMS”</strong> kaydı oluşur.
+                    {qr && <div style={{ marginTop: "var(--space-3)", background: "#fff", padding: 8, borderRadius: 8, width: "fit-content" }}>
+                      <img src={qr} alt="Doğrulayıcı uygulamada okutulacak QR kod" width={240} height={240} />
+                    </div>}
+                    <details style={{ marginTop: "var(--space-2)" }}>
+                      <summary>QR okutamıyor musun? Anahtarı elle gir</summary>
+                      <p className="muted" style={{ marginBottom: 4 }}>Uygulamada “Kurulum anahtarı gir” seçeneğini aç; hesap adı olarak “Basamak CMS” yaz ve bu anahtarı gir:</p>
+                      <div className="row">
+                        <code data-totp-secret style={{ fontSize: "var(--font-size-lg)", letterSpacing: ".08em", wordBreak: "break-all" }}>
+                          {step.secret?.match(/.{1,4}/g)?.join(" ")}
+                        </code>
+                        <button type="button" className="btn btn-sm" onClick={() => navigator.clipboard?.writeText(step.secret ?? "").then(() => setCopied(true)).catch(() => {})}>
+                          {copied ? "Kopyalandı" : "Kopyala"}
+                        </button>
+                      </div>
+                    </details>
+                  </li>
+                  <li>Uygulamanın gösterdiği <strong>6 haneli kodu</strong> aşağıya yaz. Kod her 30 saniyede yenilenir.</li>
+                </ol>
+              </div>
+            ) : (
+              <p style={{ margin: 0 }}>Doğrulayıcı uygulamanda <strong>“Basamak CMS”</strong> kaydının gösterdiği 6 haneli kodu gir. Kod her 30 saniyede yenilenir.</p>
             )}
             <TextField label="6 haneli doğrulama kodu" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6}
-                       required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus />
+                       required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus
+                       hint="Kod reddedilirse uygulamada yenisinin çıkmasını bekleyip tekrar dene." />
             <button className="btn btn-primary" disabled={busy || code.length !== 6}>Doğrula ve giriş yap</button>
-            {code.length !== 6 && <span className="hint">Uygulamadaki 6 haneli kodu girince düğme etkinleşir.</span>}
+            {code.length !== 6 && <span className="hint">6 haneyi girince düğme etkinleşir.</span>}
+            <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: "start" }} onClick={() => { setStep(null); setCode(""); }}>Geri dön</button>
           </form>
         )}
       </div>
