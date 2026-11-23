@@ -45,12 +45,19 @@ Gereksinimler: Java 21, Node 20+, PostgreSQL 16+ (yerelde çalışıyor olmalı)
 `docker-compose.yml` Postgres ve Mailpit'i ayağa kaldırır. **Durum: henüz doğrulanmadı.** Geliştirme makinesinde Docker kurulu değil; doğrulanınca bu satır güncellenecek.
 
 ## Testler
+Backend birim ve entegrasyon testleri (`basamak_test` DB'sini kullanır; Mailpit çalışıyor olmalı):
 ```powershell
 cd backend; .\mvnw.cmd verify
 ```
+Frontend tip kontrolü ve derleme:
 ```powershell
 npm run typecheck; npm run build
 ```
+Uçtan uca testler (Playwright). Önce backend ve Mailpit çalışıyor olmalı; Vite sunucularını test kendisi başlatır. Yerelde kurulu Edge'i kullanmak için:
+```powershell
+$env:PW_CHANNEL="msedge"; npm run e2e
+```
+Ya da önce `npx playwright install chromium` çalıştırıp `npm run e2e`.
 
 ## Deneme hesapları
 Uygulama ilk açılışta tohum verisini kendisi yükler (`DataSeeder`; işlem idempotent). Yüklenenler: aşağıdaki hesaplar ve yayınlanmış üç Journey (Beginner, Expert, Master).
@@ -65,6 +72,10 @@ Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo 
 | Yönetici | `admin@basamak.local` | CMS ve web |
 
 **CMS'te iki aşamalı doğrulama zorunludur.** İlk girişte CMS bir QR kod ve sır gösterir. Bunu herhangi bir TOTP uygulamasına (Google Authenticator, Microsoft Authenticator, Aegis…) ekleyip 6 haneli kodu girin.
+Elinizde uygulama yoksa, ekrandaki sırdan kodu şu komutla üretebilirsiniz:
+```powershell
+node scripts/totp.mjs <SIR>
+```
 
 ## API
 - OpenAPI arayüzü: http://localhost:8080/swagger-ui.html (JSON: `/v3/api-docs`).
@@ -73,8 +84,11 @@ Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo 
 ## Zorunlu senaryolar — durum
 | # | Senaryo | Durum |
 |---|---|---|
-| 1 | Dinamik Journey | **API tamamlandı ve testli** (`ContentWorkflowIT.scenario1`). CMS ve web ekranları F2'de |
-| 2 | Onay, yayın, sürüm, fark, geri alma | **API tamamlandı ve testli** (`scenario2`). Ekranlar F2'de |
-| 3 | Eğitim ortasında yeni sürüm | Başlanmadı (F2) |
-| 4 | Eşzamanlı düzenleme | **API tamamlandı ve testli** (`scenario4_*`, gerçek eşzamanlı test dahil). Çakışma ekranı F2'de |
-| 5–15 | — | Başlanmadı |
+| 1 | Dinamik Journey | **Web ve CMS'te çalışıyor.** API: `ContentWorkflowIT.scenario1`; uçtan uca: `e2e/cms.spec.ts` (CMS'te oluşturulan Journey web'de görünüyor). Mobil: F2.5/F6 |
+| 2 | Onay, yayın, sürüm, fark, geri alma | **Web ve CMS'te çalışıyor.** API: `scenario2`; CMS'te onay ve geri gönderme, zamanlama, geçmiş, fark ve yeniden yayın ekranları var |
+| 3 | Eğitim ortasında yeni sürüm | **Çalışıyor.** Kural: başladığı sürümde biter, isterse geçer. Otomatik test: `LearningIT.scenario3_*`. Web'de "yeni sürüme geç" uyarısı var |
+| 4 | Eşzamanlı düzenleme | **Çalışıyor.** API testleri: `scenario4_*` (gerçek eşzamanlı test dahil). CMS'te çakışma ekranı var (kaydedilmemiş değişiklikler gösterilir) |
+| 5 | Kayıt → sertifika | **Çalışıyor.** API: `LearningIT.scenario5_*` (Journey sonu, PDF ve doğrulama dahil). Uçtan uca: `e2e/member.spec.ts` (gerçek Mailpit doğrulaması ve ders tamamlama) |
+| 10 | Dinamik puan kuralları ve tekrar | **Çalışıyor.** `GamificationIT` (100 görüntüleme → 1 puan; çift ve eşzamanlı olay → 1 kayıt; CMS'ten kural değişikliği) |
+| 15 | 320 px, koyu tema, klavye | **Kısmen.** Giriş ve ana sayfa için uçtan uca kontrol var (`e2e/member.spec.ts`). Tam tarama F7'de |
+| 6–9, 11–14 | — | Başlanmadı |

@@ -14,7 +14,7 @@
 |---|---|---|
 | F0 | İskelet, DB, Mailpit, web ve CMS iskeleti, CI, belge iskeletleri | **tamamlandı** (23.11 ~15.40) — F1 için onay bekleniyor |
 | F1 | Kimlik, roller, TOTP, sürümleme, yayın, audit, Journey, tohum verisi | **tamamlandı** (23.11 16.45; backend API, UI yok) — F2 için onay bekleniyor |
-| F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | başlanmadı |
+| F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | **tamamlandı** (23.11 ~17.50) — F2.5 için onay bekleniyor |
 | F2.5 | Capacitor iskeleti ve ilk debug APK | başlanmadı |
 | F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | başlanmadı |
 | F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | başlanmadı |
@@ -26,10 +26,14 @@
 ## Senaryolar (yalnız gerçek test sonucuyla güncellenir)
 | # | Durum | Kanıt |
 |---|---|---|
-| 1 | kısmen: API tamam, UI yok | `ContentWorkflowIT.scenario1_*` |
-| 2 | kısmen: API tamam (onay, geri gönderme, v2, fark, geri alma, audit), UI yok | `ContentWorkflowIT.scenario2_*` |
-| 4 | kısmen: API tamam (sıralı ve gerçek eşzamanlı), çakışma UI'ı yok | `ContentWorkflowIT.scenario4_*` |
-| 3, 5–15 | başlanmadı | — |
+| 1 | web ve CMS tamam; mobil yok | `ContentWorkflowIT.scenario1_*`, `e2e/cms.spec.ts` |
+| 2 | tamamlandı (API ve CMS ekranları) | `ContentWorkflowIT.scenario2_*`; CMS tarayıcıda elle denendi |
+| 3 | tamamlandı | `LearningIT.scenario3_*` |
+| 4 | tamamlandı (API ve çakışma ekranı) | `ContentWorkflowIT.scenario4_*` |
+| 5 | tamamlandı (API ve web) | `LearningIT.scenario5_*`, `e2e/member.spec.ts` (gerçek Mailpit) |
+| 10 | tamamlandı | `GamificationIT` (5 test) |
+| 15 | kısmen (giriş ve ana sayfa: 320 px, koyu tema, klavye) | `e2e/member.spec.ts` |
+| 6–9, 11–14 | başlanmadı | — |
 
 ## F1'de yapılanlar (özet)
 - **Kimlik:**
@@ -60,6 +64,13 @@
 
 | 23.11 16.40 | `cd backend; .\mvnw.cmd -B verify` | **BUILD SUCCESS, 18/18**: AuthIT 6, ContentWorkflowIT 8, RateLimitFilterTest 2, HealthIT 2 |
 | 23.11 16.43 | `java -jar` + `curl` (ana DB) | Göçler ve tohum verisi uygulandı; `member@` girişi 200 ve JWT; CMS şifre adımı `setupRequired=true` |
+
+| 23.11 17.44 | `cd backend; .\mvnw.cmd -B verify` | **27/27**: AuthIT 6, ContentWorkflowIT 8, GamificationIT 5, LearningIT 4, HealthIT 2, RateLimitFilterTest 2. Sondaki BUILD FAILURE testlerden değil: çalışan backend jar'ı kilitliyordu; kopyadan çalıştırmaya geçildi ve derleme temiz |
+| 23.11 17.38 | `$env:PW_CHANNEL="msedge"; npm run e2e` | **3/3**: kayıt, Mailpit doğrulaması ve ders tamamlama; CMS'te Journey oluşturma ve web'de görünme; 320 px, koyu tema ve klavye. CMS testi tekrar çalıştırıldı, yine geçti |
+| 23.11 17.44 | `npm run build` | web ve CMS başarılı |
+
+## Çalıştırma notu
+Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.
 
 ## Açık işler ve engeller
 - [x] `scripts/db-init.ps1` — BOM hatası düzeltildi; kullanıcı çalıştırdı, iki DB de hazır.

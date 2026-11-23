@@ -153,7 +153,89 @@ erDiagram
 
 ## 4. Araç ve iş akışı çalıştırma motoru *(F3–F4'te yazılacak)*
 
-## 5. Oyunlaştırma ve puan defteri *(F2'de yazılacak)*
+## 5. Oyunlaştırma ve puan defteri
+
+### 5.1 Puan tablosu (tohum verisi; CMS'ten değiştirilebilir)
+| Aksiyon | Nesne | Puan | Tekrar politikası | Gerekçe |
+|---|---|---:|---|---|
+| `LESSON_VIEWED` | Ders | 1 | nesne başına bir kez | Görüntüleme en zayıf sinyal; tekrar açmak puan şişirmemeli |
+| `TRAINING_STARTED` | Eğitim | 2 | bir kez | Başlamayı teşvik eder ama tek başına değersizdir |
+| `LESSON_COMPLETED` | Ders | 5 | bir kez | Gerçek ilerleme |
+| `SURVEY_SUBMITTED` | Anket | 10 | bir kez | Geri bildirim içerik ekibi için değerli |
+| `QUIZ_PASSED` | Quiz | 20 | bir kez | Ölçülmüş öğrenme |
+| `TRAINING_COMPLETED` | Eğitim | 50 | bir kez | Ana hedef |
+| `JOURNEY_COMPLETED` | Journey | 200 | bir kez | Seviye atlama |
+| `TOOL_CREATED` / `WORKFLOW_CREATED` | Araç / iş akışı | 30 | bir kez | Üretim; boş ya da kopya kayıt ayrıca engellenir (F3/F4) |
+| `TOOL_RUN_SUCCEEDED` / `WORKFLOW_RUN_SUCCEEDED` | Araç / iş akışı | 2 / 5 | **günde bir kez** | Döngüde çalıştırma puan şişirmesin |
+| `ITEM_SHARED` | * | 15 | bir kez | Paylaşım |
+| `SHARED_ITEM_USED` | * (yazara) | 3 | günde bir kez | Başkasının kullanması değer üretir |
+| `SHARED_ITEM_FORKED` | * (yazara) | 10 | nesne başına bir kez | Çatallanma ödülü; kendi kendini çatallama sayılmaz (F4) |
+
+Görüntülemek, başlamak, tamamlamak, oluşturmak ve paylaşmak farklı puan getirir; aynı aksiyon farklı nesnede farklı puan getirebilir. Kural, `(action, objectType)` çiftiyle eşleşir; tam eşleşme `*`'a göre önceliklidir.
+
+### 5.2 Kural motoru ve defter
+```mermaid
+sequenceDiagram
+  participant API as LearningService (aynı işlem)
+  participant G as GamificationService
+  participant DB as PostgreSQL
+  API->>G: record(event, eventKey)
+  G->>DB: INSERT activity_event ON CONFLICT(event_key) DO NOTHING
+  alt aynı olay daha önce geldi
+    DB-->>G: 0 satır → puan yok
+  else yeni olay
+    G->>DB: yayındaki POINT_RULE (action, objectType)
+    G->>DB: INSERT point_ledger(idempotency_key=f(policy)) ON CONFLICT DO NOTHING
+    G->>DB: UPSERT user_score += puan
+  end
+```
+- **Kural kodda değil, içerikte:** `POINT_RULE` sürümlü bir CMS içeriğidir. Yeni bir kuralın ya da puan değişikliğinin yayınlanması kod değişikliği ve deploy gerektirmez. Her defter satırı `rule_item_id` ve `rule_version_no` taşır.
+- **Defter değiştirilemez:** `point_ledger` için UPDATE ve DELETE bir trigger ile yasaktır. Düzeltme, `reverses_id` alanı dolu negatif bir satırla yapılır ve tekrar işlemeye dayanıklıdır (`reverse|<id>`).
+- **Tek seferlik puan, veritabanı kısıtıyla:** Politika `idempotency_key`'e kodlanır: `ONCE_PER_OBJECT` = kullanıcı|aksiyon|nesne; `ONCE_PER_DAY` = … ve İstanbul günü; `EVERY` = olay anahtarı. Bu kontrol uygulama kodunda değil, `UNIQUE` kısıtındadır; bu yüzden eşzamanlı isteklerde de doğrudur.
+- **Kanıtlar (senaryo 10):**
+  - `GamificationIT.openingTheSameLessonHundredTimesGivesPointsOnce`: 100 olay kaydedilir, 1 defter satırı oluşur.
+  - `sameEventTwiceIsRecordedOnceEvenConcurrently`: 4 iş parçacığı aynı olayı gönderir, olay 1 kez kaydedilir. HTTP `Idempotency-Key` ile de doğrulanır.
+  - `differentActionsGiveDifferentPoints`.
+  - `ruleChangedInCmsAppliesWithoutCodeChangeAndLedgerKeepsRuleVersion`: eski satırlar 5 puan, yeni satır 8 puan ve kural s2.
+  - `ledgerIsAppendOnlyAndCorrectionsAreReversingEntries`.
+
+### 5.3 Kararlar
+- **Kural değişince geçmiş puanlar yeniden hesaplanmaz.** Üye o gün geçerli kurala göre kazanmıştır; geriye dönük değişiklik güveni bozar. Toplu düzeltme gerekirse ters kayıtla yapılır.
+- **Silinen araç ya da geri alınan yayın:** Yayının geri alınması kazanılmış puanı geri almaz; üye o sürümü dürüstçe tamamlamıştır. Kötüye kullanımla silinen araçta (spam) moderatör ters kayıt yazar.
+- **Kötüye kullanım:**
+  - Aynı dersi tekrar açmak: politika gereği tek puan.
+  - Açıp hemen kapatmak: görüntüleme 1 puan, asıl puan tamamlamada; videolu derste izleme süresi sunucuda duvar saatiyle sınırlanır.
+  - Döngüde çalıştırma: günlük tek puan.
+  - Boş, kopya ya da karşılıklı çatallama: F4'te.
+- **Çevrimdışı aksiyon ve cihaz saati:** İstemcinin `occurredAt` değeri yalnız gösterim içindir. Günlük politika ve sıralama **sunucunun kabul anına** (`received_at`, İstanbul günü) göre hesaplanır; cihaz saatini ileri almak işe yaramaz.
+- **Sıralama tablosu (50.000 üye):** `user_score.total` aynı işlemde güncellenir ve indekslidir. Genel sıralama `ORDER BY total DESC LIMIT N` sorgusudur. Haftalık sıralama `point_ledger(created_at)` indeksiyle hesaplanır (F4'te ayrıntı ve ölçüm).
+
+### 5.4 Journey ve seviye kuralları
+- **Journey'in tamamlanması:** Journey, içindeki **o anki** bütün yayınlanmış eğitimler bitince tamamlanır. O anda sertifika verilir ve `JOURNEY_COMPLETED` kaydedilir.
+- **Açılma koşulları:** `requiresPreviousJourney` (sırada bir önceki Journey bitmiş olmalı) ve `minPoints`. Kilitli bir Journey'in eğitimine başlanamaz (`training_locked`, 403).
+- **Seviye** = tamamlanmamış ilk Journey. **Seviye düşmez:** sertifikası olan Journey tamamlanmış sayılır. Sonradan eklenen bir eğitim "yeni" olarak görünür ama seviyeyi geri almaz.
+- **Yayından çekilen Journey:** Kazanılmış sertifika ve puanlar geçerli kalır; sertifika, Journey'in o anki sürüm numarasını taşır.
+- **Puan ve seviye ilişkisi:** Seviye eğitim tamamlamaya bağlıdır, puana değil. Puan yalnız `minPoints` açılma koşulunda kullanılır, böylece puan biriktirerek eğitim atlanamaz.
+
+### 5.5 Eğitim ilerlemesi ve sürüm kuralı (senaryo 3)
+- **Sürüm sabitleme:** Kayıt (`enrollment`) başladığı sürüme sabitlenir (`training_version_no`). Yeni yayın, devam eden üyenin gördüğünü **değiştirmez**. Üye "yeni sürüm var" uyarısı görür ve isterse kendi sürümünde bitirir.
+- **"Yeni sürüme geç":** Bu seçenek ilerlemeyi kararlı `itemKey` anahtarlarıyla taşır. Yeni sürümde olmayan ögelerin ilerlemesi düşer; yeni ögeler tamamlanmamış görünür. Yeni kayıtlar her zaman son yayından başlar.
+- **Gerekçe:** Quiz'in ortasındaki bir üyenin sorularının değişmesi adil değildir ve veri bütünlüğünü bozar. Zorunlu geçiş yerine isteğe bağlı geçiş seçildi.
+- **Geri alınan yayın:** Arada verilen cevaplar, sabitlenmiş sürüme bağlı oldukları için geçerli kalır.
+- **Kanıt:** `LearningIT.scenario3_newVersionWhileMemberIsMidTraining`.
+
+### 5.6 Quiz ve anket kararları
+- **Soru seçimi:** Soru bankasından `SecureRandom` ile rastgele seçim yapılır ve şıklar karıştırılır. Seçilen sorular denemeye kaydedilir, böylece sayfa yenilenince aynı sorular gelir. **Doğru cevaplar asla istemciye gönderilmez**; testler bunu doğrular.
+- **Süre:** Süre sunucuda tutulur (`deadline_at`). Bağlantı koparsa açık deneme süre içinde kaldığı yerden devam eder. Süre dolduktan sonra **60 saniyelik ağ toleransı** tanınır; daha geç gelen gönderim "geç" sayılır ve geçemez. Mobil çevrimdışı quiz için F6'da ayrı kural yazılacak.
+- **Açık uçlu sorular** otomatik puana katılmaz ve "değerlendirme bekliyor" olarak işaretlenir. İnsan değerlendirmesi ve itiraz akışı ertelendi (§11). Seçmeli madde olan yapay zekâ ön değerlendirmesi yapılmadı.
+- **Anonim anket:** Cevap satırında `user_id` yoktur, zaman damgası yerine yalnız tarih tutulur. Tekrar doldurmayı önleyen `survey_submission` kaydı cevapla ilişkilendirilmez, böylece yönetici bile cevabı kişiyle eşleştiremez. Raporlarda az sayıda cevapta dağılım gizlenecek (F5).
+
+### 5.7 Sertifika
+- **Belge:** PDF'te QR kod ve doğrulama bağlantısı (`/verify/{serial}`) yer alır. Doğrulama sayfası girişsiz açılır.
+- **Sahteciliğe karşı:**
+  - Seri numarası 10 karakterlik rastgele bir değerdir.
+  - Satır, (seri, üye, Journey, sürüm, tarih) üzerine sunucu anahtarlı **HMAC-SHA256** imzası taşır. Doğrulama imzayı yeniden hesaplar; değiştirilmiş bir satır geçersiz görünür.
+  - Geri alma için `revoked_at` alanı vardır.
 
 ## 6. API sözleşmesi
 OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya eklenir.
@@ -220,6 +302,21 @@ OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya ek
   - Ek altyapı gerekmez ve sıfır maliyet kuralına uyar.
 - **Sonuçlar:** Saniyede birkaç yüz işe kadar rahattır. Daha yüksek hacimde (§9) kuyruk tablosu bölümlenir ya da işler adanmış bir aracıya taşınır. Kuyruğa erişim `JobQueue` arayüzünün arkasındadır.
 
+### ADR-4 — Puan defteri: yalnız eklemeyle büyüyen defter ve veritabanı kısıtıyla tek seferlik puan
+- **Bağlam:** Aynı olay ağ hatası, yeniden deneme ya da mobil eşitleme nedeniyle birden çok kez gelebilir. Puanlar denetlenebilir olmalı ve silinmemeli.
+- **Seçenekler:**
+  - (a) Kullanıcı satırında bir sayaç (UPDATE).
+  - (b) Olay kaynaklı ve projeksiyonlu bir yapı.
+  - (c) Yalnız eklemeyle büyüyen defter, `UNIQUE(idempotency_key)` ve aynı işlemde güncellenen toplam.
+- **Karar:** (c).
+  - Her puanın kaynağı (olay, kural, kural sürümü) satırda durur.
+  - Tekrar işleme kontrolü, eşzamanlı isteklerde bile doğru olan veritabanı kısıtına bırakılır.
+  - Toplam, okumayı hızlandıran türetilmiş bir veridir; defterden yeniden hesaplanabilir.
+- **Sonuçlar:**
+  - Düzeltmeler ters kayıtla yapılır; tablo bir trigger ile korunur.
+  - (a)'daki kayıp güncelleme ve çift sayma riski ortadan kalkar.
+  - (b)'nin karmaşıklığına gerek kalmaz.
+
 ### ADR-3 — İçerik sürümleme: tam kopya ve eğitim aggregate'i
 - **Bağlam:** Bütün içerik sürümlü olmalı. Fark görünümü ve geri alma gerekiyor. Üye her zaman tek bir tutarlı sürümü görmeli. İç içe içerik var (eğitim içinde ders, quiz ve anket).
 - **Seçenekler:**
@@ -243,6 +340,9 @@ OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya ek
 - **Gerçek zamanlı ortak düzenleme (CRDT veya OT):** Yerine iyimser kilit ve çakışma ekranı kullanıldı (§3.4).
 - **TOTP kodunun tekrar kullanılmasının engellenmesi:** Aynı 30 saniyelik pencerede aynı kod ikinci kez kabul ediliyor. Çözüm: Son kabul edilen zaman adımını kullanıcıya yazmak.
 - **Çok düğümlü hız sınırı:** Bellek içi sayaç tek düğüm için yeterli. Çok düğümde Postgres ya da Redis sayacına geçilir.
+- **Açık uçlu quiz cevaplarının insan değerlendirmesi ve itiraz akışı:** Cevaplar saklanıyor ve "değerlendirme bekliyor" olarak işaretleniyor. Değerlendirme ekranı ve itiraz yok.
+- **Video saklama ve HLS dağıtımı:** Kodda video, URL ile oynatılıyor ve izleme süresi sunucuda ileri sarmaya karşı ölçülüyor. HLS dönüştürme ve CDN dağıtımı yalnız tasarımda.
+- **CMS'te zengin metin düzenleyici:** Ders metni Markdown olarak yazılıyor. Görüntüleyici yalnız React ögeleri üretiyor (XSS'e kapalı), görsel bir düzenleyici yok.
 
 ## 12. "Sizin kararınız" — karar listesi
 Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular ☐, cevaplanmış olanlar ☑ ile işaretlidir.
@@ -253,22 +353,22 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☑ Kaba kuvvet koruması ve hesap kilitleme → §7.3
 
 **3.2 Journey**
-- ☐ Journey'i bitirmiş üyeler varken yeni eğitim eklenirse seviyeleri ne olur?
+- ☑ Journey'i bitirmiş üyeler varken yeni eğitim eklenirse seviyeleri ne olur? → §5.4 (seviye düşmez)
 - ☑ Ön koşul döngüsü nasıl engellenir? Her kayıtta bütün eğitimlerin son sürümlerinden ön koşul çizgesi kurulur ve DFS ile döngü aranır; döngü varsa kayıt reddedilir ve döngünün yolu gösterilir (`ContentValidator`, `trainingPrerequisiteCyclesAreRejected`).
-- ☐ Puan ile seviye arasındaki ilişki; seviye düşebilir mi?
-- ☐ Journey yayından çekilirse kazanılmış sertifika ve puanlar ne olur?
+- ☑ Puan ile seviye arasındaki ilişki; seviye düşebilir mi? → §5.4
+- ☑ Journey yayından çekilirse kazanılmış sertifika ve puanlar ne olur? → §5.4
 
 **3.3 Eğitim ve içerik**
-- ☐ Açık uçlu cevapları kim değerlendirir; üyenin itiraz yolu ne?
-- ☐ Quiz süresi dolarken bağlantı koparsa ne olur?
-- ☐ Videolar nasıl saklanır ve oynatılır (HLS)?
-- ☐ Anonim anket gerçekten anonim mi?
+- ☑ Açık uçlu cevapları kim değerlendirir; üyenin itiraz yolu ne? → §5.6 (insan değerlendirmesi; akış ertelendi)
+- ☑ Quiz süresi dolarken bağlantı koparsa ne olur? → §5.6
+- ☐ Videolar nasıl saklanır ve oynatılır (HLS)? (izleme süresi kodda var; saklama ve dağıtım §9'da)
+- ☑ Anonim anket gerçekten anonim mi? → §5.6
 
 **3.4 Sürüm ve yayın**
 - ☑ Sürümleme modeli: tam kopya → §3.2, ADR-3
 - ☑ İç içe içerikte sürüm bağlama: eğitim aggregate'tir, araçlar sabitlenir; kendiliğinden güncelleme yoktur → §3.3
-- ☐ Eğitimin ortasındayken yeni sürüm yayınlanırsa ne olur; ilerleme nasıl taşınır?
-- ☐ Yanlış yayın geri alınınca arada verilen cevaplar ve kazanılan puanlar ne olur?
+- ☑ Eğitimin ortasındayken yeni sürüm yayınlanırsa ne olur; ilerleme nasıl taşınır? → §5.5
+- ☑ Yanlış yayın geri alınınca arada verilen cevaplar ve kazanılan puanlar ne olur? → §5.3, §5.5
 - ☑ Medya sürümleme ve saklama maliyeti: içerik adresli dosya anahtarlarıyla kopyalar arasında tekilleştirme → ADR-3
 
 **3.5 Araçlar**
@@ -283,9 +383,9 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☐ Çatallanan akışın özgün sahibi akışını silerse ne olur?
 
 **3.7 Oyunlaştırma**
-- ☐ Puan tablosu ve gerekçesi · ☐ Kural değişince geçmiş puanlar yeniden hesaplanır mı?
-- ☐ Silinen araç ya da geri alınan yayın için puan geri alınır mı?
-- ☐ 50.000 üyede sıralama tablosu · ☐ Çevrimdışı aksiyon puanı ve cihaz saatiyle oynanması
+- ☑ Puan tablosu ve gerekçesi → §5.1 · ☑ Kural değişince geçmiş puanlar yeniden hesaplanır mı? Hayır → §5.3
+- ☑ Silinen araç ya da geri alınan yayın için puan geri alınır mı? → §5.3
+- ☐ 50.000 üyede sıralama tablosu (taslak §5.3; F4'te ölçümle) · ☑ Çevrimdışı aksiyon puanı ve cihaz saatiyle oynanması → §5.3
 
 **3.8 Topluluk**
 - ☐ Yorumlarda kişisel veri ve küfür süzme · ☐ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? · ☐ Etkinlik akışının ölçeklenmesi
@@ -294,7 +394,7 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☐ WebSocket mi, SSE mi? · ☐ Kaçırılan olaylar · ☐ Bildirimin iki kez gitmemesi · ☐ Sessiz saatler
 
 **3.10 Geçmişim ve KVKK**
-- ☐ Olay kaydının yapısı ve saklama süresi · ☐ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri · ☐ Sertifika sahteciliği
+- ☐ Olay kaydının yapısı ve saklama süresi (yapı: `activity_event`; saklama F5) · ☐ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri · ☑ Sertifika sahteciliği → §5.7
 
 **3.11 Arama ve kurumsal kullanım**
 - ☐ Arama altyapısı · ☐ Eksik çeviri · ☐ Çok kiracılı veri ayrımı ve maliyeti
