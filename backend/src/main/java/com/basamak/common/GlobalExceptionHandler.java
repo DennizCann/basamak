@@ -50,6 +50,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "forbidden", "Bu işlem için yetkiniz yok.", Map.of());
     }
 
+    @ExceptionHandler({org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class})
+    ResponseEntity<ProblemDetail> notFound(Exception e) {
+        return build(HttpStatus.NOT_FOUND, "not_found", "İstenen kayıt ya da adres bulunamadı.", Map.of());
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> unexpected(Exception e, HttpServletRequest req) {
         log.error("Unhandled error on {} {}", req.getMethod(), req.getRequestURI(), e);

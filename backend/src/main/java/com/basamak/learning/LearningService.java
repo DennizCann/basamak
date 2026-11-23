@@ -59,7 +59,8 @@ public class LearningService {
         Set<String> done = enr.map(e -> completedKeys(e.id())).orElse(Set.of());
         ArrayNode items = json.createArrayNode();
         for (JsonNode it : shown.body().path("items")) {
-            ObjectNode s = sanitize(it);
+            // without an enrolment only the outline is returned: a direct link cannot bypass journey locks/prerequisites
+            ObjectNode s = sanitize(it, enr.isPresent());
             String key = it.path("key").asText();
             s.put("completed", done.contains(key));
             if ("quiz".equals(it.path("type").asText()) && enr.isPresent()) quizStats(enr.get().id(), key, s);
@@ -231,31 +232,15 @@ public class LearningService {
 
         Map<String, JsonNode> bank = new HashMap<>();
         quiz.path("questions").forEach(q -> bank.put(q.path("id").asText(), q));
-        int score = 0, max = 0;
-        ArrayNode results = json.createArrayNode();
-        boolean reveal = quiz.path("showCorrectAnswers").asBoolean(false);
-        for (JsonNode asked : read(a.get("questions"))) {
-            JsonNode q = bank.get(asked.path("id").asText());
-            String type = q.path("type").asText();
-            ObjectNode r = results.addObject().put("id", q.path("id").asText());
-            if ("open".equals(type)) { r.put("status", "pending_review"); continue; } // graded by staff, not in auto score
-            int pts = q.path("points").asInt(1);
-            max += pts;
-            Set<String> correct = new TreeSet<>();
-            q.path("options").forEach(o -> { if (o.path("correct").asBoolean()) correct.add(o.path("id").asText()); });
-            Set<String> given = new TreeSet<>();
-            JsonNode ans = answers == null ? null : answers.get(q.path("id").asText());
-            if (ans != null && ans.isArray()) ans.forEach(x -> given.add(x.asText()));
-            else if (ans != null && ans.isTextual()) given.add(ans.asText());
-            boolean ok = !late && correct.equals(given);
-            if (ok) score += pts;
-            r.put("correct", ok);
-            if (reveal) { ArrayNode ca = r.putArray("correctOptionIds"); correct.forEach(ca::add); }
-        }
+        Grade g = grade(bank, read(a.get("questions")), answers, late);
+        int score = g.score(), max = g.max();
+        ArrayNode results = g.results();
         int percent = max == 0 ? 100 : Math.round(score * 100f / max);
         boolean passed = !late && percent >= quiz.path("passingScore").asInt();
         jdbc.update("UPDATE quiz_attempt SET submitted_at = now(), answers = CAST(? AS jsonb), score = ?, max_score = ?, passed = ? WHERE id = ?",
                 answers == null ? "{}" : answers.toString(), score, max, passed, attemptId);
+        int usedNow = jdbc.queryForObject("SELECT count(*) FROM quiz_attempt WHERE enrollment_id = ? AND item_key = ?", Integer.class, a.get("enrollment_id"), key);
+        if (mayRevealAnswers(quiz, passed, usedNow)) g.revealInto(results);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("score", score);
@@ -274,6 +259,104 @@ public class LearningService {
                     trainingId + ":" + key, versionNo, source));
             out.put("pointsAwarded", award.points());
             out.putAll(maybeComplete(userId, trainingId, source));
+        }
+        return out;
+    }
+
+    /**
+     * Correct answers are shown only if the quiz allows it AND the member can no longer use them to pass:
+     * after passing or after the last attempt. Revealing them after a failed attempt with retries left would leak them.
+     */
+    static boolean mayRevealAnswers(JsonNode quiz, boolean passedAny, int attemptsUsed) {
+        return quiz.path("showCorrectAnswers").asBoolean(false)
+                && (passedAny || attemptsUsed >= quiz.path("attemptsAllowed").asInt(1));
+    }
+
+    record Grade(int score, int max, ArrayNode results, Map<String, Set<String>> correct) {
+        void revealInto(ArrayNode rs) {
+            for (JsonNode r : rs) {
+                Set<String> c = correct.get(r.path("id").asText());
+                if (c != null) { ArrayNode ca = ((ObjectNode) r).putArray("correctOptionIds"); c.forEach(ca::add); }
+            }
+        }
+    }
+
+    /** Grades against the pinned version's bank (the exact version the member answered). */
+    private Grade grade(Map<String, JsonNode> bank, JsonNode asked, JsonNode answers, boolean late) {
+        int score = 0, max = 0;
+        ArrayNode results = json.createArrayNode();
+        Map<String, Set<String>> correctMap = new HashMap<>();
+        for (JsonNode a : asked) {
+            JsonNode q = bank.get(a.path("id").asText());
+            ObjectNode r = results.addObject().put("id", a.path("id").asText());
+            if (q == null) { r.put("status", "unavailable"); continue; }
+            if ("open".equals(q.path("type").asText())) { r.put("status", "pending_review"); continue; } // graded by staff
+            int pts = q.path("points").asInt(1);
+            max += pts;
+            Set<String> correct = new TreeSet<>();
+            q.path("options").forEach(o -> { if (o.path("correct").asBoolean()) correct.add(o.path("id").asText()); });
+            correctMap.put(a.path("id").asText(), correct);
+            Set<String> given = new TreeSet<>();
+            JsonNode ans = answers == null ? null : answers.get(a.path("id").asText());
+            if (ans != null && ans.isArray()) ans.forEach(x -> given.add(x.asText()));
+            else if (ans != null && ans.isTextual()) given.add(ans.asText());
+            boolean ok = !late && correct.equals(given);
+            if (ok) score += pts;
+            r.put("correct", ok);
+        }
+        return new Grade(score, max, results, correctMap);
+    }
+
+    /**
+     * Read-only review of the member's own submitted attempts: the questions exactly as they were shown, the given
+     * answers and the result. Uses the attempt's stored snapshot + its pinned training version, never the current bank.
+     * Does not change attempts, points or progress.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> reviewAttempts(UUID userId, UUID trainingId, String key) {
+        Enrollment e = requireEnrollment(userId, trainingId);
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT id, attempt_no, training_version_no, questions::text AS questions, answers::text AS answers,
+                       score, max_score, passed, submitted_at, deadline_at
+                FROM quiz_attempt WHERE enrollment_id = ? AND item_key = ? AND user_id = ? AND submitted_at IS NOT NULL
+                ORDER BY attempt_no""", e.id(), key, userId);
+        boolean passedAny = rows.stream().anyMatch(r -> Boolean.TRUE.equals(r.get("passed")));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            int version = (Integer) r.get("training_version_no");
+            JsonNode quiz = published.pinned(trainingId, version).map(p -> TrainingSchema.findItem(p.body(), key)).orElse(null);
+            Map<String, Object> dto = new LinkedHashMap<>();
+            dto.put("attemptNo", r.get("attempt_no"));
+            dto.put("trainingVersionNo", version);
+            dto.put("submittedAt", ((Timestamp) r.get("submitted_at")).toInstant());
+            dto.put("passed", r.get("passed"));
+            Integer max = (Integer) r.get("max_score");
+            dto.put("percent", max == null || max == 0 ? null : Math.round(((Integer) r.get("score")) * 100f / max));
+            if (quiz == null || r.get("answers") == null) {
+                dto.put("questions", List.of());
+                dto.put("note", r.get("answers") == null
+                        ? "Süre dolduğu için bu denemede cevap gönderilmedi."
+                        : "Bu denemenin sorularına artık ulaşılamıyor.");
+                out.add(dto);
+                continue;
+            }
+            Map<String, JsonNode> bank = new HashMap<>();
+            quiz.path("questions").forEach(q -> bank.put(q.path("id").asText(), q));
+            JsonNode asked = read(r.get("questions"));
+            JsonNode answers = read(r.get("answers"));
+            Timestamp dl = (Timestamp) r.get("deadline_at");
+            boolean late = dl != null && ((Timestamp) r.get("submitted_at")).toInstant().isAfter(dl.toInstant().plus(QUIZ_GRACE));
+            Grade g = grade(bank, asked, answers, late);
+            if (mayRevealAnswers(quiz, passedAny, rows.size())) g.revealInto(g.results());
+            ArrayNode qs = json.createArrayNode();
+            for (int i = 0; i < asked.size(); i++) {
+                ObjectNode q = asked.get(i).deepCopy();
+                q.set("given", answers.path(q.path("id").asText()));
+                q.setAll((ObjectNode) g.results().get(i));
+                qs.add(q);
+            }
+            dto.put("questions", qs);
+            out.add(dto);
         }
         return out;
     }
@@ -388,12 +471,13 @@ public class LearningService {
     }
 
     /** Member-safe copy of an item: quiz answers and the question bank are never sent to the client. */
-    private ObjectNode sanitize(JsonNode it) {
+    private ObjectNode sanitize(JsonNode it, boolean full) {
         ObjectNode s = json.createObjectNode();
         String type = it.path("type").asText();
         s.put("key", it.path("key").asText());
         s.put("type", type);
         s.put("title", it.path("title").asText());
+        if (!full) return s;
         switch (type) {
             case "lesson" -> {
                 s.put("content", it.path("content").asText(""));

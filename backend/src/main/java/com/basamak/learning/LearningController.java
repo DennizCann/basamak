@@ -66,6 +66,11 @@ public class LearningController {
         return learning.startQuiz(p.userId(), id, key);
     }
 
+    @GetMapping("/api/trainings/{id}/items/{key}/attempts")
+    public List<Map<String, Object>> reviewQuiz(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @PathVariable String key) {
+        return learning.reviewAttempts(p.userId(), id, key);
+    }
+
     @PostMapping("/api/quiz-attempts/{attemptId}/submit")
     public Map<String, Object> submitQuiz(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID attemptId, @RequestBody AnswersReq r) {
         return learning.submitQuiz(p.userId(), attemptId, r.answers(), p.audience());
