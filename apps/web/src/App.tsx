@@ -6,6 +6,7 @@ import { LoginPage, RegisterPage, VerifyEmailPage, ForgotPasswordPage, ResetPass
 import { HomePage } from "./pages/HomePage";
 import { TrainingPage } from "./pages/TrainingPage";
 import { CertificatesPage } from "./pages/CertificatesPage";
+import { ExplorePage } from "./pages/ExplorePage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
 import "./app.css";
 
@@ -25,6 +26,7 @@ export function App() {
             <Route path="/verify/:serial" element={<VerifyCertificatePage />} />
             <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
             <Route path="/certificates" element={<RequireAuth><CertificatesPage /></RequireAuth>} />
+            <Route path="/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
             <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />
             <Route path="*" element={<main className="page"><h1>Sayfa bulunamadı</h1><p><Link className="text-link" to="/">Öğrenimime dön</Link></p></main>} />
           </Routes>
