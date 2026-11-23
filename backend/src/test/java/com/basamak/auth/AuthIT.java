@@ -32,8 +32,13 @@ class AuthIT extends IntegrationTest {
         mvc.perform(jsonPost("/api/auth/verify-email", Map.of("token", token))).andExpect(status().isOk());
         mvc.perform(jsonPost("/api/auth/verify-email", Map.of("token", token))).andExpect(status().isBadRequest()); // single use
 
-        MvcResult r = mvc.perform(jsonPost("/api/auth/login", Map.of("email", email.toUpperCase(), "password", "uzun-ve-guclu-1")))
-                .andExpect(status().isOk()).andReturn();
+        // password alone opens no session: it only returns a challenge
+        MvcResult step = mvc.perform(jsonPost("/api/auth/login", Map.of("email", email.toUpperCase(), "password", "uzun-ve-guclu-1")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").doesNotExist())
+                .andExpect(jsonPath("$.maskedEmail").value(org.hamcrest.Matchers.containsString("•"))).andReturn();
+        assertThat(step.getResponse().getCookie("bsm_rt")).isNull();
+        MvcResult r = mvc.perform(jsonPost("/api/auth/login/verify", Map.of("challengeId", body(step).get("challengeId").asText(),
+                "code", codeFromMail(lastMailTo(email))))).andExpect(status().isOk()).andReturn();
         String access = body(r).get("accessToken").asText();
         mvc.perform(get("/api/me").header("Authorization", bearer(access)))
            .andExpect(status().isOk()).andExpect(jsonPath("$.email").value(email)).andExpect(jsonPath("$.roles[0]").value("MEMBER"));
@@ -62,8 +67,7 @@ class AuthIT extends IntegrationTest {
 
     @Test
     void refreshTokenRotatesAndRequiresCsrfHeader() throws Exception {
-        MvcResult login = mvc.perform(jsonPost("/api/auth/login", Map.of("email", "member@basamak.local", "password", PASSWORD)))
-                .andExpect(status().isOk()).andReturn();
+        MvcResult login = loginWithCode("member@basamak.local", PASSWORD, "web");
         Cookie rt = login.getResponse().getCookie("bsm_rt");
         assertThat(rt).isNotNull();
         assertThat(rt.isHttpOnly()).isTrue();
@@ -80,8 +84,7 @@ class AuthIT extends IntegrationTest {
 
     @Test
     void concurrentRefreshWithSameTokenRotatesOnlyOnce() throws Exception {
-        MvcResult login = mvc.perform(jsonPost("/api/auth/login", Map.of("email", "member@basamak.local", "password", PASSWORD)))
-                .andExpect(status().isOk()).andReturn();
+        MvcResult login = loginWithCode("member@basamak.local", PASSWORD, "web");
         Cookie rt = login.getResponse().getCookie("bsm_rt");
         var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
         var go = new java.util.concurrent.CountDownLatch(1);

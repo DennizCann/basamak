@@ -28,6 +28,7 @@ public class AuthController {
     private final AuthService auth;
     private final UserRepository users;
     private final RefreshCookies cookies;
+    private final JwtService jwt;
 
     public record RegisterReq(@Email @NotBlank @Size(max = 254) String email,
                               @NotBlank @Size(max = 128) String password,
@@ -81,10 +82,44 @@ public class AuthController {
         return Map.of("message", "Şifreniz değiştirildi. Bütün cihazlardaki oturumlar kapatıldı; yeni şifrenizle giriş yapın.");
     }
 
+    public record CodeReq(@jakarta.validation.constraints.NotNull UUID challengeId, String code) {}
+
+    public record ChallengeReq(@jakarta.validation.constraints.NotNull UUID challengeId) {}
+
+    /** Step 1: password. Returns a challenge (no tokens); the code goes to the registered e-mail address. */
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@Valid @RequestBody LoginReq r, HttpServletRequest req, HttpServletResponse res) {
-        var t = auth.memberLogin(r.email(), r.password(), r.client(), info(req));
-        return tokenResponse(t, "mobile".equals(r.client()), WEB_COOKIE, res);
+    public Map<String, Object> login(@Valid @RequestBody LoginReq r, HttpServletRequest req) {
+        return challengeDto(auth.memberLogin(r.email(), r.password(), r.client(), info(req)));
+    }
+
+    /** Step 2: the e-mailed 6-digit code -> session (cookie for web, body refresh token for mobile). */
+    @PostMapping("/api/auth/login/verify")
+    public Map<String, Object> verifyCode(@Valid @RequestBody CodeReq r, HttpServletRequest req, HttpServletResponse res) {
+        var t = auth.verifyLoginCode(r.challengeId(), r.code(), info(req));
+        boolean mobile = "mobile".equals(jwtAudience(t));
+        return tokenResponse(t, mobile, WEB_COOKIE, res);
+    }
+
+    @PostMapping("/api/auth/login/resend")
+    public Map<String, Object> resendCode(@Valid @RequestBody ChallengeReq r) {
+        return challengeDto(auth.resendLoginCode(r.challengeId()));
+    }
+
+    private Map<String, Object> challengeDto(EmailCodeService.Challenge c) {
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("challengeId", c.id());
+        out.put("maskedEmail", c.maskedEmail());
+        out.put("expiresAt", c.expiresAt());
+        out.put("resendAvailableAt", c.resendAvailableAt());
+        out.put("delivered", c.delivered());
+        out.put("message", c.delivered()
+                ? "Giriş kodunu " + c.maskedEmail() + " adresine gönderdik."
+                : "Kod e-postası şu an gönderilemedi. Birazdan “Kodu yeniden gönder” ile tekrar deneyin.");
+        return out;
+    }
+
+    private String jwtAudience(AuthService.Tokens t) {
+        return jwt.toPrincipal(jwt.parse(t.accessToken())).audience();
     }
 
     @PostMapping("/api/auth/refresh")

@@ -41,7 +41,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(a -> a
                 .requestMatchers("/actuator/health/**", "/actuator/health", "/api/public/**",
                         "/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification",
-                        "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+                        "/api/auth/login", "/api/auth/login/verify", "/api/auth/login/resend",
+                        "/api/auth/refresh", "/api/auth/logout",
                         "/api/auth/forgot-password", "/api/auth/reset-password",
                         "/api/cms-auth/**", "/api/hooks/**",
                         "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()

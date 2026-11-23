@@ -39,6 +39,7 @@ public class AuthService {
     private final CryptoService crypto;
     private final MailService mail;
     private final AuditService audit;
+    private final EmailCodeService emailCodes;
 
     @Value("${basamak.web-base-url}")
     private String webBaseUrl;
@@ -179,15 +180,33 @@ public class AuthService {
 
     // ---------- member login (web / mobile) ----------
 
+    /**
+     * Member login step 1: password. No session is opened here; a one-time code is e-mailed to the account's
+     * registered address and must be confirmed with {@link #verifyLoginCode}.
+     */
     @Transactional(noRollbackFor = ApiException.class)
-    public Tokens memberLogin(String email, String password, String client, ClientInfo info) {
+    public EmailCodeService.Challenge memberLogin(String email, String password, String client, ClientInfo info) {
         String audience = "mobile".equals(client) ? "mobile" : "web";
         User u = checkPassword(email, password);
         if (u.getEmailVerifiedAt() == null) {
             throw new ApiException(HttpStatus.FORBIDDEN, "email_not_verified",
                     "E-posta adresiniz henüz doğrulanmadı. Gelen kutunuzdaki bağlantıyı açın ya da yeni bağlantı isteyin.");
         }
-        return openSession(u, audience, REFRESH_TTL, info);
+        return emailCodes.start(u, audience, info);
+    }
+
+    /** Member login step 2: the e-mailed code. Only now is a session opened. */
+    @Transactional(noRollbackFor = ApiException.class)
+    public Tokens verifyLoginCode(UUID challengeId, String code, ClientInfo info) {
+        var v = emailCodes.verify(challengeId, code, userId -> users.findById(userId).ifPresent(u -> registerFailure(u, "email_code")));
+        User u = users.findById(v.userId()).filter(x -> "ACTIVE".equals(x.getStatus())).orElseThrow(AuthService::badCredentials);
+        if (u.isLocked(Instant.now())) throw locked(u);
+        u.setFailedLoginCount(0);
+        return openSession(u, v.audience(), REFRESH_TTL, info);
+    }
+
+    public EmailCodeService.Challenge resendLoginCode(UUID challengeId) {
+        return emailCodes.resend(challengeId);
     }
 
     // ---------- CMS login: password -> TOTP ----------

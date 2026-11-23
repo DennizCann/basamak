@@ -75,9 +75,23 @@ public abstract class IntegrationTest {
     }
 
     protected String memberToken(String email) throws Exception {
-        MvcResult r = mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD, "client", "web"))).andReturn();
+        MvcResult r = loginWithCode(email, PASSWORD, "web");
         if (r.getResponse().getStatus() != 200) throw new AssertionError("login failed: " + r.getResponse().getContentAsString());
         return body(r).get("accessToken").asText();
+    }
+
+    /** Member login: password step, then the 6-digit code from the (captured) e-mail. Returns the verify result. */
+    protected MvcResult loginWithCode(String email, String password, String client) throws Exception {
+        MvcResult step = mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", password, "client", client))).andReturn();
+        if (step.getResponse().getStatus() != 200) throw new AssertionError("password step failed: " + step.getResponse().getContentAsString());
+        String challenge = body(step).get("challengeId").asText();
+        return mvc.perform(jsonPost("/api/auth/login/verify", Map.of("challengeId", challenge, "code", codeFromMail(lastMailTo(email))))).andReturn();
+    }
+
+    protected static String codeFromMail(String text) {
+        var m = java.util.regex.Pattern.compile("giriş kodunuz: (\\d{6})").matcher(text);
+        if (!m.find()) throw new AssertionError("no login code in mail: " + text);
+        return m.group(1);
     }
 
     /** Full CMS sign-in: password step, enrol/verify TOTP with a code computed from the secret. */

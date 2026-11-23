@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/0002-auth-content-audit.sql
   - include:
       file: db/changelog/0003-learning-gamification.sql
+  - include:
+      file: db/changelog/0004-login-email-code.sql
