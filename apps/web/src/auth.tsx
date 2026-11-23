@@ -9,10 +9,10 @@ type AuthState = {
   api: Api;
   user: User | null;
   ready: boolean;
-  /** Step 1: password -> a code is e-mailed; no session yet. */
-  login: (email: string, password: string) => Promise<LoginChallenge>;
-  /** Step 2: the e-mailed code -> session. */
-  verifyCode: (challengeId: string, code: string) => Promise<void>;
+  /** Step 1: password. Returns null when this device is remembered (already signed in), else the code challenge. */
+  login: (email: string, password: string) => Promise<LoginChallenge | null>;
+  /** Step 2: the e-mailed code -> session; `remember` keeps this browser trusted for 30 days. */
+  verifyCode: (challengeId: string, code: string, remember: boolean) => Promise<void>;
   resendCode: (challengeId: string) => Promise<LoginChallenge>;
   logout: () => Promise<void>;
 };
@@ -35,11 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setReady(true));
   }, []);
 
-  const login = useCallback((email: string, password: string) =>
-    api.post<LoginChallenge>("/api/auth/login", { email, password, client: "web" }), []);
+  const login = useCallback(async (email: string, password: string) => {
+    const r = await api.post<(LoginChallenge & { status: "code_required" }) | { status: "authenticated"; accessToken: string; user: User }>(
+      "/api/auth/login", { email, password, client: "web" });
+    if (r.status === "authenticated") { api.setToken(r.accessToken); setUser(r.user); return null; }
+    return r;
+  }, []);
 
-  const verifyCode = useCallback(async (challengeId: string, code: string) => {
-    const r = await api.post<{ accessToken: string; user: User }>("/api/auth/login/verify", { challengeId, code });
+  const verifyCode = useCallback(async (challengeId: string, code: string, remember: boolean) => {
+    const r = await api.post<{ accessToken: string; user: User }>("/api/auth/login/verify", { challengeId, code, remember });
     api.setToken(r.accessToken);
     setUser(r.user);
   }, []);

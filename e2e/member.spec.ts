@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, WEB, enterLoginCode, lastMailTo, loginCode } from "./helpers";
+import { DEMO_PASSWORD, WEB, enterLoginCode, lastMailTo, loginCode, newMember, webLogin } from "./helpers";
 
 /** Scenario 5 (UI path): register -> e-mail lands in Mailpit -> verify -> sign in -> start training -> lesson -> points. */
 test("member registers via Mailpit verification and completes a lesson", async ({ page }) => {
@@ -39,6 +39,20 @@ test("member registers via Mailpit verification and completes a lesson", async (
   // start (2) + view (1) + lesson complete (5)
   await expect(page.locator(".stat").filter({ hasText: "Toplam puan" }).locator(".value")).toHaveText("8");
   await expect(page.getByRole("heading", { level: 1, name: "Kaldığın yerden devam et" })).toBeVisible();
+});
+
+/** "Remember this device" (default on): after one code, the next login in the same browser needs only the password. */
+test("remembered device: second login needs only the password", async ({ page }) => {
+  const m = await newMember("remember");
+  await webLogin(page, m.email); // first login on this browser: e-mailed code
+  await page.getByRole("button", { name: /Hesap menüsü/ }).click();
+  await page.getByRole("button", { name: "Çıkış yap" }).click();
+  await page.goto(`${WEB}/login`);
+  await page.getByLabel("E-posta").fill(m.email);
+  await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
+  await page.getByRole("button", { name: "Devam" }).click();
+  await page.waitForURL(`${WEB}/`);
+  await expect(page.getByLabel("6 haneli kod")).toHaveCount(0);
 });
 
 /** Login code step: wrong code message with remaining attempts, resend cooldown, back to password. */

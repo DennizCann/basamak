@@ -27,8 +27,10 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      setChallenge(await login(email, password));
+      const c = await login(email, password);
       setPassword("");
+      if (c) setChallenge(c);
+      else done(); // remembered device: password was enough
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -54,7 +56,7 @@ export function LoginPage() {
         <TextField label="E-posta" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField label="Şifre" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         <button className="btn btn-primary" disabled={busy}>{busy ? "Kontrol ediliyor…" : "Devam"}</button>
-        <span className="hint">Şifrenden sonra e-posta adresine 6 haneli bir giriş kodu göndereceğiz.</span>
+        <span className="hint">Yeni bir cihazdan girişte e-posta adresine 6 haneli bir kod göndeririz.</span>
       </form>
       <p className="row"><Link to="/register">Hesap oluştur</Link><Link to="/forgot-password">Şifremi unuttum</Link></p>
     </Card>
@@ -81,6 +83,7 @@ function CodeStep({ challenge, onChallenge, onDone, onRestart }: {
   const [error, setError] = useState<string | null>(challenge.delivered ? null : challenge.message);
   const [info, setInfo] = useState<string | null>(challenge.delivered ? challenge.message : null);
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(true);
   const expiresIn = useSecondsUntil(challenge.expiresAt);
   const resendIn = useSecondsUntil(challenge.resendAvailableAt);
 
@@ -89,7 +92,7 @@ function CodeStep({ challenge, onChallenge, onDone, onRestart }: {
     if (busy) return;
     setBusy(true); setError(null);
     try {
-      await verifyCode(challenge.challengeId, code.trim());
+      await verifyCode(challenge.challengeId, code.trim(), remember);
       onDone();
     } catch (err) {
       const c = err instanceof ApiError ? err.code : "";
@@ -123,6 +126,10 @@ function CodeStep({ challenge, onChallenge, onDone, onRestart }: {
         <TextField label="6 haneli kod" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required autoFocus
                    value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                    hint={expiresIn > 0 ? `Kod ${mm(expiresIn)} içinde geçerliliğini yitirir.` : "Kodun süresi doldu; yeni kod isteyin."} />
+        <label className="choice">
+          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+          <span>Bu cihazı 30 gün hatırla <span className="muted">(ortak kullanılan bilgisayarlarda işaretlemeyin)</span></span>
+        </label>
         <button className="btn btn-primary" disabled={busy || code.length !== 6 || expiresIn === 0}>{busy ? "Doğrulanıyor…" : "Giriş yap"}</button>
         <div className="row">
           <button type="button" className="btn" disabled={resendIn > 0} onClick={resend} aria-describedby="resend-hint">Kodu yeniden gönder</button>
