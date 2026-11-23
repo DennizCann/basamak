@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Alert, TextField, errorMessage } from "@basamak/ui";
-import { api, useAuth } from "../auth";
+import { Alert, ApiError, TextField, errorMessage } from "@basamak/ui";
+import { api, useAuth, type LoginChallenge } from "../auth";
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -20,21 +20,31 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
-      const next = params.get("next");
-      // only same-app paths (no "//host" or absolute URLs) -> no open redirect
-      nav(next && next.startsWith("/") && !next.startsWith("//") ? next : "/", { replace: true });
+      setChallenge(await login(email, password));
+      setPassword("");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
+  }
+
+  const done = () => {
+    const next = params.get("next");
+    // only same-app paths (no "//host" or absolute URLs) -> no open redirect
+    nav(next && next.startsWith("/") && !next.startsWith("//") ? next : "/", { replace: true });
+  };
+
+  if (challenge) {
+    return <CodeStep challenge={challenge} onChallenge={setChallenge} onDone={done}
+                     onRestart={(msg) => { setChallenge(null); setError(msg); }} />;
   }
 
   return (
@@ -43,9 +53,83 @@ export function LoginPage() {
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         <TextField label="E-posta" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         <TextField label="Şifre" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button className="btn btn-primary" disabled={busy}>{busy ? "Giriş yapılıyor…" : "Giriş yap"}</button>
+        <button className="btn btn-primary" disabled={busy}>{busy ? "Kontrol ediliyor…" : "Devam"}</button>
+        <span className="hint">Şifrenden sonra e-posta adresine 6 haneli bir giriş kodu göndereceğiz.</span>
       </form>
       <p className="row"><Link to="/register">Hesap oluştur</Link><Link to="/forgot-password">Şifremi unuttum</Link></p>
+    </Card>
+  );
+}
+
+function useSecondsUntil(iso: string) {
+  const calc = () => Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 1000));
+  const [left, setLeft] = useState(calc);
+  useEffect(() => {
+    setLeft(calc());
+    const h = setInterval(() => setLeft(calc()), 1000);
+    return () => clearInterval(h);
+  }, [iso]); // eslint-disable-line react-hooks/exhaustive-deps
+  return left;
+}
+
+/** Second step: the 6-digit code e-mailed to the account's address (single use, 10 minutes). */
+function CodeStep({ challenge, onChallenge, onDone, onRestart }: {
+  challenge: LoginChallenge; onChallenge: (c: LoginChallenge) => void; onDone: () => void; onRestart: (msg: string) => void;
+}) {
+  const { verifyCode, resendCode } = useAuth();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(challenge.delivered ? null : challenge.message);
+  const [info, setInfo] = useState<string | null>(challenge.delivered ? challenge.message : null);
+  const [busy, setBusy] = useState(false);
+  const expiresIn = useSecondsUntil(challenge.expiresAt);
+  const resendIn = useSecondsUntil(challenge.resendAvailableAt);
+
+  async function verify(e: FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true); setError(null);
+    try {
+      await verifyCode(challenge.challengeId, code.trim());
+      onDone();
+    } catch (err) {
+      const c = err instanceof ApiError ? err.code : "";
+      // these end the attempt: the member starts again with the password
+      if (c === "too_many_attempts" || c === "code_used" || c === "challenge_not_found") onRestart(errorMessage(err));
+      else { setError(errorMessage(err)); setCode(""); }
+    } finally { setBusy(false); }
+  }
+
+  async function resend() {
+    setError(null); setInfo(null);
+    try {
+      const c = await resendCode(challenge.challengeId);
+      onChallenge(c);
+      if (c.delivered) setInfo("Yeni kodu gönderdik. Önceki kod artık geçersiz."); else setError(c.message);
+      setCode("");
+    } catch (err) {
+      const c = err instanceof ApiError ? err.code : "";
+      if (c === "too_many_sends" || c === "code_used" || c === "challenge_not_found") onRestart(errorMessage(err));
+      else setError(errorMessage(err));
+    }
+  }
+
+  const mm = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return (
+    <Card title="Giriş kodunu gir">
+      <form onSubmit={verify} className="stack" noValidate>
+        <p style={{ margin: 0 }}><strong>{challenge.maskedEmail}</strong> adresine 6 haneli bir kod gönderdik.</p>
+        {info && <Alert kind="success"><p>{info}</p></Alert>}
+        {error && <Alert kind="error"><p>{error}</p></Alert>}
+        <TextField label="6 haneli kod" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6} required autoFocus
+                   value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                   hint={expiresIn > 0 ? `Kod ${mm(expiresIn)} içinde geçerliliğini yitirir.` : "Kodun süresi doldu; yeni kod isteyin."} />
+        <button className="btn btn-primary" disabled={busy || code.length !== 6 || expiresIn === 0}>{busy ? "Doğrulanıyor…" : "Giriş yap"}</button>
+        <div className="row">
+          <button type="button" className="btn" disabled={resendIn > 0} onClick={resend} aria-describedby="resend-hint">Kodu yeniden gönder</button>
+          <span id="resend-hint" className="hint" aria-live="polite">{resendIn > 0 ? `${resendIn} sn sonra yeniden isteyebilirsin.` : "E-posta gelmediyse yeni kod iste."}</span>
+        </div>
+        <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: "start" }} onClick={() => onRestart("")}>Farklı hesapla giriş yap</button>
+      </form>
     </Card>
   );
 }
