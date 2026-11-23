@@ -53,9 +53,28 @@ npm run typecheck; npm run build
 ```
 
 ## Deneme hesapları
-*(F1'de tohum verisiyle eklenecek)*
+Uygulama ilk açılışta tohum verisini kendisi yükler (`DataSeeder`; işlem idempotent). Yüklenenler: aşağıdaki hesaplar ve yayınlanmış üç Journey (Beginner, Expert, Master).
+Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo ortamı için).
+
+| Rol | E-posta | Nerede |
+|---|---|---|
+| Üye | `member@basamak.local` | Web, mobil |
+| Yazar | `author@basamak.local` | CMS |
+| Editör | `editor@basamak.local`, `editor2@basamak.local` | CMS (iki editör: senaryo 4 için) |
+| Yayıncı | `publisher@basamak.local` | CMS |
+| Yönetici | `admin@basamak.local` | CMS ve web |
+
+**CMS'te iki aşamalı doğrulama zorunludur.** İlk girişte CMS bir QR kod ve sır gösterir. Bunu herhangi bir TOTP uygulamasına (Google Authenticator, Microsoft Authenticator, Aegis…) ekleyip 6 haneli kodu girin.
+
+## API
+- OpenAPI arayüzü: http://localhost:8080/swagger-ui.html (JSON: `/v3/api-docs`).
+- Hatalar RFC 7807 `problem+json` biçimindedir: `code`, Türkçe `detail` ve `requestId` alanlarını içerir.
 
 ## Zorunlu senaryolar — durum
 | # | Senaryo | Durum |
 |---|---|---|
-| 1–15 | — | Başlanmadı (F0 iskelet tamamlandı) |
+| 1 | Dinamik Journey | **API tamamlandı ve testli** (`ContentWorkflowIT.scenario1`). CMS ve web ekranları F2'de |
+| 2 | Onay, yayın, sürüm, fark, geri alma | **API tamamlandı ve testli** (`scenario2`). Ekranlar F2'de |
+| 3 | Eğitim ortasında yeni sürüm | Başlanmadı (F2) |
+| 4 | Eşzamanlı düzenleme | **API tamamlandı ve testli** (`scenario4_*`, gerçek eşzamanlı test dahil). Çakışma ekranı F2'de |
+| 5–15 | — | Başlanmadı |
