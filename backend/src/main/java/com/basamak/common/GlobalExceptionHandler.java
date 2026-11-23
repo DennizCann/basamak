@@ -45,6 +45,15 @@ public class GlobalExceptionHandler {
                 "Bu içerik siz düzenlerken başka biri tarafından kaydedildi. Güncel sürümü yükleyip değişikliklerinizi yeniden uygulayın.", Map.of());
     }
 
+    /** An idle SSE stream reached its timeout: normal, the client reconnects with Last-Event-ID. Not an error. */
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestTimeoutException.class)
+    void sseTimeout() { /* response already committed as text/event-stream */ }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<ProblemDetail> tooLarge(org.springframework.web.multipart.MaxUploadSizeExceededException e) {
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, "file_too_large", "Dosya çok büyük (en çok 100 MB). Dosyayı küçültüp tekrar yükleyin.", Map.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     ResponseEntity<ProblemDetail> denied(AccessDeniedException e) {
         return build(HttpStatus.FORBIDDEN, "forbidden", "Bu işlem için yetkiniz yok.", Map.of());

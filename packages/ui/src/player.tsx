@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Markdown } from "./Markdown";
 import { Alert } from "./Field";
+import { useMediaUrl } from "./media";
 
 /**
  * Presentational training player parts shared by the member web app and the CMS preview.
@@ -11,7 +12,8 @@ export type Option = { id: string; text: string; correct?: boolean };
 export type Question = { id: string; type: string; text: string; options?: Option[] };
 export type PlayerItem = {
   key: string; type: "lesson" | "quiz" | "survey" | "tool"; title: string; completed?: boolean;
-  content?: string; video?: { url: string; minSeconds?: number };
+  content?: string; video?: { url?: string; mediaId?: string; minSeconds?: number };
+  attachments?: { mediaId: string; name: string; size?: number }[];
   passingScore?: number; attemptsAllowed?: number; timeLimitSeconds?: number; questionsPerAttempt?: number;
   attemptsUsed?: number; passed?: boolean; bestPercent?: number; showCorrectAnswers?: boolean;
   anonymous?: boolean; questions?: Question[];
@@ -33,16 +35,41 @@ export function attemptsText(used: number, allowed: number, completed: boolean):
   return `${used} deneme kullanıldı, ${left} deneme hakkınız kaldı.`;
 }
 
+const KB = 1024;
+function fileSize(n?: number) {
+  if (!n) return "";
+  return n >= KB * KB ? `${(n / KB / KB).toLocaleString("tr-TR", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(n / KB)).toLocaleString("tr-TR")} KB`;
+}
+
 export function LessonBody({ item, onTime }: { item: PlayerItem; onTime?: (seconds: number) => void }) {
+  const mediaUrl = useMediaUrl();
+  const videoSrc = item.video ? (item.video.mediaId ? mediaUrl(item.video.mediaId) : item.video.url) : undefined;
   return (
     <>
       {item.video && (
         <figure style={{ margin: 0 }}>
-          <video controls preload="metadata" src={item.video.url} style={{ width: "100%" }} onTimeUpdate={(e) => onTime?.(e.currentTarget.currentTime)} />
+          <video controls preload="metadata" playsInline src={videoSrc} style={{ width: "100%" }} aria-label={`${item.title} videosu`}
+                 onTimeUpdate={(e) => onTime?.(e.currentTarget.currentTime)} />
           {item.video.minSeconds ? <figcaption className="hint">Dersi tamamlamak için en az {item.video.minSeconds} saniye izleyin. İleri sarılan süre sayılmaz.</figcaption> : null}
         </figure>
       )}
       {item.content ? <Markdown source={item.content} /> : null}
+      {item.attachments?.length ? (
+        <section aria-label="Ek dosyalar">
+          <h3>Ek dosyalar</h3>
+          <ul className="attachments">
+            {item.attachments.map((a) => {
+              const href = mediaUrl(a.mediaId);
+              return (
+                <li key={a.mediaId}>
+                  {href ? <a href={href} target="_blank" rel="noopener noreferrer" download>{a.name}</a> : <span>{a.name}</span>}
+                  {a.size ? <span className="muted"> · {fileSize(a.size)}</span> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { useMediaUrl } from "./media";
 
 /**
  * Minimal, XSS-safe Markdown renderer for lesson content: headings (#, ##, ###), paragraphs, **bold**, *italic*,
@@ -6,6 +7,7 @@ import { Fragment, type ReactNode } from "react";
  * uses innerHTML, so content from the CMS cannot inject scripts. Links are restricted to http(s).
  */
 export function Markdown({ source }: { source: string }) {
+  const mediaUrl = useMediaUrl();
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   const out: ReactNode[] = [];
   let list: { ordered: boolean; items: string[] } | null = null;
@@ -28,7 +30,15 @@ export function Markdown({ source }: { source: string }) {
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     const ul = /^\s*[-*]\s+(.*)$/.exec(line);
     const ol = /^\s*\d+\.\s+(.*)$/.exec(line);
-    if (h) {
+    const img = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(line.trim());
+    if (img) {
+      flushPara();
+      flushList();
+      const src = img[2].startsWith("media:") ? mediaUrl(img[2].slice(6)) : /^https:\/\//i.test(img[2]) ? img[2] : undefined;
+      out.push(src
+        ? <figure key={out.length} className="md-figure"><img src={src} alt={img[1]} loading="lazy" decoding="async" /></figure>
+        : <p key={out.length} className="muted">[Görsel gösterilemiyor: {img[1]}]</p>);
+    } else if (h) {
       flushPara();
       flushList();
       const level = h[1].length + 1; // # -> h2 (page already has h1)

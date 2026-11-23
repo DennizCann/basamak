@@ -11,7 +11,8 @@ import java.util.Set;
  * <pre>
  * { "summary": "...", "prerequisites": [trainingId...],
  *   "items": [
- *     {"key":"intro","type":"lesson","title":"...","content":"markdown","video":{"url":"...","minSeconds":60}},
+ *     {"key":"intro","type":"lesson","title":"...","content":"markdown, images as ![alt](media:uuid)",
+ *      "video":{"url":"..." | "mediaId":"uuid","minSeconds":60}, "attachments":[{"mediaId":"uuid","name":"..."}]},
  *     {"key":"q1","type":"quiz","title":"...","passingScore":60,"attemptsAllowed":3,"timeLimitSeconds":300,
  *      "questionsPerAttempt":3,"showCorrectAnswers":true,
  *      "questions":[{"id":"a","type":"single|multi|open","text":"...","points":1,
@@ -39,6 +40,7 @@ public final class TrainingSchema {
             switch (it.path("type").asText()) {
                 case "lesson" -> {
                     if (it.path("content").asText("").isBlank() && !it.has("video")) throw bad("'" + key + "' dersinin metni ya da videosu olmalı.");
+                    lessonMedia(key, it);
                 }
                 case "quiz" -> quiz(key, it);
                 case "survey" -> survey(key, it);
@@ -50,6 +52,48 @@ public final class TrainingSchema {
                 default -> throw bad("'" + key + "' ögesinin türü lesson, quiz, survey ya da tool olmalı.");
             }
         }
+    }
+
+    private static final java.util.regex.Pattern IMG = java.util.regex.Pattern.compile("!\\[([^\\]]*)\\]\\(([^)\\s]+)\\)");
+
+    /** Images need alt text (WCAG 1.1.1); media references must be ids, external images only over https. */
+    private static void lessonMedia(String key, JsonNode it) {
+        var m = IMG.matcher(it.path("content").asText(""));
+        while (m.find()) {
+            if (m.group(1).isBlank()) throw bad("'" + key + "' dersindeki her görselin açıklaması (alt metin) olmalı: ![açıklama](...)");
+            String src = m.group(2);
+            if (!(src.startsWith("media:") && isUuid(src.substring(6))) && !src.startsWith("https://")) {
+                throw bad("'" + key + "' dersindeki görsel adresi media:<id> ya da https:// ile başlamalı.");
+            }
+        }
+        JsonNode v = it.path("video");
+        if (!v.isMissingNode()) {
+            String url = v.path("url").asText(""), mid = v.path("mediaId").asText("");
+            if (url.isBlank() == mid.isBlank()) throw bad("'" + key + "' dersinin videosu ya bir adres (url) ya da yüklenmiş bir dosya (mediaId) olmalı.");
+            if (!mid.isBlank() && !isUuid(mid)) throw bad("'" + key + "' dersinin video kimliği geçersiz.");
+            if (!url.isBlank() && !url.startsWith("https://") && !url.startsWith("/")) throw bad("'" + key + "' dersinin video adresi https:// ile başlamalı.");
+        }
+        for (JsonNode a : it.path("attachments")) {
+            if (!isUuid(a.path("mediaId").asText(""))) throw bad("'" + key + "' dersindeki ek dosyanın kimliği geçersiz.");
+            if (a.path("name").asText("").isBlank()) throw bad("'" + key + "' dersindeki ek dosyanın adı boş.");
+        }
+    }
+
+    /** Every media id a training body references (validated against media_asset on save). */
+    public static Set<String> mediaIds(JsonNode b) {
+        Set<String> ids = new java.util.LinkedHashSet<>();
+        for (JsonNode it : b.path("items")) {
+            if (!"lesson".equals(it.path("type").asText())) continue;
+            var m = IMG.matcher(it.path("content").asText(""));
+            while (m.find()) if (m.group(2).startsWith("media:")) ids.add(m.group(2).substring(6));
+            if (it.path("video").hasNonNull("mediaId")) ids.add(it.path("video").path("mediaId").asText());
+            it.path("attachments").forEach(a -> ids.add(a.path("mediaId").asText()));
+        }
+        return ids;
+    }
+
+    private static boolean isUuid(String s) {
+        return s.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     }
 
     private static void quiz(String key, JsonNode q) {

@@ -17,12 +17,18 @@ public class ContentValidator {
     private final ContentItemRepository items;
     private final ContentVersionRepository versions;
     private final com.basamak.tool.UrlGuard urlGuard;
+    private final com.basamak.media.MediaService media;
 
     public void validate(ContentType type, UUID itemId, JsonNode body) {
         if (body == null || !body.isObject()) throw ApiException.badRequest("invalid_body", "İçerik gövdesi bir nesne olmalı.");
         switch (type) {
             case JOURNEY -> journey(body);
-            case TRAINING -> { training(itemId, body); TrainingSchema.validateItems(body); toolItems(body, false); }
+            case TRAINING -> {
+                training(itemId, body); TrainingSchema.validateItems(body); toolItems(body, false);
+                for (String id : TrainingSchema.mediaIds(body)) {
+                    if (!media.exists(UUID.fromString(id))) throw ApiException.badRequest("unknown_media", "Derste kullanılan bir dosya bulunamadı (" + id + "). Dosyayı yeniden yükleyin.");
+                }
+            }
             case POINT_RULE -> pointRule(body);
             case TOOL -> tool(body);
             default -> { /* validated by their own modules in later phases */ }

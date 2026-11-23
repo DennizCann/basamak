@@ -6,6 +6,7 @@ import { AUDIT_LABEL, STATUS_LABEL, istanbulLocalToIso, listPathFor, typeLabel, 
 import { JourneyForm, RuleForm, ToolForm, TrainingForm } from "../editors";
 import { ToolConsole } from "../ToolConsole";
 import { PreviewPlayer } from "../PreviewPlayer";
+import { CmsMediaProvider } from "../LessonMedia";
 
 type Tab = "edit" | "preview" | "tool" | "history" | "audit";
 
@@ -230,7 +231,7 @@ function Preview({ title, type, body, label }: { title: string; type: string; bo
         <div className="preview-frame" style={{ width, minWidth: width, margin: "0 auto", padding: "var(--space-4)", background: "var(--color-bg)" }}>
           <h1>{title}</h1>
           {type === "TRAINING" ? (
-            <PreviewPlayer body={body} label={label} />
+            <CmsMediaProvider body={body}><PreviewPlayer body={body} label={label} /></CmsMediaProvider>
           ) : type === "JOURNEY" ? (
             <div className="card"><p>{body?.description}</p><p className="muted">{body?.trainingIds?.length ?? 0} eğitim</p></div>
           ) : <pre>{JSON.stringify(body, null, 2)}</pre>}

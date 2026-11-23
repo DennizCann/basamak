@@ -1,5 +1,6 @@
 import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField } from "@basamak/ui";
 import type { Item, Json } from "./content";
+import { LessonMedia } from "./LessonMedia";
 
 type FormProps = { body: Json; onChange: (b: Json) => void; disabled?: boolean };
 
@@ -123,7 +124,8 @@ export function TrainingForm({ body, onChange, trainings, tools = [], disabled, 
             <TextField label="Anahtar" hint="Yeni öge: ilk yayından sonra sabitlenir." value={it.key}
                        onChange={(e) => setItem(i, { ...it, key: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} />
           )}
-          {it.type === "lesson" && <TextArea label="Ders metni (Markdown)" rows={8} value={it.content ?? ""} onChange={(e) => setItem(i, { ...it, content: e.target.value })} />}
+          {it.type === "lesson" && <TextArea label="Ders metni (Markdown)" rows={8} value={it.content ?? ""} hint="Başlık: #, kalın: **metin**, liste: -, bağlantı: [metin](https://…), görsel: aşağıdan yükleyip ekleyin." onChange={(e) => setItem(i, { ...it, content: e.target.value })} />}
+          {it.type === "lesson" && <LessonMedia lesson={it} onChange={(l) => setItem(i, l)} />}
           {it.type === "quiz" && <QuizEditor quiz={it} onChange={(q) => setItem(i, q)} />}
           {it.type === "survey" && <SurveyEditor survey={it} onChange={(s) => setItem(i, s)} />}
           {it.type === "tool" && <ToolPin item={it} tools={tools} onChange={(t) => setItem(i, t)} />}

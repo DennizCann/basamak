@@ -21,6 +21,10 @@ spring:
     port: ${SMTP_PORT:1025}
   jackson:
     time-zone: UTC
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 101MB
 server:
   port: 8080
   shutdown: graceful
@@ -44,6 +48,8 @@ basamak:
   encryption-key: ${ENCRYPTION_KEY}
   cert-secret: ${CERT_SECRET}
   ai-provider: ${AI_PROVIDER:mock}
+  # uploaded lesson media (outside the repo; gitignored data/)
+  media-dir: ${MEDIA_DIR:data/media}
   tools:
     # host:port pairs that STAFF (CMS) tools may call although they are local; never applies to member tools
     trusted-hosts: ${TOOLS_TRUSTED_HOSTS:localhost:8090,127.0.0.1:8090}

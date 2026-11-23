@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/0007-workflows.sql
   - include:
       file: db/changelog/0008-notifications.sql
+  - include:
+      file: db/changelog/0009-media.sql

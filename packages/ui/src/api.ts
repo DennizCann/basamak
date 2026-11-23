@@ -60,17 +60,18 @@ export function createApi(opts: ApiOptions) {
 
   async function request<T>(method: string, path: string, body?: unknown, extraHeaders: Record<string, string> = {}, retry = true): Promise<T> {
     const headers: Record<string, string> = { ...extraHeaders };
-    if (body !== undefined) headers["Content-Type"] = "application/json";
+    const isForm = typeof FormData !== "undefined" && body instanceof FormData;
+    if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
     if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20000);
+    const timer = setTimeout(() => ctrl.abort(), isForm ? 300_000 : opts.timeoutMs ?? 20000);
     let res: Response;
     try {
       res = await fetch(base + path, {
         method,
         headers,
         credentials: "include",
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
         signal: ctrl.signal,
       });
     } catch (e) {
@@ -114,6 +115,8 @@ export function createApi(opts: ApiOptions) {
     post: <T>(p: string, b?: unknown, h?: Record<string, string>) => request<T>("POST", p, b ?? {}, h),
     put: <T>(p: string, b?: unknown) => request<T>("PUT", p, b ?? {}),
     del: <T>(p: string) => request<T>("DELETE", p),
+    /** multipart/form-data upload (the browser sets the boundary header). */
+    upload: <T>(p: string, form: FormData) => request<T>("POST", p, form),
     setToken: (t: string | null) => (accessToken = t),
     hasToken: () => accessToken !== null,
     tryRestore: () => refresh(),

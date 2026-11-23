@@ -486,6 +486,7 @@ public class LearningService {
             case "lesson" -> {
                 s.put("content", it.path("content").asText(""));
                 if (it.has("video")) s.set("video", it.get("video"));
+                if (it.has("attachments")) s.set("attachments", it.get("attachments"));
             }
             case "quiz" -> {
                 for (String f : List.of("passingScore", "attemptsAllowed", "timeLimitSeconds", "questionsPerAttempt")) s.put(f, it.path(f).asInt());
