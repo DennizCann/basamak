@@ -78,11 +78,17 @@ Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo 
 | Yayıncı | `publisher@basamak.local` | CMS |
 | Yönetici | `admin@basamak.local` | CMS ve web |
 
-**CMS'te iki aşamalı doğrulama zorunludur.** İlk girişte CMS bir QR kod ve sır gösterir. Bunu herhangi bir TOTP uygulamasına (Google Authenticator, Microsoft Authenticator, Aegis…) ekleyip 6 haneli kodu girin.
-Elinizde uygulama yoksa, ekrandaki sırdan kodu şu komutla üretebilirsiniz:
-```powershell
-node scripts/totp.mjs <SIR>
-```
+### Giriş akışları
+**Üye (web ve mobil): şifre + e-postayla gelen kod**
+1. E-posta ve şifreyi girin, **Devam**'a basın.
+2. Hesabın kayıtlı adresine 6 haneli bir kod gönderilir. Yerelde e-postalar **Mailpit**'e düşer (http://localhost:8025); gerçek ortamda yapılandırılmış SMTP kullanılır.
+3. Ekranda maskelenmiş adres ve kodun kalan süresi görünür. Kodu girin.
+
+Kod 10 dakika geçerlidir ve tek kullanımlıktır. 60 saniye sonra "Kodu yeniden gönder" ile yeni kod istenebilir; yeni kod öncekini geçersiz kılar. 5 yanlış denemeden sonra şifreyle baştan başlanır.
+
+**CMS (içerik ekibi): şifre + TOTP doğrulayıcı uygulaması (ödev gereği zorunlu)**
+1. İlk girişte CMS adım adım bir kurulum ekranı gösterir. Telefona ücretsiz bir doğrulayıcı uygulama kurun (Google Authenticator, Microsoft Authenticator, Aegis…) ve ekrandaki QR kodu okutun. QR okutulamıyorsa "Anahtarı elle gir" bölümündeki anahtar kopyalanıp uygulamaya yazılabilir.
+2. Sonraki girişlerde uygulamanın gösterdiği "Basamak CMS" kodunu girin.
 
 ## API
 - OpenAPI arayüzü: http://localhost:8080/swagger-ui.html (JSON: `/v3/api-docs`).

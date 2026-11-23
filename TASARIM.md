@@ -267,6 +267,27 @@ OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya ek
 - **Eşzamanlı refresh:** Token döndürme, oturum satırı kilitlenerek (`SELECT … FOR UPDATE`) yapılır. Aynı token'la gelen iki eşzamanlı istekten yalnız biri döndürür, diğeri 401 alır. Tarayıcıda kalan cookie her zaman geçerli kalır (`AuthIT.concurrentRefreshWithSameTokenRotatesOnlyOnce`). Bu bir QA bulgusuydu: StrictMode altında CMS oturumu sayfa yenilemede kayboluyordu.
 - **CSRF:** API Bearer token ile çalıştığı için CSRF'ye açık değildir. Cookie kullanan tek uç nokta refresh'tir ve `X-Requested-With: basamak` başlığı zorunludur. Siteler arası bir form bu başlığı ekleyemez.
 
+### 7.1a İkinci adım: üyede e-posta kodu, CMS'te TOTP
+| | Üye girişi: e-posta kodu | CMS girişi: TOTP (zorunlu) |
+|---|---|---|
+| Neye bağlı | E-posta hesabına erişime | Kayıtlı cihazdaki gizli anahtara |
+| Kullanım kolaylığı | Ek kurulum yok | Bir kerelik uygulama kurulumu (QR) |
+| Ağ ve teslim | E-posta teslimine bağlı (gecikme, spam) | Çevrimdışı çalışır |
+| Saldırı yüzeyi | E-posta hesabı ele geçirilirse ikinci adım da düşer. Kod oltalama (phishing) ile çalınabilir, ama 10 dakika ve tek kullanımla sınırlı | Cihaz ya da anahtar çalınmalı. Oltalamayla anlık kod çalınabilir, ama 30 saniyelik pencereyle sınırlı |
+| Neden bu seçim | Üye için güvenlik ve kullanım dengesi | İçerik yayını ve yetki yüksek riskli; PDF TOTP'yi zorunlu tutuyor |
+
+**E-posta kodunun korumaları (`EmailCodeService`):**
+- 6 hane `SecureRandom` ile üretilir, **10 dakika** geçerlidir ve **tek kullanımlıktır**.
+- Kod açık metin olarak saklanmaz ve loglanmaz; yalnız `HMAC-SHA256(sunucu sırrı, challengeId:kod)` tutulur. Kod e-postanın konu satırında değil, yalnız gövdesinde yer alır; konu satırı kilit ekranı bildirimlerinde görünebilir.
+- **5 yanlış deneme** girişi kapatır. Yanlış kodlar ayrıca hesap kilidine sayılır (5 hatada 15 dakika).
+- **Yeniden gönderme** 60 saniye bekleme ister ve giriş başına en fazla 5 gönderimle sınırlıdır. Yeni kod öncekini geçersiz kılar.
+- `/api/auth/**` uç noktalarında IP başına hız sınırı vardır. Kod doğrulanmadan oturum açılmaz ve token verilmez.
+- Gönderim başarısız olursa kullanıcıya açık mesaj gösterilir ve yeniden gönderme seçeneği sunulur.
+
+**TOTP geçişi:** CMS'teki TOTP kayıtları değişmedi. Bu adımda veri geçişi yok; kayıtlı hesaplar aynı uygulamayla girmeye devam eder.
+
+**Kanıt:** `LoginCodeIT` (kodun yalnız özet olarak saklanması ve tek kullanım, yanlış kod sınırı, süre dolması ve yeniden gönderme, bekleme süresi, gönderim hatası, mobil), `AuthIT`, e2e `member.spec.ts`.
+
 ### 7.2 Yetki modeli: rol tabanlı ve nesne düzeyinde
 - **Roller:** `MEMBER`, `AUTHOR`, `EDITOR`, `PUBLISHER`, `ADMIN`.
 - **Kaba kapı (`SecurityConfig`):** `/api/cms/**` yalnız `aud=cms` token'ı kabul eder; `/api/**` yalnız üye token'ı kabul eder. Bir üye token'ı CMS'e, bir CMS token'ı üye API'sine giremez.
