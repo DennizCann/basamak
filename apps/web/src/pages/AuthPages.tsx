@@ -5,7 +5,7 @@ import { api, useAuth } from "../auth";
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <main className="container" style={{ maxWidth: "28rem" }}>
+    <main className="page auth">
       <h1>{title}</h1>
       <div className="card stack">{children}</div>
     </main>
@@ -27,7 +27,9 @@ export function LoginPage() {
     setError(null);
     try {
       await login(email, password);
-      nav(params.get("next") || "/", { replace: true });
+      const next = params.get("next");
+      // only same-app paths (no "//host" or absolute URLs) -> no open redirect
+      nav(next && next.startsWith("/") && !next.startsWith("//") ? next : "/", { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
