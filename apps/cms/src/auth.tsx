@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createApi, type Api } from "@basamak/ui";
 
 export type StaffUser = { id: string; email: string; displayName: string; roles: string[] };
@@ -22,8 +22,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   onLost = () => setUser(null);
 
+  const restoring = useRef(false);
   useEffect(() => {
-    // restore from the CMS refresh cookie; the refresh response carries the staff user
+    // restore from the CMS refresh cookie; the refresh response carries the staff user.
+    // Only once: a second parallel refresh with the same (rotating) token would invalidate the session.
+    if (restoring.current) return;
+    restoring.current = true;
     fetch("/api/cms-auth/refresh", { method: "POST", credentials: "include", headers: { "X-Requested-With": "basamak" } })
       .then(async (r) => { if (r.ok) { const d = await r.json(); api.setToken(d.accessToken); setUser(d.user); } })
       .catch(() => {})

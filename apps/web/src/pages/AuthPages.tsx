@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, TextField, errorMessage } from "@basamak/ui";
 import { api, useAuth } from "../auth";
@@ -113,7 +113,11 @@ export function RegisterPage() {
 export function VerifyEmailPage() {
   const [params] = useSearchParams();
   const [state, setState] = useState<{ ok?: string; error?: string }>({});
+  const sent = useRef(false);
   useEffect(() => {
+    // the token is single-use: never send it twice (React StrictMode runs effects twice in development)
+    if (sent.current) return;
+    sent.current = true;
     const token = params.get("token");
     if (!token) { setState({ error: "Bağlantıda doğrulama kodu yok." }); return; }
     api.post<{ message: string }>("/api/auth/verify-email", { token })

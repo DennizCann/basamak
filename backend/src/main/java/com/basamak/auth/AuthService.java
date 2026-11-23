@@ -254,7 +254,7 @@ public class AuthService {
     @Transactional
     public Tokens refresh(String rawRefresh, String expectedAudience) {
         Instant now = Instant.now();
-        RefreshSession s = sessions.findByTokenHash(CryptoService.sha256(rawRefresh == null ? "" : rawRefresh))
+        RefreshSession s = sessions.lockByTokenHash(CryptoService.sha256(rawRefresh == null ? "" : rawRefresh))
                 .filter(x -> x.isActive(now) && x.getAudience().equals(expectedAudience))
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "session_expired", "Oturumunuz sona erdi. Lütfen yeniden giriş yapın."));
         User u = users.findById(s.getUserId()).filter(x -> "ACTIVE".equals(x.getStatus()))
