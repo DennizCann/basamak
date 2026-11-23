@@ -22,19 +22,19 @@ test("member registers via Mailpit verification and completes a lesson", async (
   await page.getByLabel("E-posta").fill(email);
   await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Giriş yap" }).click();
-  await expect(page.getByRole("heading", { name: "Journey haritası" })).toBeVisible();
-  await expect(page.getByText("0 puan")).toBeVisible();
-
-  await page.getByRole("link", { name: "Basamak'a Giriş" }).click();
+  // new member: one clear first action
+  await expect(page.getByRole("heading", { level: 1, name: "Basamak'ta öğrenmeye başla" })).toBeVisible();
+  await page.getByRole("link", { name: "Öğrenmeye başla" }).click();
   await page.getByRole("button", { name: "Eğitime başla" }).click();
-  await expect(page.getByText("0/4 tamamlandı")).toBeVisible();
+  await expect(page.getByText("0/4 içerik").first()).toBeVisible();
   await page.getByRole("button", { name: "Dersi tamamladım" }).click();
-  await expect(page.getByText(/\+5 puan kazandınız/)).toBeVisible();
-  await expect(page.getByText("1/4 tamamlandı")).toBeVisible();
+  await expect(page.getByText(/\+5 puan kazandın/)).toBeVisible();
+  await expect(page.getByText("1/4 içerik").first()).toBeVisible();
 
-  await page.getByRole("link", { name: "← Ana sayfa" }).click();
+  await page.getByRole("link", { name: "Öğrenimim" }).first().click();
   // start (2) + view (1) + lesson complete (5)
-  await expect(page.getByText("8 puan")).toBeVisible();
+  await expect(page.locator(".stat").filter({ hasText: "Toplam puan" }).locator(".value")).toHaveText("8");
+  await expect(page.getByRole("heading", { level: 1, name: "Kaldığın yerden devam et" })).toBeVisible();
 });
 
 /** Scenario 15 (partial): no horizontal scroll at 320 px, dark theme renders, keyboard can reach the main controls. */
@@ -54,7 +54,8 @@ test("320px layout, dark theme and keyboard navigation on the login page", async
   await page.keyboard.press("Tab");
   await page.keyboard.type(DEMO_PASSWORD);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { name: "Journey haritası" })).toBeVisible();
+  await page.waitForURL(`${WEB}/`);
+  await expect(page.locator("main h1")).toBeVisible();
   const overflowHome = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflowHome).toBeLessThanOrEqual(0);
 });

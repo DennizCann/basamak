@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { writeFileSync } from "node:fs";
-import { API, CMS, DEMO_PASSWORD, api, cmsLogin, completeBeginner, newMember, webLogin } from "./helpers";
+import { API, CMS, DEMO_PASSWORD, WEB, api, cmsLogin, completeBeginner, newMember, webLogin } from "./helpers";
 
 test("training item is reflected in the URL; back/forward and reload keep the selection", async ({ page }) => {
   const m = await newMember("nav");
   await webLogin(page, m.email);
-  await page.getByRole("link", { name: "Basamak'a Giriş" }).click();
+  await page.getByRole("listitem", { name: "1. Beginner" }).getByRole("link", { name: "Başla: Basamak'a Giriş" }).click();
   await page.getByRole("button", { name: "Eğitime başla" }).click();
   await expect(page).toHaveURL(/\?item=hos-geldin/);
   await page.getByRole("button", { name: /Puanlar ve seviyeler/ }).click();
@@ -23,13 +23,13 @@ test("training item is reflected in the URL; back/forward and reload keep the se
 
   // removed / unknown item key in a link is handled explicitly
   await page.goto(page.url().replace(/item=[^&]+/, "item=yok-boyle-bir-sey"));
-  await expect(page.getByText(/Bağlantıdaki içerik bu eğitimin sizin sürümünüzde yok/)).toBeVisible();
+  await expect(page.getByText(/Bağlantıdaki içerik bu eğitimin senin sürümünde yok/)).toBeVisible();
 });
 
 test("quiz attempts can be reviewed without consuming an attempt; answers stay hidden while retries remain", async ({ page }) => {
   const m = await newMember("quizreview");
   await webLogin(page, m.email);
-  await page.getByRole("link", { name: "Basamak'a Giriş" }).click();
+  await page.getByRole("listitem", { name: "1. Beginner" }).getByRole("link", { name: "Başla: Basamak'a Giriş" }).click();
   await page.getByRole("button", { name: "Eğitime başla" }).click();
   await page.getByRole("button", { name: /Giriş quiz'i/ }).click();
   await expect(page.getByText("3 deneme hakkınız var.")).toBeVisible();
@@ -113,7 +113,8 @@ test("certificate PDF is a real, non-empty PDF with an embedded Unicode font; th
   const ctx = await browser.newContext({ acceptDownloads: false });
   const page = await ctx.newPage();
   await webLogin(page, m.email);
-  await page.getByRole("listitem", { name: "1. Beginner" }).getByRole("button", { name: "Sertifikayı indir (PDF)" }).click();
+  await page.goto(`${WEB}/certificates`);
+  await page.getByRole("listitem").filter({ hasText: "Beginner" }).getByRole("button", { name: "Sertifikayı indir (PDF)" }).click();
   await expect(page.getByText(/Sertifika indirildi\./)).toBeVisible();
   await ctx.close();
 

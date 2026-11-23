@@ -6,7 +6,8 @@ export async function webLogin(page: Page, email: string) {
   await page.getByLabel("E-posta").fill(email);
   await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Giriş yap" }).click();
-  await expect(page.getByRole("heading", { name: "Journey haritası" })).toBeVisible();
+  await page.waitForURL(`${WEB}/`);
+  await expect(page.locator("main h1")).toBeVisible();
 }
 
 // The e2e database is rebuilt on every run, so staff enrol TOTP afresh; the secret shown at enrolment is kept
@@ -74,7 +75,8 @@ export const INTRO_ANSWERS: Record<string, string[]> = { q1: ["a"], q2: ["a"], q
 /** Finishes the seeded Beginner journey through the API (both trainings) -> a certificate exists. */
 export async function completeBeginner(token: string) {
   const journeys = await api<any[]>("GET", "/api/me/journeys", token);
-  const t = (title: string) => journeys[0].trainings.find((x: any) => x.title === title).id;
+  const beginner = journeys.find((j: any) => j.title === "Beginner"); // by title: other specs add journeys too
+  const t = (title: string) => beginner.trainings.find((x: any) => x.title === title).id;
   const intro = t("Basamak'a Giriş"), second = t("İlk Aracını Tanı");
   await api("POST", `/api/trainings/${intro}/enroll`, token);
   for (const k of ["hos-geldin", "puanlar"]) await api("POST", `/api/trainings/${intro}/items/${k}/complete`, token);
@@ -86,6 +88,18 @@ export async function completeBeginner(token: string) {
   await api("POST", `/api/trainings/${second}/items/arac-nedir/complete`, token);
   const done = await api("POST", `/api/trainings/${second}/items/arac-anket/survey`, token, { answers: { s1: 4 } });
   return { intro, serial: done.certificatesIssued[0] as string };
+}
+
+/** Completes every published journey in order (seed: Beginner 2 trainings, Expert 1, Master 1). */
+export async function completeEverything(token: string) {
+  await completeBeginner(token);
+  for (const [title, key] of [["İş Akışlarına Giriş", "akis-nedir"], ["Topluluğa Katkı", "paylasim"]] as const) {
+    const journeys = await api<any[]>("GET", "/api/me/journeys", token);
+    // find by title: other specs may add journeys to the same isolated database
+    const t = journeys.flatMap((j: any) => j.trainings).find((x: any) => x.title === title).id;
+    await api("POST", `/api/trainings/${t}/enroll`, token);
+    await api("POST", `/api/trainings/${t}/items/${key}/complete`, token);
+  }
 }
 
 /** Reads the newest e-mail sent to `to` from Mailpit's API and returns its text body. */
