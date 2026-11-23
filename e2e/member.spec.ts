@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, WEB, lastMailTo } from "./helpers";
+import { DEMO_PASSWORD, WEB, enterLoginCode, lastMailTo, loginCode } from "./helpers";
 
 /** Scenario 5 (UI path): register -> e-mail lands in Mailpit -> verify -> sign in -> start training -> lesson -> points. */
 test("member registers via Mailpit verification and completes a lesson", async ({ page }) => {
@@ -21,7 +21,11 @@ test("member registers via Mailpit verification and completes a lesson", async (
   await page.goto(`${WEB}/login`);
   await page.getByLabel("E-posta").fill(email);
   await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: "Giriş yap" }).click();
+  const since = Date.now();
+  await page.getByRole("button", { name: "Devam" }).click();
+  // second step: 6-digit code e-mailed to the registered address (Mailpit), masked address on screen
+  await expect(page.getByText(/^e2•+@test\.local$/)).toBeVisible();
+  await enterLoginCode(page, email, since);
   // new member: one clear first action
   await expect(page.getByRole("heading", { level: 1, name: "Basamak'ta öğrenmeye başla" })).toBeVisible();
   await page.getByRole("link", { name: "Öğrenmeye başla" }).click();
@@ -35,6 +39,25 @@ test("member registers via Mailpit verification and completes a lesson", async (
   // start (2) + view (1) + lesson complete (5)
   await expect(page.locator(".stat").filter({ hasText: "Toplam puan" }).locator(".value")).toHaveText("8");
   await expect(page.getByRole("heading", { level: 1, name: "Kaldığın yerden devam et" })).toBeVisible();
+});
+
+/** Login code step: wrong code message with remaining attempts, resend cooldown, back to password. */
+test("login code step: wrong code, resend cooldown, start over", async ({ page }) => {
+  await page.goto(`${WEB}/login`);
+  await page.getByLabel("E-posta").fill("member@basamak.local");
+  await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
+  const since = Date.now();
+  await page.getByRole("button", { name: "Devam" }).click();
+  const real = await loginCode("member@basamak.local", since);
+  await page.getByLabel("6 haneli kod").fill(real === "000000" ? "111111" : "000000");
+  await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Kod hatalı");
+  await expect(page.getByRole("alert")).toContainText("4 deneme hakkınız kaldı");
+  await expect(page.getByRole("button", { name: "Kodu yeniden gönder" })).toBeDisabled();
+  await expect(page.getByText(/sn sonra yeniden isteyebilirsin/)).toBeVisible();
+  await expect(page.getByText(/içinde geçerliliğini yitirir/)).toBeVisible();
+  await page.getByRole("button", { name: "Farklı hesapla giriş yap" }).click();
+  await expect(page.getByLabel("Şifre")).toBeVisible();
 });
 
 /** Scenario 15 (partial): no horizontal scroll at 320 px, dark theme renders, keyboard can reach the main controls. */
@@ -53,6 +76,10 @@ test("320px layout, dark theme and keyboard navigation on the login page", async
   await page.keyboard.type("member@basamak.local");
   await page.keyboard.press("Tab");
   await page.keyboard.type(DEMO_PASSWORD);
+  const since = Date.now();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("6 haneli kod")).toBeFocused(); // code step takes focus
+  await page.keyboard.type(await loginCode("member@basamak.local", since));
   await page.keyboard.press("Enter");
   await page.waitForURL(`${WEB}/`);
   await expect(page.locator("main h1")).toBeVisible();

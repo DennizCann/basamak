@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { DEMO_PASSWORD, WEB, cmsLogin } from "./helpers";
+import { cmsLogin, webLogin } from "./helpers";
 
 /**
  * Scenario 1 (UI path): admin creates a fourth journey in the CMS, adds a published training (an empty journey
@@ -21,10 +21,7 @@ test("new journey created in CMS appears on the web after publishing", async ({ 
   await expect(page.getByText("Yayın işlemi tamamlandı.")).toBeVisible();
 
   const member = await (await browser.newContext()).newPage();
-  await member.goto(`${WEB}/login`);
-  await member.getByLabel("E-posta").fill("member@basamak.local");
-  await member.getByLabel("Şifre").fill(DEMO_PASSWORD);
-  await member.getByRole("button", { name: "Giriş yap" }).click();
+  await webLogin(member, "member@basamak.local");
   await expect(member.getByRole("heading", { name: new RegExp(title) })).toBeVisible();
 });
 

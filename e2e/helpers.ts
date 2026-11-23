@@ -5,9 +5,34 @@ export async function webLogin(page: Page, email: string) {
   await page.goto(`${WEB}/login`);
   await page.getByLabel("E-posta").fill(email);
   await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: "Giriş yap" }).click();
+  const since = Date.now();
+  await page.getByRole("button", { name: "Devam" }).click();
+  await enterLoginCode(page, email, since);
   await page.waitForURL(`${WEB}/`);
   await expect(page.locator("main h1")).toBeVisible();
+}
+
+/** Second login step: reads the newest code e-mail sent after `since` from Mailpit and submits it. */
+export async function enterLoginCode(page: Page, email: string, since: number) {
+  await expect(page.getByLabel("6 haneli kod")).toBeVisible();
+  await page.getByLabel("6 haneli kod").fill(await loginCode(email, since));
+  await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
+}
+
+/** Polls Mailpit for a login-code mail to `to` created after `since` and returns the 6-digit code. */
+export async function loginCode(to: string, since: number): Promise<string> {
+  for (let i = 0; i < 40; i++) {
+    const r = await fetch(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${to} subject:"Basamak giriş kodunuz"`)}`);
+    const data = await r.json();
+    const msg = (data.messages ?? []).find((m: any) => new Date(m.Created).getTime() >= since - 1000);
+    if (msg) {
+      const full = await (await fetch(`${MAILPIT}/api/v1/message/${msg.ID}`)).json();
+      const m = /giriş kodunuz: (\d{6})/.exec(full.Text);
+      if (m) return m[1];
+    }
+    await new Promise((res) => setTimeout(res, 250));
+  }
+  throw new Error("no login code mail for " + to);
 }
 
 // The e2e database is rebuilt on every run, so staff enrol TOTP afresh; the secret shown at enrolment is kept
@@ -19,8 +44,9 @@ export async function cmsLogin(page: Page, email: string) {
   await page.getByLabel("Şifre").fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Devam" }).click();
   await expect(page.getByLabel("6 haneli doğrulama kodu")).toBeVisible();
-  const code = page.locator("code");
-  if (await code.isVisible().catch(() => false)) cmsSecrets.set(email, (await code.textContent())!.trim());
+  // first sign-in shows the enrolment secret (inside the "enter key manually" disclosure)
+  const secret = page.locator("[data-totp-secret]");
+  if (await secret.count()) cmsSecrets.set(email, (await secret.textContent())!.replace(/\s/g, ""));
   await page.getByLabel("6 haneli doğrulama kodu").fill(totp(cmsSecrets.get(email)!));
   await page.getByRole("button", { name: "Doğrula ve giriş yap" }).click();
   await expect(page.getByRole("heading", { name: "Journey'ler" })).toBeVisible();
@@ -65,8 +91,15 @@ export async function newMember(prefix: string) {
   await api("POST", "/api/auth/register", undefined, { email, password: DEMO_PASSWORD, displayName: "E2E Üye", consent: true });
   const token = /token=(\S+)/.exec(await lastMailTo(email))![1];
   await api("POST", "/api/auth/verify-email", undefined, { token });
-  const login = await api("POST", "/api/auth/login", undefined, { email, password: DEMO_PASSWORD, client: "mobile" });
-  return { email, token: login.accessToken as string };
+  return { email, token: await apiLogin(email) };
+}
+
+/** Member API login: password step + the e-mailed code from Mailpit. Returns an access token. */
+export async function apiLogin(email: string): Promise<string> {
+  const since = Date.now();
+  const step = await api("POST", "/api/auth/login", undefined, { email, password: DEMO_PASSWORD, client: "mobile" });
+  const r = await api("POST", "/api/auth/login/verify", undefined, { challengeId: step.challengeId, code: await loginCode(email, since) });
+  return r.accessToken as string;
 }
 
 /** Known answers of the seeded intro quiz. */

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { writeFileSync } from "node:fs";
-import { API, CMS, DEMO_PASSWORD, WEB, api, cmsLogin, completeBeginner, newMember, webLogin } from "./helpers";
+import { API, CMS, WEB, api, apiLogin, cmsLogin, completeBeginner, newMember, webLogin } from "./helpers";
 
 test("training item is reflected in the URL; back/forward and reload keep the selection", async ({ page }) => {
   const m = await newMember("nav");
@@ -81,8 +81,7 @@ test("CMS: back link returns to the right list; published keys are read-only; pr
   await expect(page.getByRole("heading", { name: "Eğitimler" })).toBeVisible();
 
   // the editor's preview did not create points for them (no enrolment, no ledger rows)
-  const editor = await api("POST", "/api/auth/login", undefined, { email: "editor@basamak.local", password: DEMO_PASSWORD, client: "mobile" });
-  const summary = await api("GET", "/api/me/summary", editor.accessToken);
+  const summary = await api("GET", "/api/me/summary", await apiLogin("editor@basamak.local"));
   expect(summary.totalPoints).toBe(0);
 });
 
