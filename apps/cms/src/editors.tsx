@@ -1,4 +1,4 @@
-import { SelectField, TextArea, TextField } from "@basamak/ui";
+import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField } from "@basamak/ui";
 import type { Item, Json } from "./content";
 
 type FormProps = { body: Json; onChange: (b: Json) => void; disabled?: boolean };
@@ -13,10 +13,16 @@ export function JourneyForm({ body, onChange, trainings, disabled }: FormProps &
     [next[i], next[j]] = [next[j], next[i]];
     set("trainingIds", next);
   };
-  const title = (id: string) => trainings.find((t) => t.id === id)?.latest.title ?? id;
+  const title = (id: string) => trainings.find((t) => t.id === id)?.latest.title ?? "Silinmiş ya da erişilemeyen eğitim";
+  const publishedCount = ids.filter((id) => trainings.find((t) => t.id === id)?.publishedVersionNo).length;
   return (
     <fieldset disabled={disabled} className="stack">
       <legend>Journey</legend>
+      {publishedCount === 0 && (
+        <Alert kind="warning">
+          <p>Bu Journey'de yayınlanmış eğitim yok. Üyeler ilerleyemeyeceği için bu hâliyle <strong>yayınlanamaz</strong>; aşağıdan en az bir yayınlanmış eğitim ekleyin.</p>
+        </Alert>
+      )}
       <TextArea label="Açıklama" rows={2} value={body.description ?? ""} onChange={(e) => set("description", e.target.value)} />
       <TextField label="Sıra" type="number" min={1} value={body.order ?? 1} onChange={(e) => set("order", Number(e.target.value))} />
       <label className="choice"><input type="checkbox" checked={!!body.unlock?.requiresPreviousJourney}
@@ -59,9 +65,19 @@ export function RuleForm({ body, onChange, disabled }: FormProps) {
   );
 }
 
-export function TrainingForm({ body, onChange, trainings, disabled }: FormProps & { trainings: Item[] }) {
+export function TrainingForm({ body, onChange, trainings, disabled, lockedKeys = [], onConfirmRemove }:
+  FormProps & { trainings: Item[]; lockedKeys?: string[]; onConfirmRemove?: (key: string) => void }) {
   const set = (k: string, v: unknown) => onChange({ ...body, [k]: v });
   const items: Json[] = body.items ?? [];
+  const remove = (i: number) => {
+    const key = items[i].key as string;
+    if (lockedKeys.includes(key)) {
+      const ok = window.confirm(`"${items[i].title}" daha önce yayınlandı. Silerseniz üyelerin bu ögedeki ilerlemesi yeni sürüme taşınmaz ve öge geri eklenirse yeniden puan verilebilir. Silmek istediğinize emin misiniz?`);
+      if (!ok) return;
+      onConfirmRemove?.(key);
+    }
+    set("items", items.filter((_, j) => j !== i));
+  };
   const setItem = (i: number, v: Json) => set("items", items.map((x, j) => (j === i ? v : x)));
   const add = (type: string) => {
     const n = items.length + 1;
@@ -91,16 +107,21 @@ export function TrainingForm({ body, onChange, trainings, disabled }: FormProps 
       {items.map((it, i) => (
         <div key={i} className="card stack">
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>{i + 1}. {{ lesson: "Ders", quiz: "Quiz", survey: "Anket", tool: "Araç" }[it.type as string] ?? it.type}</strong>
+            <strong>{i + 1}. {ITEM_TYPE_LABEL[it.type as string] ?? it.type}</strong>
             <div className="row">
               <button type="button" className="btn" aria-label="Yukarı taşı" onClick={() => move(i, -1)}>↑</button>
               <button type="button" className="btn" aria-label="Aşağı taşı" onClick={() => move(i, 1)}>↓</button>
-              <button type="button" className="btn btn-danger" onClick={() => set("items", items.filter((_, j) => j !== i))}>Sil</button>
+              <button type="button" className="btn btn-danger" onClick={() => remove(i)}>Sil</button>
             </div>
           </div>
           <TextField label="Başlık" value={it.title} onChange={(e) => setItem(i, { ...it, title: e.target.value })} />
-          <TextField label="Anahtar (sürümler arasında sabit)" hint="İlerleme bu anahtarla izlenir; yayından sonra değiştirmeyin." value={it.key}
-                     onChange={(e) => setItem(i, { ...it, key: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} />
+          {lockedKeys.includes(it.key) ? (
+            <TextField label="Anahtar (sabit)" value={it.key} readOnly
+                       hint="Bu öge yayınlandı; üye ilerlemesi bu anahtarla izlendiği için değiştirilemez. Başlığı serbestçe değiştirebilirsiniz." />
+          ) : (
+            <TextField label="Anahtar" hint="Yeni öge: ilk yayından sonra sabitlenir." value={it.key}
+                       onChange={(e) => setItem(i, { ...it, key: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} />
+          )}
           {it.type === "lesson" && <TextArea label="Ders metni (Markdown)" rows={8} value={it.content ?? ""} onChange={(e) => setItem(i, { ...it, content: e.target.value })} />}
           {it.type === "quiz" && <QuizEditor quiz={it} onChange={(q) => setItem(i, q)} />}
           {it.type === "survey" && <SurveyEditor survey={it} onChange={(s) => setItem(i, s)} />}

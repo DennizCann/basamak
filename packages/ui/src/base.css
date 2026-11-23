@@ -75,6 +75,10 @@ a { color: var(--color-primary); }
 .app-header nav a[aria-current="page"] { background: var(--color-primary-soft); }
 .layout-2 { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .layout-2 { grid-template-columns: 18rem minmax(0, 1fr); } }
+/* CMS preview: layout follows the preview FRAME width (390 / 1440), not the CMS window width */
+.preview-frame { container-type: inline-size; }
+.preview-layout { display: grid; gap: var(--space-4); grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 900px) { .preview-layout { grid-template-columns: 18rem minmax(0, 1fr); } }
 .list-plain { list-style: none; padding: 0; margin: 0; }
 .list-plain > li + li { margin-top: var(--space-2); }
 .item-btn { width: 100%; text-align: left; justify-content: flex-start; }

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5173 --strictPort",
-    "build": "tsc -b && vite build",
+    "dev:e2e": "vite --port 5183 --strictPort",
+    "build":"tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",
     "preview": "vite preview --port 4173"
   },

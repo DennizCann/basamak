@@ -6,11 +6,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ContentListPage } from "./pages/ContentListPage";
 import { EditorPage } from "./pages/EditorPage";
 
-export const TYPES = [
-  { type: "JOURNEY", label: "Journey'ler", path: "journeys" },
-  { type: "TRAINING", label: "Eğitimler", path: "trainings" },
-  { type: "POINT_RULE", label: "Puan kuralları", path: "point-rules" },
-] as const;
+import { TYPES } from "./content";
 
 export function App() {
   return (
@@ -21,7 +17,7 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<Navigate to="/content/journeys" replace />} />
             {TYPES.map((t) => (
-              <Route key={t.type} path={`/content/${t.path}`} element={<RequireStaff><ContentListPage type={t.type} label={t.label} /></RequireStaff>} />
+              <Route key={t.type} path={`/content/${t.path}`} element={<RequireStaff><ContentListPage key={t.type} type={t.type} label={t.label} /></RequireStaff>} />
             ))}
             <Route path="/items/:id" element={<RequireStaff><EditorPage /></RequireStaff>} />
             <Route path="*" element={<main className="container"><h1>Sayfa bulunamadı</h1></main>} />

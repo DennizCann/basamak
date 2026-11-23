@@ -12,8 +12,13 @@ export function ContentListPage({ type, label }: { type: string; label: string }
   const [title, setTitle] = useState("");
 
   const load = useCallback(() => {
+    let current = true;
     setItems(null); setError(null);
-    api.get<Item[]>(`/api/cms/items?type=${type}`).then(setItems).catch((e) => setError(errorMessage(e)));
+    // ignore a late response for a previous list type (e.g. quick switch Journey'ler -> Eğitimler)
+    api.get<Item[]>(`/api/cms/items?type=${type}`)
+      .then((r) => { if (current) setItems(r); })
+      .catch((e) => { if (current) setError(errorMessage(e)); });
+    return () => { current = false; };
   }, [type]);
   useEffect(load, [load]);
 

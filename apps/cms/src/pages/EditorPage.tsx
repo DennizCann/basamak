@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { Alert, Markdown, StateView, TextArea, TextField, errorMessage, fmt, ApiError } from "@basamak/ui";
+import { Alert, StateView, TextArea, TextField, errorMessage, fmt, ApiError } from "@basamak/ui";
 import { api, useAuth } from "../auth";
-import { STATUS_LABEL, istanbulLocalToIso, type Item, type Json, type Version } from "../content";
+import { AUDIT_LABEL, STATUS_LABEL, istanbulLocalToIso, listPathFor, typeLabel, type Item, type Json, type Version } from "../content";
 import { JourneyForm, RuleForm, TrainingForm } from "../editors";
+import { PreviewPlayer } from "../PreviewPlayer";
 
 type Tab = "edit" | "preview" | "history" | "audit";
 
@@ -20,6 +21,8 @@ export function EditorPage() {
   const [conflict, setConflict] = useState<ApiError | null>(null);
   const [trainings, setTrainings] = useState<Item[]>([]);
   const [jsonMode, setJsonMode] = useState(false);
+  const [lockedKeys, setLockedKeys] = useState<string[]>([]);
+  const [confirmRemoved, setConfirmRemoved] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -29,7 +32,13 @@ export function EditorPage() {
       setBody(structuredClone(it.latest.body));
       setDirty(false);
       setConflict(null);
+      setConfirmRemoved([]);
       if (it.type === "JOURNEY" || it.type === "TRAINING") setTrainings(await api.get<Item[]>("/api/cms/items?type=TRAINING"));
+      if (it.type === "TRAINING") {
+        // keys that were ever published identify member progress: they become read-only in the editor
+        const vs = await api.get<Version[]>(`/api/cms/items/${id}/versions`);
+        setLockedKeys([...new Set(vs.filter((v) => v.publishedAt).flatMap((v) => (v.body?.items ?? []).map((i: Json) => i.key as string)))]);
+      }
     } catch (e) { setError(errorMessage(e)); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
@@ -40,9 +49,10 @@ export function EditorPage() {
     if (!item) return;
     setError(null); setNotice(null);
     try {
-      const it = await api.put<Item>(`/api/cms/items/${id}/draft`, { lockVersion: item.lockVersion, title, body });
+      const it = await api.put<Item>(`/api/cms/items/${id}/draft`, { lockVersion: item.lockVersion, title, body, confirmRemovedKeys: confirmRemoved });
       setItem(it);
       setDirty(false);
+      setConfirmRemoved([]);
       setNotice(`Kaydedildi: yeni taslak s${it.latest.versionNo}.`);
     } catch (e) {
       if (e instanceof ApiError && e.code === "edit_conflict") setConflict(e);
@@ -66,8 +76,8 @@ export function EditorPage() {
 
   return (
     <main className="container stack">
-      <p><Link to="/">← İçerik listesi</Link></p>
-      <h1>{title || "Adsız"} <span className="muted" style={{ fontSize: "var(--font-size-md)" }}>({item.type})</span></h1>
+      <p><Link to={listPathFor(item.type)}>← {typeLabel(item.type)} listesi</Link></p>
+      <h1>{title || "Adsız"} <span className="muted" style={{ fontSize: "var(--font-size-md)" }}>({typeLabel(item.type)})</span></h1>
 
       <section className="card row" aria-label="Sürüm durumu" style={{ justifyContent: "space-between" }}>
         <div>
@@ -105,7 +115,8 @@ export function EditorPage() {
           <label className="choice"><input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> Gelişmiş: JSON olarak düzenle</label>
           {jsonMode ? <JsonEditor value={body} onChange={change} disabled={!editable} />
             : item.type === "JOURNEY" ? <JourneyForm body={body} onChange={change} trainings={trainings} disabled={!editable} />
-            : item.type === "TRAINING" ? <TrainingForm body={body} onChange={change} trainings={trainings.filter((t) => t.id !== item.id)} disabled={!editable} />
+            : item.type === "TRAINING" ? <TrainingForm body={body} onChange={change} trainings={trainings.filter((t) => t.id !== item.id)} disabled={!editable}
+                                                       lockedKeys={lockedKeys} onConfirmRemove={(k) => setConfirmRemoved((c) => [...new Set([...c, k])])} />
             : item.type === "POINT_RULE" ? <RuleForm body={body} onChange={change} disabled={!editable} />
             : <JsonEditor value={body} onChange={change} disabled={!editable} />}
           <div className="row">
@@ -115,8 +126,12 @@ export function EditorPage() {
           </div>
         </section>
       )}
-      {tab === "preview" && <Preview title={title} type={item.type} body={body} />}
-      {tab === "history" && <History itemId={item.id} canPublish={can("PUBLISHER")} onChanged={load} />}
+      {tab === "preview" && (
+        <Preview title={title} type={item.type} body={body}
+                 label={`${dirty ? "kaydedilmemiş değişiklikler" : `taslak s${v.versionNo} (${STATUS_LABEL[v.status] ?? v.status})`} · yayındaki sürüm: ${item.publishedVersionNo ? "s" + item.publishedVersionNo : "yok"}`} />
+      )}
+      {tab === "history" && <History itemId={item.id} canPublish={can("PUBLISHER")} onChanged={load}
+                                     titles={Object.fromEntries(trainings.map((t) => [t.id, t.latest.title]))} />}
       {tab === "audit" && <Audit itemId={item.id} />}
     </main>
   );
@@ -171,28 +186,20 @@ function JsonEditor({ value, onChange, disabled }: { value: Json; onChange: (v: 
 }
 
 /** Shows the draft the way members will see it, at phone and desktop widths. */
-function Preview({ title, type, body }: { title: string; type: string; body: Json }) {
+function Preview({ title, type, body, label }: { title: string; type: string; body: Json; label: string }) {
   const [width, setWidth] = useState(390);
   return (
     <section className="stack" aria-label="Önizleme">
       <div className="row" role="group" aria-label="Önizleme genişliği">
-        {[390, 1440].map((w) => <button key={w} className={`btn ${width === w ? "btn-primary" : ""}`} onClick={() => setWidth(w)}>{w === 390 ? "Mobil (390)" : "Masaüstü (1440)"}</button>)}
+        {[390, 1440].map((w) => <button key={w} className={`btn ${width === w ? "btn-primary" : ""}`} aria-pressed={width === w} onClick={() => setWidth(w)}>{w === 390 ? "Mobil (390)" : "Masaüstü (1440)"}</button>)}
       </div>
-      <div style={{ overflowX: "auto", border: "1px dashed var(--color-border)", borderRadius: "var(--radius-md)" }}>
-        <div style={{ width, maxWidth: width, margin: "0 auto", padding: "var(--space-4)", background: "var(--color-bg)" }}>
+      {width > 900 && <p className="hint">Masaüstü görünümü 1440 piksel genişliğinde; ekranınız daha darsa çerçeve içinde yatay kaydırın.</p>}
+      {/* the frame scrolls inside itself, so a 1440 px preview never widens the CMS page */}
+      <div style={{ overflowX: "auto", maxWidth: "100%", border: "1px dashed var(--color-border)", borderRadius: "var(--radius-md)" }}>
+        <div className="preview-frame" style={{ width, minWidth: width, margin: "0 auto", padding: "var(--space-4)", background: "var(--color-bg)" }}>
           <h1>{title}</h1>
           {type === "TRAINING" ? (
-            <div className="stack">
-              <p className="muted">{body?.summary}</p>
-              {(body?.items ?? []).map((it: Json) => (
-                <article key={it.key} className="card stack">
-                  <h2>{it.title} <span className="muted">· {it.type}</span></h2>
-                  {it.type === "lesson" && <Markdown source={it.content ?? ""} />}
-                  {it.type === "quiz" && <p className="muted">{it.questions?.length ?? 0} soruluk bankadan {it.questionsPerAttempt} soru · geçme notu %{it.passingScore} · {it.attemptsAllowed} deneme</p>}
-                  {it.type === "survey" && <ul>{(it.questions ?? []).map((q: Json) => <li key={q.id}>{q.text}</li>)}</ul>}
-                </article>
-              ))}
-            </div>
+            <PreviewPlayer body={body} label={label} />
           ) : type === "JOURNEY" ? (
             <div className="card"><p>{body?.description}</p><p className="muted">{body?.trainingIds?.length ?? 0} eğitim</p></div>
           ) : <pre>{JSON.stringify(body, null, 2)}</pre>}
@@ -204,7 +211,16 @@ function Preview({ title, type, body }: { title: string; type: string; body: Jso
 
 type Diff = { from: number; to: number; titleChanged: boolean; fromTitle: string; toTitle: string; changes: { path: string; op: string; before: Json; after: Json }[] };
 
-function History({ itemId, canPublish, onChanged }: { itemId: string; canPublish: boolean; onChanged: () => void }) {
+/** Shows a referenced content id by its title when known; the raw value stays available on demand. */
+function DiffValue({ value, titles }: { value: Json; titles: Record<string, string> }) {
+  if (value === null || value === undefined) return <>—</>;
+  if (typeof value === "string" && titles[value]) return <>{titles[value]} <span className="muted">(eğitim)</span></>;
+  const text = JSON.stringify(value, null, 1);
+  if (typeof value !== "object" && text.length <= 80) return <>{typeof value === "string" ? value : text}</>;
+  return <details><summary>{Array.isArray(value) ? `liste (${value.length})` : typeof value === "object" ? "nesne" : text.slice(0, 60) + "…"}</summary><pre>{text}</pre></details>;
+}
+
+function History({ itemId, canPublish, onChanged, titles }: { itemId: string; canPublish: boolean; onChanged: () => void; titles: Record<string, string> }) {
   const [versions, setVersions] = useState<Version[] | null>(null);
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
@@ -264,10 +280,10 @@ function History({ itemId, canPublish, onChanged }: { itemId: string; canPublish
                     {diff.titleChanged && <tr><td>başlık</td><td className="diff-changed">değişti</td><td><pre>{diff.fromTitle}</pre></td><td><pre>{diff.toTitle}</pre></td></tr>}
                     {diff.changes.map((c, i) => (
                       <tr key={i}>
-                        <td><code>{c.path}</code></td>
+                        <td>{fieldLabel(c.path)}<br /><code className="muted" style={{ fontSize: "var(--font-size-xs)" }}>{c.path}</code></td>
                         <td className={`diff-${c.op}`}>{{ added: "eklendi", removed: "silindi", changed: "değişti" }[c.op] ?? c.op}</td>
-                        <td><pre>{c.before === null || c.before === undefined ? "—" : JSON.stringify(c.before, null, 1)}</pre></td>
-                        <td><pre>{c.after === null || c.after === undefined ? "—" : JSON.stringify(c.after, null, 1)}</pre></td>
+                        <td><DiffValue value={c.before} titles={titles} /></td>
+                        <td><DiffValue value={c.after} titles={titles} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -281,6 +297,18 @@ function History({ itemId, canPublish, onChanged }: { itemId: string; canPublish
   );
 }
 
+const FIELD_LABEL: Record<string, string> = {
+  trainingIds: "Eğitimler", description: "Açıklama", order: "Sıra", unlock: "Açılma koşulu", requiresPreviousJourney: "Önceki Journey şartı",
+  minPoints: "En az puan", summary: "Özet", prerequisites: "Ön koşullar", items: "İçerik ögeleri", title: "Başlık", content: "Ders metni",
+  questions: "Sorular", options: "Şıklar", text: "Metin", correct: "Doğru şık", passingScore: "Geçme notu", attemptsAllowed: "Deneme hakkı",
+  timeLimitSeconds: "Süre", questionsPerAttempt: "Deneme başına soru", showCorrectAnswers: "Doğru cevapları göster", anonymous: "Anonim",
+  action: "Aksiyon", objectType: "Nesne türü", points: "Puan", policy: "Tekrar politikası", key: "Anahtar", type: "Tür",
+};
+/** "/items/2/questions/0/text" -> "İçerik ögeleri 3 › Sorular 1 › Metin" */
+function fieldLabel(path: string): string {
+  return path.split("/").filter(Boolean).map((p) => (/^\d+$/.test(p) ? String(Number(p) + 1) : FIELD_LABEL[p] ?? p)).join(" › ") || "Gövde";
+}
+
 function Audit({ itemId }: { itemId: string }) {
   const [rows, setRows] = useState<{ id: number; action: string; actor: string; created_at: string; details: string }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -290,7 +318,14 @@ function Audit({ itemId }: { itemId: string }) {
       <div className="card table-wrap">
         <table>
           <thead><tr><th>Zaman</th><th>Kim</th><th>İşlem</th><th>Ayrıntı</th></tr></thead>
-          <tbody>{rows?.map((r) => <tr key={r.id}><td>{fmt.dateTime(r.created_at)}</td><td>{r.actor}</td><td><code>{r.action}</code></td><td><pre>{r.details}</pre></td></tr>)}</tbody>
+          <tbody>{rows?.map((r) => (
+            <tr key={r.id}>
+              <td>{fmt.dateTime(r.created_at)}</td>
+              <td>{r.actor ?? "Sistem"}</td>
+              <td>{AUDIT_LABEL[r.action] ?? r.action}</td>
+              <td><details><summary>Ayrıntı</summary><p className="muted">İşlem kodu: <code>{r.action}</code></p><pre>{r.details}</pre></details></td>
+            </tr>
+          ))}</tbody>
         </table>
       </div>
     </StateView>
