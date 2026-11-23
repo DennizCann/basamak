@@ -37,6 +37,7 @@ public class GamificationService {
     private final PublishedContent published;
     private final ObjectMapper json;
     private final org.springframework.context.ApplicationEventPublisher events;
+    private final BadgeService badges;
 
     /** Published after points change; the leaderboard stream tells open screens to refresh. */
     public record PointsChanged(UUID userId, int points) {}
@@ -53,6 +54,7 @@ public class GamificationService {
                 e.userId(), e.eventKey(), e.action(), e.objectType(), e.objectId(), e.objectVersion(),
                 Timestamp.from(e.occurredAt()), e.source(), toJson(e.payload()));
         if (stored == 0) return Award.DUPLICATE;
+        badges.onEvent(e.userId(), e.action());
 
         Optional<PointRule> rule = findRule(e.action(), e.objectType());
         if (rule.isEmpty() || rule.get().points() == 0) return new Award(true, 0, rule.orElse(null));

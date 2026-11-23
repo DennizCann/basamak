@@ -20,7 +20,7 @@ export function safeInAppPath(raw: string): string | null {
     // relative in-app links are parsed against an http base (custom-scheme base resolution differs between WebViews)
     const u = raw.startsWith("/") ? new URL(raw, "http://app.invalid") : new URL(raw);
     const path = u.protocol === "basamak:" ? `/${u.host === "app" ? "" : u.host}${u.pathname}`.replace(/\/+/g, "/") : u.pathname;
-    if (!/^\/(trainings|workflows|tools|certificates|verify|history|leaderboard|explore|account)?(\/[\w-]*)*$/.test(path)) return null;
+    if (!/^\/(trainings|workflows|tools|certificates|verify|history|leaderboard|explore|account|notifications|community|profile|u)?(\/[\w-]*)*$/.test(path)) return null;
     return path + u.search;
   } catch {
     return null;

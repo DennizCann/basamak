@@ -16,6 +16,8 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { CommunityPage } from "./pages/CommunityPage";
 import { NotificationsProvider } from "./notifications";
 import "./app.css";
 
@@ -43,6 +45,9 @@ export function App() {
             <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
             <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+            <Route path="/community" element={<RequireAuth><CommunityPage /></RequireAuth>} />
+            <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
+            <Route path="/u/:id" element={<RequireAuth><ProfilePage /></RequireAuth>} />
             <Route path="/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
             <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
             <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />

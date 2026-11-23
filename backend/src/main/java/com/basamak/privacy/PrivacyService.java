@@ -109,6 +109,14 @@ public class PrivacyService {
         out.put("workflows", rows("SELECT * FROM workflow WHERE owner_id = ?", userId));
         out.put("notifications", rows("SELECT * FROM notification WHERE user_id = ?", userId));
         out.put("notificationPreferences", rows("SELECT event_type, in_app, email, push, updated_at FROM notification_pref WHERE user_id = ?", userId));
+        out.put("profileSettings", rows("SELECT * FROM profile_settings WHERE user_id = ?", userId));
+        out.put("following", rows("SELECT followee_id, created_at FROM follow WHERE follower_id = ?", userId));
+        out.put("followers", rows("SELECT count(*) AS count FROM follow WHERE followee_id = ?", userId));
+        out.put("comments", rows("SELECT id, target_type, target_id, parent_id, body, created_at, deleted_at, hidden_at, hidden_reason FROM comment WHERE author_id = ?", userId));
+        out.put("commentReports", rows("SELECT comment_id, reason, created_at FROM comment_report WHERE reporter_id = ?", userId));
+        out.put("ratings", rows("SELECT target_type, target_id, stars, updated_at FROM rating WHERE user_id = ?", userId));
+        out.put("badges", rows("SELECT badge_key, awarded_at FROM user_badge WHERE user_id = ?", userId));
+        out.put("streak", rows("SELECT current, longest, last_day FROM user_streak WHERE user_id = ?", userId));
         out.put("workflowRuns", rows("SELECT * FROM workflow_run WHERE user_id = ? ORDER BY created_at", userId));
         audit.record(userId, "privacy.exported", "USER", userId, Map.of());
         return out;
@@ -158,6 +166,14 @@ public class PrivacyService {
         jdbc.update("DELETE FROM user_score WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM notification WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM notification_pref WHERE user_id = ?", userId);
+        // community: profile and follows removed; comment texts erased (shown as "deleted") so threads keep their shape;
+        // ratings stay as anonymous aggregate input (the user row is already anonymised); badges and streak removed
+        jdbc.update("DELETE FROM profile_settings WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM follow WHERE follower_id = ? OR followee_id = ?", userId, userId);
+        jdbc.update("UPDATE comment SET body = '', deleted_at = coalesce(deleted_at, now()) WHERE author_id = ?", userId);
+        jdbc.update("UPDATE comment_report SET reason = '[silinmiş üye]' WHERE reporter_id = ?", userId);
+        jdbc.update("DELETE FROM user_badge WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM user_streak WHERE user_id = ?", userId);
         audit.record(userId, "privacy.account_deleted", "USER", userId, Map.of());
     }
 

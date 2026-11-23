@@ -209,3 +209,20 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .bell[aria-current="page"] { color: var(--color-primary); }
 .bell-badge { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--color-danger, #c62828); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
 .notice-unread { border-left: 4px solid var(--color-primary); }
+
+/* community */
+.comment-list { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-3); }
+.comment-replies { margin-top: var(--space-2); padding-left: var(--space-4); border-left: 2px solid var(--color-border); }
+.comment { overflow-wrap: anywhere; }
+.stars { border: 0; padding: 0; margin: 0; display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
+.stars legend { float: left; margin-right: var(--space-2); }
+.star { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 1.6rem; cursor: pointer; color: var(--color-warning, #8a5300); }
+.star input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.star:focus-within { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 8px; }
+.badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); list-style: none; padding: 0; margin: 0; }
+.badge-tile { border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2); text-align: center; }
+.badge-tile[data-earned="false"] { opacity: .6; border-style: dashed; }
+.badge-icon { font-size: 1.8rem; display: block; }
+.stat-row { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.stat-row > div { min-width: 90px; }
+.stat-row strong { display: block; font-size: 1.4rem; }

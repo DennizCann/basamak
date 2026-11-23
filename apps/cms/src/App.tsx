@@ -6,6 +6,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { ContentListPage } from "./pages/ContentListPage";
 import { EditorPage } from "./pages/EditorPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { ModerationPage } from "./pages/ModerationPage";
 
 import { TYPES } from "./content";
 
@@ -21,6 +22,7 @@ export function App() {
               <Route key={t.type} path={`/content/${t.path}`} element={<RequireStaff><ContentListPage key={t.type} type={t.type} label={t.label} /></RequireStaff>} />
             ))}
             <Route path="/items/:id" element={<RequireStaff><EditorPage /></RequireStaff>} />
+            <Route path="/moderation" element={<RequireStaff><ModerationPage /></RequireStaff>} />
             <Route path="/reports" element={<RequireStaff><ReportsPage /></RequireStaff>} />
             <Route path="*" element={<main className="container"><h1>Sayfa bulunamadı</h1></main>} />
           </Routes>
@@ -42,6 +44,7 @@ function Shell({ children }: { children: ReactNode }) {
             <nav aria-label="CMS menüsü" className="row">
               {TYPES.map((t) => <NavLink key={t.type} to={`/content/${t.path}`}>{t.label}</NavLink>)}
               <NavLink to="/reports">Raporlar</NavLink>
+              <NavLink to="/moderation">Moderasyon</NavLink>
             </nav>
           )}
           <div className="row">

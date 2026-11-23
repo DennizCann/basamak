@@ -1,4 +1,5 @@
 import { askNotificationPermissionOnce } from "../platform";
+import { Comments, Rating } from "../components/Comments";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, SelectField, StateView, TextArea, TextField, errorMessage, fmt } from "@basamak/ui";
@@ -44,12 +45,15 @@ export function WorkflowPage() {
       {!owner ? (
         <section className="card stack">
           <h1>{wf.name}</h1>
-          <p className="muted">{wf.ownerName} paylaştı · {wf.definition.steps.length} adım · {wf.forkCount} çatal</p>
+          <p className="muted"><Link className="text-link" to={`/u/${wf.ownerId}`}>{wf.ownerName}</Link> paylaştı · {wf.definition.steps.length} adım · {wf.forkCount} çatal</p>
+          <Rating workflowId={wf.id} canRate />
           <button className="btn btn-primary" onClick={async () => {
             try { const f = await api.post<Workflow>(`/api/workflows/${wf.id}/fork`); nav(`/workflows/${f.id}`); } catch (e) { setError(errorMessage(e)); }
           }}>Çatalla ve düzenle</button>
         </section>
-      ) : (
+      ) : null}
+      {!owner && <Comments targetType="WORKFLOW" targetId={wf.id} />}
+      {!owner ? null : (
         <>
           <Editor wf={wf} onSaved={(w, m) => { setWf(w); setNotice(m); setError(null); }} onError={setError} />
           <RunPanel wf={wf} onStarted={(runId) => { setOpenRun(runId); load(); }} onError={setError} />
@@ -84,7 +88,9 @@ export function WorkflowPage() {
                 try { await api.del(`/api/workflows/${wf.id}`); nav("/workflows"); } catch (e) { setError(errorMessage(e)); }
               }}>Sil</button>
             </div>
+            {wf.visibility === "PUBLIC" && <Rating workflowId={wf.id} canRate={false} />}
           </section>
+          {wf.visibility === "PUBLIC" && <Comments targetType="WORKFLOW" targetId={wf.id} />}
         </>
       )}
     </main>

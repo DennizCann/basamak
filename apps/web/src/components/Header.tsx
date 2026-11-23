@@ -37,6 +37,7 @@ export function Header() {
               <NavLink className="nav-extra" to="/tools">Araçlar</NavLink>
               <NavLink className="nav-extra" to="/workflows">Akışlar</NavLink>
               <NavLink className="nav-extra" to="/leaderboard">Sıralama</NavLink>
+              <NavLink className="nav-extra" to="/community">Topluluk</NavLink>
             </nav>
             <NotificationBell />
             <AccountMenu />
@@ -125,8 +126,10 @@ function AccountMenu() {
             <Link className="menu-item" to="/tools" onClick={() => setOpen(false)}>Araçlarım</Link>
             <Link className="menu-item" to="/workflows" onClick={() => setOpen(false)}>İş akışları</Link>
             <Link className="menu-item" to="/leaderboard" onClick={() => setOpen(false)}>Sıralama</Link>
+            <Link className="menu-item" to="/community" onClick={() => setOpen(false)}>Topluluk</Link>
             <div className="menu-sep" />
           </nav>
+          <Link className="menu-item" to="/profile" onClick={() => setOpen(false)}>Profilim ve rozetlerim</Link>
           <Link className="menu-item" to="/history" onClick={() => setOpen(false)}>Geçmişim</Link>
           <Link className="menu-item" to="/account" onClick={() => setOpen(false)}>Hesabım ve verilerim</Link>
           <button className="menu-item" onClick={() => { setOpen(false); setPointsOpen(true); }}>Puanlar nasıl kazanılır?</button>

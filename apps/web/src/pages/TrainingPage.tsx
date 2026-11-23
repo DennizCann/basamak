@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Comments } from "../components/Comments";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Alert, ITEM_TYPE_LABEL, LessonBody, QuestionForm, QuizResult, QuizReview, StateView, SurveyForm,
@@ -196,6 +197,7 @@ export function TrainingPage() {
           </section>
         </div>
       )}
+      {t && <div style={{ marginTop: "var(--space-5, 24px)" }}><Comments targetType="TRAINING" targetId={t.id} /></div>}
     </main>
   );
 }
