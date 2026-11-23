@@ -39,7 +39,8 @@ export function ContentListPage({ type, label }: { type: string; label: string }
             <label htmlFor="new-title">Yeni içerik başlığı</label>
             <input id="new-title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
           </div>
-          <button className="btn btn-primary" disabled={!title.trim()}>Taslak oluştur</button>
+          {/* wait for the list: the default order of a new journey is derived from it */}
+          <button className="btn btn-primary" disabled={!title.trim() || !items}>Taslak oluştur</button>
         </form>
       )}
       {error && items && <Alert kind="error"><p>{error}</p></Alert>}
