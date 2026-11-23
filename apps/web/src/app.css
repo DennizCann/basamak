@@ -197,3 +197,6 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 @media (min-width: 1100px) { .mainnav .nav-extra { display: inline-flex; } .menu-extra { display: none; } }
 .menu-extra a.menu-item { display: flex; text-decoration: none; color: inherit; }
 
+.danger-zone { border-color: var(--color-danger); }
+.account-panel a.menu-item { display: flex; text-decoration: none; color: var(--color-text); }
+

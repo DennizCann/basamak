@@ -111,6 +111,8 @@ function AccountMenu() {
             <Link className="menu-item" to="/leaderboard" onClick={() => setOpen(false)}>Sıralama</Link>
             <div className="menu-sep" />
           </nav>
+          <Link className="menu-item" to="/history" onClick={() => setOpen(false)}>Geçmişim</Link>
+          <Link className="menu-item" to="/account" onClick={() => setOpen(false)}>Hesabım ve verilerim</Link>
           <button className="menu-item" onClick={() => { setOpen(false); setPointsOpen(true); }}>Puanlar nasıl kazanılır?</button>
           <button className="menu-item" onClick={() => { setOpen(false); logout(); }}>Çıkış yap</button>
         </div>

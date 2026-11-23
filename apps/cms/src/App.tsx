@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./auth";
 import { LoginPage } from "./pages/LoginPage";
 import { ContentListPage } from "./pages/ContentListPage";
 import { EditorPage } from "./pages/EditorPage";
+import { ReportsPage } from "./pages/ReportsPage";
 
 import { TYPES } from "./content";
 
@@ -20,6 +21,7 @@ export function App() {
               <Route key={t.type} path={`/content/${t.path}`} element={<RequireStaff><ContentListPage key={t.type} type={t.type} label={t.label} /></RequireStaff>} />
             ))}
             <Route path="/items/:id" element={<RequireStaff><EditorPage /></RequireStaff>} />
+            <Route path="/reports" element={<RequireStaff><ReportsPage /></RequireStaff>} />
             <Route path="*" element={<main className="container"><h1>Sayfa bulunamadı</h1></main>} />
           </Routes>
         </Shell>
@@ -39,6 +41,7 @@ function Shell({ children }: { children: ReactNode }) {
           {user && (
             <nav aria-label="CMS menüsü" className="row">
               {TYPES.map((t) => <NavLink key={t.type} to={`/content/${t.path}`}>{t.label}</NavLink>)}
+              <NavLink to="/reports">Raporlar</NavLink>
             </nav>
           )}
           <div className="row">

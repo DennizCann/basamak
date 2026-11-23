@@ -51,6 +51,7 @@ export function LoginPage() {
 
   return (
     <Card title="Giriş yap">
+      {params.get("deleted") && <Alert kind="success"><p>Hesabın silindi ve kişisel verilerin anonimleştirildi. Görüşmek üzere.</p></Alert>}
       <form onSubmit={submit} className="stack" noValidate>
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         <TextField label="E-posta" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

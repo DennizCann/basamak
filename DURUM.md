@@ -18,7 +18,7 @@
 | F2.5 | Capacitor iskeleti ve ilk debug APK | **tamamlandı** (23.11 ~20.40): emülatörde giriş ve Journey listesi çalışıyor; iOS test edilmedi |
 | F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | **tamamlandı** (24.11 ~00.15): web ve CMS; mobilde araç ekranı denenmedi |
 | F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | **tamamlandı** (24.11 ~01.30): web; mobilde denenmedi |
-| F5 | Geçmişim, KVKK, raporlar (12, 13) | başlanmadı |
+| F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 ~02.45) |
 | F6 | Mobil özellikler (14) | başlanmadı |
 | F7 | Kalite ve ölçümler (15) | başlanmadı |
 | F8 | Teslim belgeleri | başlanmadı |
@@ -38,7 +38,9 @@
 | 11 | tamamlandı (web) | `WorkflowIT.scenario11_*`, `e2e/workflows.spec.ts` (canlı sıralama) |
 | 10 | tamamlandı | `GamificationIT` (5 test) |
 | 15 | kısmen (giriş ve ana sayfa: 320 px, koyu tema, klavye) | `e2e/member.spec.ts` |
-| 12–14 | başlanmadı | — (14: Android'de yalnız giriş ve Journey listesi elle doğrulandı) |
+| 12 | tamamlandı (web) | `PrivacyReportIT.scenario12_*` (3), `e2e/privacy.spec.ts` |
+| 13 | tamamlandı (CMS) | `PrivacyReportIT.scenario13_*`, `e2e/privacy.spec.ts` |
+| 14 | kısmen | — (14: Android'de yalnız giriş ve Journey listesi elle doğrulandı) |
 
 ## F1'de yapılanlar (özet)
 - **Kimlik:**
@@ -83,6 +85,8 @@
 | 24.11 ~00.15 | F3: typecheck, build, izole e2e (msedge; sahte API :8090) | temiz; **23 geçti**, 1 isteğe bağlı test atlandı (yeni: `e2e/tools.spec.ts` 2) |
 | 24.11 ~01.20 | F4: `mvnw -B -o verify` | **86/86** (yeni: WorkflowIT 7) |
 | 24.11 ~01.30 | F4: typecheck, izole e2e (msedge) | **24 geçti**, 1 isteğe bağlı test atlandı. İlk koşuda 3 hata: 2'si yeni menü bağlantılarının mobil başlığı 64 px'ten uzun yapmasıydı (düzeltildi: dar ekranda bu bağlantılar hesap menüsünde), 1'i tools.spec'te tekrar etmeyen bir hataydı (yavaş koşu, 4,4 dk) |
+| 24.11 ~02.40 | F5: `mvnw -B -o verify` | **90/90** (yeni: PrivacyReportIT 4) |
+| 24.11 ~02.45 | F5: typecheck, izole e2e | **26 geçti**, 1 atlandı. e2e gerçek bir hata buldu: cevapsız anket sorusunda rapor 500 veriyordu (`Map.of` null kabul etmiyor); düzeltildi ve entegrasyon testine eklendi |
 
 ## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
 Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş Journey politikası, E2E izolasyonu, CMS dönüş bağlantısı, öge anahtarı koruması (sunucu ve UI), quiz incelemesi ve cevap gösterme politikası, URL ile içerik gezinmesi, ortak bileşenli etkileşimli önizleme, Türkçe etiketler, PDF indirme geri bildirimi.
@@ -128,6 +132,12 @@ Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictM
 - **Web:** "Akışlar" (liste, topluluk, çatallama), akış sayfası (adım kurucu, çalıştırma, adım tablosu, devam, cron, webhook, paylaşım), "Sıralama" (canlı). Dar ekranda bu bölümler hesap menüsünde.
 - **Dev DB:** Migration 0007 yalnız yeni tablo ve indeks ekler.
 - **Yapılmadı:** Görsel sürükle-bırak kurucu (form tabanlı kurucu var), paralel adım çalıştırma, gerçek YZ sağlayıcısı (Ollama), iş akışı için SSE (adım tablosu 0,8 sn'de bir yoklanıyor), CMS'te iş akışı şablonu türü.
+
+## F5 Geçmiş, KVKK, raporlar (24.11 gece)
+- **Backend:** `PrivacyService` ve `PrivacyController` (`/api/me/history`, `/api/me/export`, `/api/me/delete`), `ReportService` ve `CmsReportController` (JSON ve 3 CSV).
+- **Web:** "Geçmişim" (süzgeçler URL'de) ve "Hesabım ve verilerim" (indirme, silme). İkisi de hesap menüsünde.
+- **CMS:** "Raporlar".
+- **Yapılmadı:** Açık uçlu cevaplarda kişisel veri taraması, saklama süresi işleri (TASARIM §7.6).
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

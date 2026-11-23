@@ -409,7 +409,22 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - Her CMS işlemi ve güvenlik olayı `audit_log` tablosuna yazılır. Tabloda aktör, eylem, nesne, ayrıntı ve **istek kimliği** (`X-Request-Id`) tutulur.
 - Tablo **yalnız eklemeyle büyür**: bir PostgreSQL trigger'ı UPDATE ve DELETE'i reddeder. Bunu `ContentWorkflowIT.auditLogIsAppendOnly` doğrular.
 
-*(OWASP Top 10 eşlemesi ve KVKK bölümü F5'te tamamlanacak.)*
+*(OWASP Top 10 eşlemesi F8'de eklenecek; KVKK §7.6'da.)*
+
+### 7.6 KVKK: Geçmişim, veri indirme, hesap silme (senaryo 12)
+- **Geçmişim:** `activity_event` kaynaklıdır. Tür (öğrenme, araç, iş akışı, topluluk) ve İstanbul gününe göre tarih aralığıyla süzülür, sayfalanır ve her satırda kazanılan puan gösterilir. Süzgeçler URL'de tutulur.
+- **Verilerimi indir:** Tek bir JSON dosyasıdır. İçeriği: profil, oturumlar, cihazlar, kayıtlar, ilerleme, quiz ve anket cevapları, etkinlik, puan defteri, sertifikalar, araçlar (sır adları dahil, değerleri hariç), çalıştırmalar ve iş akışları. Hash, şifreli sır ve imza alanları dışarıda kalır. Her indirme denetim kaydına yazılır.
+- **Hesap silme = anonimleştirme:** Şifre ve "SİL" onayı istenir, işlem tek bir veritabanı işleminde yapılır.
+  - **Silinir:** E-posta (`deleted+{id}@deleted.invalid` olur), ad, şifre, TOTP, oturumlar (açık erişim jetonları da hemen geçersiz olur, çünkü filtre oturumu denetler), hatırlanan cihazlar, kodlar, araç sırları ve tanımları, iş akışı tanımları, çalıştırma girdi ve çıktıları, sertifika sahibinin adı (sertifika geri alınmış görünür).
+  - **Kalır:** Yalnız eklemeyle büyüyen etkinlik kaydı ve puan defteri. Bunlarda yalnız rastgele kullanıcı kimliği bulunur ve silindikten sonra bir kişiye bağlanamaz. Raporlardaki toplamlar bu yüzden değişmez (test edildi). Anket cevapları kullanıcıdan koparılır.
+  - **Bilinen sınır:** Açık uçlu quiz ve anket cevaplarında üyenin kendisinin yazdığı kişisel veri kalabilir. Bunların kişiyle bağı yoktur; prod'da metin içi kişisel veri taraması ve saklama süresi (öneri: 2 yıl) eklenir.
+- Silme onayı e-postası, adres silinmeden önce gönderilir.
+
+### 7.7 Raporlar (senaryo 13)
+- **Kapsam:** Eğitim başına tamamlama oranı ve ortalama süre, quiz başına geçme oranı ve ortalama puan, soru başına doğru oranı (her deneme kendi sürümünün sorularıyla değerlendirilir; açık uçlular hariç), anket sorusu başına dağılım (seçenek ya da 1-5 ölçek) ve isimsiz son 20 açık uçlu cevap.
+- **CSV:** UTF-8 BOM ve `;` ayırıcı kullanılır (Türkçe Excel için); ondalık ayracı virgüldür. Her hücre tırnak içindedir. `= + - @` ile başlayan değerin başına `'` eklenir (CSV ya da formül enjeksiyonu). Her dışa aktarım denetim kaydına yazılır.
+- **Yetki:** Editör, yayıncı ve yönetici görür; yazar göremez (test edildi).
+- **Ölçek:** Raporlar bugün işlem tablolarından anlık hesaplanır. Büyük hacimde etkinlik olaylarından beslenen ön-toplanmış okuma modellerine geçilir (§9).
 
 ## 8. Mobil *(F2.5 yazıldı; çevrimdışı, bildirim ve derin bağlantı F6'da)*
 

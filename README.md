@@ -111,4 +111,6 @@ Kod 10 dakika geçerlidir ve tek kullanımlıktır. 60 saniye sonra "Kodu yenide
 | 11 | Canlı sıralama, çatallayana değil yazara puan | **Web'de çalışıyor.** Haftalık/genel sıralama SSE ile kendini yeniler; çatal yazara puan kazandırır. Test: `WorkflowIT.scenario11_*`, `e2e/workflows.spec.ts` |
 | 10 | Dinamik puan kuralları ve tekrar | **Çalışıyor.** `GamificationIT` (100 görüntüleme → 1 puan; çift ve eşzamanlı olay → 1 kayıt; CMS'ten kural değişikliği) |
 | 15 | 320 px, koyu tema, klavye | **Kısmen.** Giriş ve ana sayfa için uçtan uca kontrol var (`e2e/member.spec.ts`). Tam tarama F7'de |
-| 12–14 | — | Başlanmadı (mobil: Android'de giriş ve Journey listesi emülatörde doğrulandı, bkz. TASARIM §8) |
+| 12 | Geçmişim, verilerimi indir, hesap silme | **Web'de çalışıyor.** Süzme ve sayfalama, JSON dışa aktarma, anonimleştirerek silme (istatistikler korunur). Test: `PrivacyReportIT.scenario12_*`, `e2e/privacy.spec.ts` |
+| 13 | CMS raporları ve CSV | **CMS'te çalışıyor.** Tamamlama, soru başına doğru oranı, anket dağılımı; CSV (formül enjeksiyonuna karşı korumalı). Test: `PrivacyReportIT.scenario13_*`, `e2e/privacy.spec.ts` |
+| 14 | Mobil | Kısmen: Android'de giriş ve Journey listesi emülatörde doğrulandı; F6 sürüyor (mobil: Android'de giriş ve Journey listesi emülatörde doğrulandı, bkz. TASARIM §8) |

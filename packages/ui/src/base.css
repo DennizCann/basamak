@@ -129,3 +129,12 @@ fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-md
 .leaderboard .me { border-color: var(--color-primary, currentColor); border-width: 2px; }
 .leaderboard .rank { display: inline-block; min-width: 2.5ch; }
 
+
+/* ---- reports (F5) ---- */
+.bar-cell { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 8rem; }
+.bar { display: inline-block; width: 6rem; height: .6rem; border-radius: var(--radius-pill); background: var(--color-surface-2); border: 1px solid var(--color-border); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--color-primary); }
+.dist { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-1); }
+.dist li { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
+.dist-label { min-width: 8rem; }
+

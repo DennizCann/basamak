@@ -11,6 +11,8 @@ import { ToolsPage } from "./pages/ToolsPage";
 import { WorkflowsPage } from "./pages/WorkflowsPage";
 import { WorkflowPage } from "./pages/WorkflowPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
+import { HistoryPage } from "./pages/HistoryPage";
+import { AccountPage } from "./pages/AccountPage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
 import "./app.css";
 
@@ -35,6 +37,8 @@ export function App() {
             <Route path="/workflows" element={<RequireAuth><WorkflowsPage /></RequireAuth>} />
             <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
+            <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+            <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
             <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />
             <Route path="*" element={<main className="page"><h1>Sayfa bulunamadı</h1><p><Link className="text-link" to="/">Öğrenimime dön</Link></p></main>} />
           </Routes>
