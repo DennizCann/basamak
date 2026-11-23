@@ -44,3 +44,8 @@ basamak:
   encryption-key: ${ENCRYPTION_KEY}
   cert-secret: ${CERT_SECRET}
   ai-provider: ${AI_PROVIDER:mock}
+  tools:
+    # host:port pairs that STAFF (CMS) tools may call although they are local; never applies to member tools
+    trusted-hosts: ${TOOLS_TRUSTED_HOSTS:localhost:8090,127.0.0.1:8090}
+  jobs:
+    workers: ${JOB_WORKERS:4}

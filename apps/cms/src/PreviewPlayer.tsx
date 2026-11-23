@@ -42,7 +42,7 @@ export function PreviewPlayer({ body, label }: { body: Json; label: string }) {
             {item?.type === "lesson" && <LessonBody item={item as PlayerItem} />}
             {item?.type === "quiz" && <QuizPreview quiz={item} />}
             {item?.type === "survey" && <SurveyPreview survey={item} />}
-            {item?.type === "tool" && <p className="muted">Araç ögesi (F3).</p>}
+            {item?.type === "tool" && <p className="muted">Araç ögesi: üye burada aracın girdilerini doldurup çalıştırır ve durumu canlı izler (sabitlenen sürüm s{item.toolVersionNo}). Aracı denemek için aracın “Sırlar ve deneme” sekmesini kullanın.</p>}
           </section>
         </div>
       )}

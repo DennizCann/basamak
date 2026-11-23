@@ -16,13 +16,15 @@ import java.util.*;
 public class ContentValidator {
     private final ContentItemRepository items;
     private final ContentVersionRepository versions;
+    private final com.basamak.tool.UrlGuard urlGuard;
 
     public void validate(ContentType type, UUID itemId, JsonNode body) {
         if (body == null || !body.isObject()) throw ApiException.badRequest("invalid_body", "İçerik gövdesi bir nesne olmalı.");
         switch (type) {
             case JOURNEY -> journey(body);
-            case TRAINING -> { training(itemId, body); TrainingSchema.validateItems(body); }
+            case TRAINING -> { training(itemId, body); TrainingSchema.validateItems(body); toolItems(body, false); }
             case POINT_RULE -> pointRule(body);
+            case TOOL -> tool(body);
             default -> { /* validated by their own modules in later phases */ }
         }
     }
@@ -32,6 +34,7 @@ public class ContentValidator {
         if (type == ContentType.TRAINING && (!body.path("items").isArray() || body.path("items").isEmpty())) {
             throw ApiException.badRequest("invalid_training", "Yayınlanacak eğitimde en az bir içerik ögesi (ders, quiz, anket ya da araç) olmalı.");
         }
+        if (type == ContentType.TRAINING) toolItems(body, true);
         if (type == ContentType.JOURNEY) {
             // An empty journey would be a dead end: it can never be completed, so the next journey stays locked.
             boolean hasPublishedTraining = false;
@@ -41,6 +44,33 @@ public class ContentValidator {
             if (!hasPublishedTraining) {
                 throw ApiException.badRequest("empty_journey",
                         "Bu Journey'de yayında olan bir eğitim yok. Üyeler ilerleyemeyeceği için yayınlanamaz; önce en az bir yayınlanmış eğitim ekleyin.");
+            }
+        }
+    }
+
+    /** CMS tools: structure + SSRF check of the fixed part of the URL (trusted hosts such as the mock API allowed). */
+    private void tool(JsonNode b) {
+        var def = com.basamak.tool.ToolDefinition.parse(b);
+        urlGuard.check(def.staticUrlForCheck(), true);
+    }
+
+    /** Tool items must point at a TOOL item; on publish the pinned version must have been published. */
+    private void toolItems(JsonNode b, boolean forPublish) {
+        for (JsonNode it : b.path("items")) {
+            if (!"tool".equals(it.path("type").asText())) continue;
+            UUID toolId;
+            try {
+                toolId = UUID.fromString(it.path("toolId").asText());
+            } catch (IllegalArgumentException e) {
+                throw ApiException.badRequest("invalid_training", "'" + it.path("key").asText() + "' araç ögesinde geçersiz araç kimliği.");
+            }
+            ContentItem t = items.findById(toolId).orElse(null);
+            if (t == null || t.getType() != ContentType.TOOL) {
+                throw ApiException.badRequest("invalid_training", "'" + it.path("key").asText() + "' ögesindeki araç bulunamadı.");
+            }
+            if (forPublish && versions.findByItemIdAndVersionNo(toolId, it.path("toolVersionNo").asInt()).filter(v -> v.getPublishedAt() != null).isEmpty()) {
+                throw ApiException.badRequest("invalid_training", "'" + it.path("key").asText() + "' ögesinin sabitlendiği araç sürümü (v" + it.path("toolVersionNo").asInt()
+                        + ") hiç yayınlanmamış. Önce aracı yayınlayın ya da yayınlanmış bir sürüm seçin.");
             }
         }
     }

@@ -12,6 +12,7 @@ export type Item = { id: string; type: string; owner: string; lockVersion: numbe
 export const TYPES = [
   { type: "JOURNEY", label: "Journey'ler", single: "Journey", path: "journeys" },
   { type: "TRAINING", label: "Eğitimler", single: "Eğitim", path: "trainings" },
+  { type: "TOOL", label: "Araçlar", single: "Araç", path: "tools" },
   { type: "POINT_RULE", label: "Puan kuralları", single: "Puan kuralı", path: "point-rules" },
 ] as const;
 
@@ -27,6 +28,7 @@ export const AUDIT_LABEL: Record<string, string> = {
   "content.created": "İçerik oluşturuldu", "content.draft_saved": "Taslak kaydedildi", "content.submitted": "İncelemeye gönderildi",
   "content.approved": "Onaylandı", "content.changes_requested": "Düzeltme istendi", "content.scheduled": "Yayın zamanlandı",
   "content.published": "Yayınlandı", "content.unpublished": "Yayından kaldırıldı", "content.published_scheduled": "Zamanlanmış yayın yapıldı", "content.republished": "Eski sürüm yeniden yayınlandı",
+  "tool.secret_set": "Araç sırrı ayarlandı (değer kaydedilmez)", "tool.secret_deleted": "Araç sırrı silindi", "tool.tested": "Deneme konsolunda çalıştırıldı",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -38,6 +40,8 @@ export function defaultBody(type: string, order: number): Json {
   switch (type) {
     case "JOURNEY": return { description: "", order, trainingIds: [], unlock: { requiresPreviousJourney: true, minPoints: 0 } };
     case "TRAINING": return { summary: "", prerequisites: [], items: [{ key: "ders-1", type: "lesson", title: "İlk ders", content: "Ders metni" }] };
+    case "TOOL": return { description: "Şehrin hava durumunu getirir (yerel sahte servis).", inputs: [{ name: "city", label: "Şehir", type: "string", required: true, maxLength: 100 }],
+      request: { method: "GET", url: "http://localhost:8090/weather?city={{input.city}}", headers: { "X-Api-Key": "{{secret.apiKey}}" } }, timeoutSeconds: 10, retries: 2, outputPath: "" };
     case "POINT_RULE": return { action: "LESSON_VIEWED", objectType: "LESSON", points: 1, policy: "ONCE_PER_OBJECT" };
     default: return {};
   }

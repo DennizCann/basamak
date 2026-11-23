@@ -156,7 +156,70 @@ erDiagram
   - **Kanıt:** `JourneyPolicyIT.publishedItemKeysCannotSilentlyDisappear`.
 - **Neden kilitleme yok, gerçek zamanlı ortak düzenleme yok:** Düşük çakışma oranında (20 kişilik ekip) iyimser kilit basittir ve veri kaybını önler. Ortak düzenleme (CRDT) bu kapsam için fazla karmaşık; §11'de ertelenenler arasında.
 
-## 4. Araç ve iş akışı çalıştırma motoru *(F3–F4'te yazılacak)*
+## 4. Araç ve iş akışı çalıştırma motoru *(araçlar F3'te yazıldı; iş akışları F4'te)*
+
+### 4.1 Araç modeli
+- **CMS aracı:** Sürümlü bir içeriktir (`TOOL`) ve taslak → inceleme → onay → yayın akışından geçer. Gövdesi `ToolDefinition`'dır: girdiler, yöntem, URL, başlıklar, JSON gövde şablonu, zaman aşımı (1–30 sn), yeniden deneme (0–3) ve sonuç alanı. Eğitim aracı `(toolId, versionNo)` ile **sabitler**. Yayın sırasında sabitlenen sürümün yayınlanmış olması zorunludur.
+- **Üye aracı:** `user_tool` tablosunda tutulur. Her kayıt yeni bir sürüm satırı açar (`user_tool_version`), çalıştırma o sürüme bağlanır. Aynı üyenin aynı tanımı ikinci kez kaydetmesi reddedilir (`def_hash`); boş ya da kopya araçla puan toplanamaz.
+- **Sırlar:** `tool_secret` tablosunda AES-256-GCM ile şifreli tutulur. Sürüm kopyasına, farka, denetim kaydına ve API cevaplarına girmez; yalnız adı ve son güncelleme zamanı döner. Değer, işçi isteği gönderirken çözülür. Önizlemede ve hata mesajlarında `••••` görünür.
+- **Şablonlar enjeksiyona kapalıdır:**
+  - Değerler yerleştirilir, hiçbir zaman değerlendirilmez.
+  - URL'de yüzde kodlanır ve yalnız yol ile sorguda kullanılabilir; sunucu adı kaydedilirken sabittir.
+  - Başlıklarda CR ve LF silinir.
+  - JSON gövde metin birleştirmeyle değil Jackson ağacıyla üretilir.
+  - Sırlar gövdede kullanılamaz.
+
+### 4.2 Çalıştırma (sıra şeması)
+```mermaid
+sequenceDiagram
+  participant U as Üye (web/mobil)
+  participant API
+  participant DB as PostgreSQL (job, tool_run, tool_run_event)
+  participant W as İşçi (JobWorker, N iş parçacığı)
+  participant X as Dış API
+  U->>API: POST /api/tool-runs (girdi, clientRequestId)
+  API->>DB: tool_run QUEUED + job (aynı işlem, idempotency_key)
+  API-->>U: run (QUEUED)
+  U->>API: GET /api/tool-runs/{id}/events (SSE, Last-Event-ID)
+  W->>DB: claim … FOR UPDATE SKIP LOCKED (kira 90 sn)
+  W->>DB: RUNNING + olay
+  W->>X: istek (UrlGuard'dan geçen IP'ye, zaman aşımı)
+  X-->>W: 503
+  W->>DB: RETRYING + olay, job run_after = +1 sn / +2 sn / +4 sn
+  W->>X: yeniden deneme
+  X-->>W: 200
+  W->>DB: SUCCEEDED + çıktı + olay, puan defteri, eğitim ögesi tamam
+  API-->>U: olaylar canlı (kopan bağlantı kaçırdıklarını tablodan alır)
+```
+- **Yeniden denenir:** Zaman aşımı, bağlantı hatası, 408, 425, 429 ve 5xx. **Denenmez:** Diğer 4xx, engellenen adres, eksik sır ve 1 MB'ı aşan cevap.
+- **İptal:** Kuyrukta bekleyen iş hemen kuyruktan alınır. Çalışan iş, canlı HTTP isteği iptal edilerek durdurulur; işçi CANCELLED yazar.
+- **Sunucu yeniden başlarsa:** Kirası dolan işi başka bir işçi alır. Deneme hakkı bitmişse sonuç FAILED yazılır; iş sessizce kaybolmaz.
+- **Aynı iş iki kez çalışmaz:**
+  - Kuyrukta `idempotency_key` UNIQUE kısıtı vardır.
+  - Çift tıklamada aynı `clientRequestId` aynı çalıştırmayı döndürür.
+  - Bir işi aynı anda iki işçi alamaz (`SKIP LOCKED`, `ToolIT.queue_*`).
+- **Dış API yavaşlarsa ya da çökerse:** En fazla `JOB_WORKERS` iş parçacığı bağlanır ve API'nin istek iş parçacıkları etkilenmez. Üye başına en çok 5 eşzamanlı çalıştırma vardır. Her denemenin bir süre sınırı vardır. Devre kesici (art arda hata veren hedefi bir süre atlamak) **yapılmadı**; §11'de.
+- **Çıktı:** 1 MB sınırı vardır. JSON değilse en fazla 10 KB metin saklanır. Saklama süresi önerisi 90 gündür (KVKK, F5); temizleme işi henüz yok.
+
+### 4.3 SSRF koruması (senaryo 7) — `UrlGuard`
+1. Yalnız http ve https kabul edilir; kullanıcı bilgisi içeren URL reddedilir. Sunucu adı şablonla oluşturulamaz.
+2. `localhost`, `*.local`, `*.internal` ve metadata adları DNS'e sorulmadan reddedilir.
+3. Ad çözülür ve dönen **her adres** denetlenir: loopback, 0/8, 10/8, 172.16/12, 192.168/16, 100.64/10, 169.254/16 (metadata dahil), 198.18/15, multicast ve ayrılmış aralıklar, IPv6 loopback, ULA ve link-local. IPv6 içine gömülü IPv4 de denetlenir (`::ffff:`, NAT64, 6to4). `2130706433`, `127.1` ve `::ffff:127.0.0.1` gibi yazımlar aynı adrese çözüldüğü için aynı kontrolde yakalanır.
+4. **DNS rebinding:** HTTP istemcisinin `DnsResolver`'ı aynı denetimi yapar, bağlantı yalnız denetimden geçen adreslere açılır. Kaydederken herkese açık olan ama sonra iç ağı gösteren bir ad, çalıştırma anında reddedilir (test edildi).
+5. **Yönlendirme:** Otomatik takip kapalıdır. En fazla 3 yönlendirme elle izlenir ve her adım 1–4'ten yeniden geçer. Başka bir sunucuya yönlendirmede sırlı başlıklar gönderilmez.
+6. Proxy, çerez ve otomatik yeniden deneme kapalıdır.
+7. **İstisna:** `TOOLS_TRUSTED_HOSTS` (varsayılan `localhost:8090`, yani sahte API) **yalnız CMS araçları** için ve **yalnız bu host:port** için açıktır. Üye araçları hiçbir koşulda iç ağa gidemez. Prod'da bu liste boş bırakılır.
+
+### 4.4 Sahte dış API (`mock-api/MockApi.java`)
+Yalnız JDK ile çalışan tek bir dosyadır (`java mock-api/MockApi.java`, :8090). Sağladıkları:
+- `/weather`: `X-Api-Key` başlığı ister.
+- `/slow?ms=`: Zaman aşımını göstermek için gecikmeli cevap verir.
+- `/flaky?key=&fail=`: İlk N çağrıda 503 döner, sonra başarılı olur (yeniden denemeyi gösterir).
+- `/status/{code}`: İstenen HTTP kodunu döner.
+- `/redirect?to=`: Yönlendirme engelini gösterir.
+- `/echo`: Gönderilen gövdeyi geri döner.
+
+Ücretli hiçbir servise gidilmez.
 
 ## 5. Oyunlaştırma ve puan defteri
 
@@ -393,6 +456,17 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
   - Araçlar bağımsız sürümlenir ve sabitlenir (§3.3).
   - Medya dosyaları kopyaya gömülmez; içerik adresli (hash) dosya anahtarlarıyla referans verilir. Aynı dosya sürümler arasında bir kez saklanır.
 
+### ADR-6 — Canlı durum: SSE (WebSocket değil)
+- **Bağlam:** Çalıştırma durumu ve ileride sıralama tablosu sunucudan istemciye tek yönlü akar. Web ve Capacitor WebView'da çalışmalı. Bağlantı koparsa olay kaybolmamalı.
+- **Seçenekler:** (a) WebSocket. (b) SSE. (c) Kısa aralıklı yoklama.
+- **Karar:** (b).
+  - Olaylar önce `tool_run_event` tablosuna yazılır, sonra açık akışlara gönderilir.
+  - İstemci yeniden bağlanırken `Last-Event-ID` gönderir ve kaçırdıkları tablodan yeniden oynatılır.
+  - İstemci fetch ile okur, çünkü EventSource `Authorization` başlığı gönderemez. Akış alınamazsa yoklamaya düşer.
+- **Sonuçlar:**
+  - HTTP/1.1'de tarayıcı başına 6 bağlantı sınırı vardır; HTTP/2 arkasında sorun olmaz.
+  - Dağıtım bugün süreç içidir (tek düğüm). Birden çok düğümde Postgres `LISTEN/NOTIFY` ya da bir yayın kanalı eklenir; tablo zaten kalıcı kaynak olduğu için kayıp olmaz.
+
 ### ADR-5 — Mobil: Capacitor ile web kodunun yeniden kullanımı
 - **Bağlam:** PDF, Android ve iOS uygulaması istiyor (RN, Flutter ya da yerel, seçim bize bırakılmış). Ekip tek kişi ve süre bir gün. Üye ekranları web'de zaten var ve test edildi (320 px, koyu tema, klavye).
 - **Seçenekler:**
@@ -403,6 +477,9 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Sonuçlar:** Çok uzun listelerde ve ağır animasyonlarda WebView, RN'nin gerisinde kalır; bu ürünün ekranları içerik ve form ağırlıklı olduğu için kabul edildi. Platforma özgü davranış `platform.ts` ve eklentilerle sınırlı tutulur. Soğuk açılış süresi F7'de ölçülecek.
 
 ## 11. İleriye bırakılanlar *(her fazda güncellenir)*
+- **Araçlarda devre kesici ve hedef başına hız sınırı:** Bugün işçi sayısı, süre sınırı ve üye başına 5 eşzamanlı çalıştırma var. Art arda hata veren bir hedefin geçici olarak atlanması yok.
+- **Araç çıktısı temizliği (90 gün) ve büyük dosya çıktısının diske akışı:** Çıktı 1 MB ile sınırlı.
+- **OAuth2 client credentials ile araç kimlik doğrulaması:** Yalnız başlıkta API anahtarı ya da bearer var.
 - **Gerçek zamanlı ortak düzenleme (CRDT veya OT):** Yerine iyimser kilit ve çakışma ekranı kullanıldı (§3.4).
 - **TOTP kodunun tekrar kullanılmasının engellenmesi:** Aynı 30 saniyelik pencerede aynı kod ikinci kez kabul ediliyor. Çözüm: Son kabul edilen zaman adımını kullanıcıya yazmak.
 - **Çok düğümlü hız sınırı:** Bellek içi sayaç tek düğüm için yeterli. Çok düğümde Postgres ya da Redis sayacına geçilir.
@@ -438,9 +515,9 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☑ Medya sürümleme ve saklama maliyeti: içerik adresli dosya anahtarlarıyla kopyalar arasında tekilleştirme → ADR-3
 
 **3.5 Araçlar**
-- ☐ Kuyruk ve işçi mimarisi (ADR-2) · ☐ Aynı işin iki kez çalışmasının önlenmesi
-- ☐ Dış API yavaşlar ya da çökerse koruma (devre kesici, eşzamanlılık sınırı)
-- ☐ Çıktıların saklanma süresi · ☐ Kötü niyetli araçların tespiti · ☐ Şablon enjeksiyonu
+- ☑ Kuyruk ve işçi mimarisi (ADR-2, §4.2) · ☑ Aynı işin iki kez çalışmasının önlenmesi → §4.2
+- ☑ Dış API yavaşlar ya da çökerse koruma: eşzamanlılık sınırı, süre sınırı, üye kotası (devre kesici ertelendi) → §4.2
+- ☑ Çıktıların saklanma süresi (öneri: 90 gün; temizlik işi yok) · ☐ Kötü niyetli araçların tespiti (SSRF engeli var; içerik taraması yok) · ☑ Şablon enjeksiyonu → §4.1
 
 **3.6 İş akışları**
 - ☐ Akış modeli ve çalıştırma motoru (kendi motorumuz mu, hazır bir araç mı?)
@@ -457,7 +534,7 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☐ Yorumlarda kişisel veri ve küfür süzme · ☐ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? · ☐ Etkinlik akışının ölçeklenmesi
 
 **3.9 Bildirimler**
-- ☐ WebSocket mi, SSE mi? · ☐ Kaçırılan olaylar · ☐ Bildirimin iki kez gitmemesi · ☐ Sessiz saatler
+- ☑ WebSocket mi, SSE mi? → ADR-6 · ☑ Kaçırılan olaylar → ADR-6 · ☐ Bildirimin iki kez gitmemesi · ☐ Sessiz saatler
 
 **3.10 Geçmişim ve KVKK**
 - ☐ Olay kaydının yapısı ve saklama süresi (yapı: `activity_event`; saklama F5) · ☐ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri · ☑ Sertifika sahteciliği → §5.7

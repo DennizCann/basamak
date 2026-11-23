@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/0004-login-email-code.sql
   - include:
       file: db/changelog/0005-trusted-device.sql
+  - include:
+      file: db/changelog/0006-tools-jobs.sql

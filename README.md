@@ -40,6 +40,7 @@ Gereksinimler: Java 21, Node 20+, PostgreSQL 16+ (yerelde çalışıyor olmalı)
 | CMS | http://localhost:5174 |
 | API | http://localhost:8080 (sağlık: `/actuator/health`) |
 | Mailpit | http://localhost:8025 |
+| Sahte dış API (araçlar için) | http://localhost:8090 — `java mock-api\MockApi.java` (yalnız JDK; `scripts\dev.ps1` de başlatır) |
 
 ## Docker Compose
 `docker-compose.yml` Postgres ve Mailpit'i ayağa kaldırır. **Durum: henüz doğrulanmadı.** Geliştirme makinesinde Docker kurulu değil; doğrulanınca bu satır güncellenecek.
@@ -103,6 +104,8 @@ Kod 10 dakika geçerlidir ve tek kullanımlıktır. 60 saniye sonra "Kodu yenide
 | 3 | Eğitim ortasında yeni sürüm | **Çalışıyor.** Kural: başladığı sürümde biter, isterse geçer. Otomatik test: `LearningIT.scenario3_*`. Web'de "yeni sürüme geç" uyarısı var |
 | 4 | Eşzamanlı düzenleme | **Çalışıyor.** API testleri: `scenario4_*` (gerçek eşzamanlı test dahil). CMS'te çakışma ekranı var (kaydedilmemiş değişiklikler gösterilir) |
 | 5 | Kayıt → sertifika | **Çalışıyor.** API: `LearningIT.scenario5_*` (Journey sonu, PDF ve doğrulama dahil). Uçtan uca: `e2e/member.spec.ts` (gerçek Mailpit doğrulaması ve ders tamamlama) |
+| 6 | Araç tanımı, sır, deneme konsolu, üyenin çalıştırması | **Web ve CMS'te çalışıyor.** CMS'te "Araçlar": tanım (sürümlü içerik), şifreli sır, deneme konsolu; eğitime sürüm sabitlenerek eklenir. Üye çalıştırır; kuyruk, canlı durum (SSE), zaman aşımı, yeniden deneme ve iptal. Test: `ToolIT` (sahte sunucu: 2 kez 503 sonra başarı, zaman aşımı, iptal), uçtan uca `e2e/tools.spec.ts` (sahte API `mock-api`). Mobilde denenmedi |
+| 7 | İç ağa giden araç (SSRF) | **Çalışıyor.** Kaydederken ve her istekte: 127.0.0.1, localhost, 10/8, 172.16/12, 192.168/16, 169.254.169.254, IPv6 loopback/ULA, ondalık ve kısa IP yazımları, iç ağı gösteren DNS cevabı, yönlendirme ve DNS rebinding. Test: `ToolIT.scenario7_*`, `UrlGuardTest`, `e2e/tools.spec.ts` |
 | 10 | Dinamik puan kuralları ve tekrar | **Çalışıyor.** `GamificationIT` (100 görüntüleme → 1 puan; çift ve eşzamanlı olay → 1 kayıt; CMS'ten kural değişikliği) |
 | 15 | 320 px, koyu tema, klavye | **Kısmen.** Giriş ve ana sayfa için uçtan uca kontrol var (`e2e/member.spec.ts`). Tam tarama F7'de |
-| 6–9, 11–14 | — | Başlanmadı |
+| 8, 9, 11–14 | — | Başlanmadı (mobil: Android'de giriş ve Journey listesi emülatörde doğrulandı, bkz. TASARIM §8) |

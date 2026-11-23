@@ -16,7 +16,7 @@
 | F1 | Kimlik, roller, TOTP, sürümleme, yayın, audit, Journey, tohum verisi | **tamamlandı** (23.11 16.45; backend API, UI yok) — F2 için onay bekleniyor |
 | F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | **tamamlandı** (23.11 ~17.50) — F2.5 için onay bekleniyor |
 | F2.5 | Capacitor iskeleti ve ilk debug APK | **tamamlandı** (23.11 ~20.40): emülatörde giriş ve Journey listesi çalışıyor; iOS test edilmedi |
-| F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | başlanmadı |
+| F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | **tamamlandı** (24.11 ~00.15): web ve CMS; mobilde araç ekranı denenmedi |
 | F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | başlanmadı |
 | F5 | Geçmişim, KVKK, raporlar (12, 13) | başlanmadı |
 | F6 | Mobil özellikler (14) | başlanmadı |
@@ -31,9 +31,11 @@
 | 3 | tamamlandı | `LearningIT.scenario3_*` |
 | 4 | tamamlandı (API ve çakışma ekranı) | `ContentWorkflowIT.scenario4_*` |
 | 5 | tamamlandı (API ve web) | `LearningIT.scenario5_*`, `e2e/member.spec.ts` (gerçek Mailpit) |
+| 6 | tamamlandı (web ve CMS) | `ToolIT` (yeniden deneme, zaman aşımı, iptal, SSE tekrar oynatma, sır gizliliği), `e2e/tools.spec.ts` |
+| 7 | tamamlandı | `ToolIT.scenario7_*` (21 adres, DNS rebinding, yönlendirme), `UrlGuardTest` (25), `e2e/tools.spec.ts` |
 | 10 | tamamlandı | `GamificationIT` (5 test) |
 | 15 | kısmen (giriş ve ana sayfa: 320 px, koyu tema, klavye) | `e2e/member.spec.ts` |
-| 6–9, 11–14 | başlanmadı | — |
+| 8, 9, 11–14 | başlanmadı | — (14: Android'de yalnız giriş ve Journey listesi elle doğrulandı) |
 
 ## F1'de yapılanlar (özet)
 - **Kimlik:**
@@ -74,6 +76,8 @@
 | 23.11 ~20.10 | QA fazı: `$env:PW_CHANNEL="msedge"; npm run e2e` (izole :8081/:5183/:5184) | **8/8** |
 | 23.11 ~20.45 | F2.5: `npm run typecheck`, `npm run build`, izole e2e (msedge) | temiz; **21 geçti** (1 isteğe bağlı ekran testi atlandı). Backend kodu değişmediği için `mvnw verify` yeniden çalıştırılmadı (son: 46/46) |
 | 23.11 ~20.40 | F2.5: `gradlew assembleDebug` ve `adb install`, Pixel 7 emülatörü | APK kuruldu; giriş, kod ve Journey listesi elle doğrulandı |
+| 24.11 ~00.10 | F3: `cd backend; .\mvnw.cmd -B -o verify` | **79/79** (yeni: ToolIT 8, UrlGuardTest 25) |
+| 24.11 ~00.15 | F3: typecheck, build, izole e2e (msedge; sahte API :8090) | temiz; **23 geçti**, 1 isteğe bağlı test atlandı (yeni: `e2e/tools.spec.ts` 2) |
 
 ## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
 Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş Journey politikası, E2E izolasyonu, CMS dönüş bağlantısı, öge anahtarı koruması (sunucu ve UI), quiz incelemesi ve cevap gösterme politikası, URL ile içerik gezinmesi, ortak bileşenli etkileşimli önizleme, Türkçe etiketler, PDF indirme geri bildirimi.
@@ -99,6 +103,18 @@ Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictM
 - **Bulunan ve düzeltilen:** Android 15 edge-to-edge yüzünden başlık durum çubuğunun altında kalıyordu.
 - **Yapılmadı / test edilmedi:** iOS (macOS gerekir), gerçek Android cihaz, Keystore, çevrimdışı mod, bildirimler, derin bağlantı, mobilde PDF indirme (hepsi F6).
 - APK üretimi: `cd apps/mobile/android; $env:JAVA_HOME=<JDK 21>; $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"; .\gradlew.bat assembleDebug`.
+
+## F3 Araçlar (23.11 gece)
+- **Backend:**
+  - Migration `0006` (`tool_secret`, `user_tool(+version)`, `job`, `tool_run`, `tool_run_event`).
+  - `UrlGuard` (SSRF), `ToolDefinition` (şema ve güvenli şablon), `ToolExecutor` (HttpClient5, denetlenmiş DNS, 1 MB, elle yönlendirme).
+  - `JobQueue` ve `JobWorker` (SKIP LOCKED, kira, yeniden deneme), `ToolRunService` (durumlar, iptal, puan, eğitim ögesi), `RunEvents` (SSE ve Last-Event-ID).
+  - CMS sır ve deneme konsolu uç noktaları, üye araçları API'si.
+- **CMS:** "Araçlar" menüsü, araç formu, "Sırlar ve deneme" sekmesi, eğitime "+ Araç" ile sürüm sabitleme.
+- **Web:** Eğitimde araç ögesi (form, canlı durum, iptal, sonuç). "Araçlar" sayfası: kendi aracını oluşturma, düzenleme, çalıştırma ve son çalıştırmalar.
+- **Sahte API:** `java mock-api/MockApi.java` (:8090). `scripts/dev.ps1` ve Playwright yapılandırması bunu başlatıyor.
+- **Dev DB:** Migration 0006 uygulandı (yalnız yeni tablolar; veri silinmedi). Backend yeni jar'la yeniden başlatıldı.
+- **Yapılmadı:** Devre kesici, çıktı temizliği, OAuth2 client credentials (TASARIM §11). Araç ekranı mobilde denenmedi (F6'da APK yenilenecek).
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

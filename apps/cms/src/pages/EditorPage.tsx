@@ -3,10 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { Alert, StateView, TextArea, TextField, errorMessage, fmt, ApiError } from "@basamak/ui";
 import { api, useAuth } from "../auth";
 import { AUDIT_LABEL, STATUS_LABEL, istanbulLocalToIso, listPathFor, typeLabel, type Item, type Json, type Version } from "../content";
-import { JourneyForm, RuleForm, TrainingForm } from "../editors";
+import { JourneyForm, RuleForm, ToolForm, TrainingForm } from "../editors";
+import { ToolConsole } from "../ToolConsole";
 import { PreviewPlayer } from "../PreviewPlayer";
 
-type Tab = "edit" | "preview" | "history" | "audit";
+type Tab = "edit" | "preview" | "tool" | "history" | "audit";
 
 export function EditorPage() {
   const { id } = useParams();
@@ -20,6 +21,8 @@ export function EditorPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [conflict, setConflict] = useState<ApiError | null>(null);
   const [trainings, setTrainings] = useState<Item[]>([]);
+  const [tools, setTools] = useState<Item[]>([]);
+  const [versions, setVersions] = useState<Version[]>([]);
   const [jsonMode, setJsonMode] = useState(false);
   const [lockedKeys, setLockedKeys] = useState<string[]>([]);
   const [confirmRemoved, setConfirmRemoved] = useState<string[]>([]);
@@ -34,6 +37,8 @@ export function EditorPage() {
       setConflict(null);
       setConfirmRemoved([]);
       if (it.type === "JOURNEY" || it.type === "TRAINING") setTrainings(await api.get<Item[]>("/api/cms/items?type=TRAINING"));
+      if (it.type === "TRAINING") setTools(await api.get<Item[]>("/api/cms/items?type=TOOL"));
+      if (it.type === "TOOL") setVersions(await api.get<Version[]>(`/api/cms/items/${id}/versions`));
       if (it.type === "TRAINING") {
         // keys that were ever published identify member progress: they become read-only in the editor
         const vs = await api.get<Version[]>(`/api/cms/items/${id}/versions`);
@@ -105,7 +110,7 @@ export function EditorPage() {
       )}
 
       <div role="tablist" aria-label="Düzenleyici sekmeleri" className="row">
-        {([["edit", "Düzenle"], ["preview", "Önizleme"], ["history", "Geçmiş ve fark"], ["audit", "Denetim kaydı"]] as [Tab, string][]).map(([k, l]) => (
+        {([["edit", "Düzenle"], ["preview", "Önizleme"], ...(item.type === "TOOL" ? [["tool", "Sırlar ve deneme"]] : []), ["history", "Geçmiş ve fark"], ["audit", "Denetim kaydı"]] as [Tab, string][]).map(([k, l]) => (
           <button key={k} role="tab" aria-selected={tab === k} className={`btn ${tab === k ? "btn-primary" : ""}`} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -116,7 +121,8 @@ export function EditorPage() {
           <label className="choice"><input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> Gelişmiş: JSON olarak düzenle</label>
           {jsonMode ? <JsonEditor value={body} onChange={change} disabled={!editable} />
             : item.type === "JOURNEY" ? <JourneyForm body={body} onChange={change} trainings={trainings} disabled={!editable} />
-            : item.type === "TRAINING" ? <TrainingForm body={body} onChange={change} trainings={trainings.filter((t) => t.id !== item.id)} disabled={!editable}
+            : item.type === "TOOL" ? <ToolForm body={body} onChange={change} disabled={!editable} />
+            : item.type === "TRAINING" ? <TrainingForm body={body} onChange={change} trainings={trainings.filter((t) => t.id !== item.id)} tools={tools} disabled={!editable}
                                                        lockedKeys={lockedKeys} onConfirmRemove={(k) => setConfirmRemoved((c) => [...new Set([...c, k])])} />
             : item.type === "POINT_RULE" ? <RuleForm body={body} onChange={change} disabled={!editable} />
             : <JsonEditor value={body} onChange={change} disabled={!editable} />}
@@ -133,6 +139,7 @@ export function EditorPage() {
       )}
       {tab === "history" && <History itemId={item.id} canPublish={can("PUBLISHER")} onChanged={load}
                                      titles={Object.fromEntries(trainings.map((t) => [t.id, t.latest.title]))} />}
+      {tab === "tool" && item.type === "TOOL" && <ToolConsole key={item.latest.id} itemId={item.id} versions={versions} canWrite={can("AUTHOR", "EDITOR")} dirty={dirty} />}
       {tab === "audit" && <Audit itemId={item.id} />}
     </main>
   );

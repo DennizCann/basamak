@@ -6,6 +6,7 @@ import {
 } from "@basamak/ui";
 import { api } from "../auth";
 import { Meter } from "../components/Meter";
+import { ToolRunner, type ToolInput, type ToolRun } from "../components/ToolRunner";
 
 type Training = {
   id: string; title: string; summary: string; versionNo: number; latestVersionNo: number; newerVersionAvailable: boolean;
@@ -141,7 +142,7 @@ export function TrainingPage() {
                 {item.type === "survey" && (item.completed
                   ? <p className="done-note">✓ Anketi doldurdun, teşekkürler.</p>
                   : <SurveyForm item={item} onSubmit={(answers) => act(() => api.post(`/api/trainings/${id}/items/${item.key}/survey`, { answers }))} />)}
-                {item.type === "tool" && <p className="muted">Bu içerik bir araç çalıştırır; araç ekranı henüz hazır değil.</p>}
+                {item.type === "tool" && <TrainingTool key={item.key} trainingId={id!} item={item} onSucceeded={load} />}
 
                 {!next && (
                   <div className="hero-target" role="status">
@@ -243,6 +244,27 @@ function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerIt
           <div><button className="btn" onClick={() => setReview(null)}>İncelemeyi kapat</button></div>
         </section>
       )}
+    </div>
+  );
+}
+
+/** A tool item: the member fills the tool's inputs and runs it; a successful run completes the item. */
+function TrainingTool({ trainingId, item, onSucceeded }: { trainingId: string; item: PlayerItem; onSucceeded: () => void }) {
+  const [tool, setTool] = useState<{ name: string; description: string; inputs: ToolInput[]; timeoutSeconds: number; retries: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    api.get<typeof tool>(`/api/trainings/${trainingId}/tools/${item.key}`).then(setTool).catch((e) => setError(errorMessage(e)));
+  }, [trainingId, item.key]);
+  if (error) return <Alert kind="error"><p>{error}</p></Alert>;
+  if (!tool) return <p role="status" className="muted">Araç yükleniyor…</p>;
+  return (
+    <div className="stack">
+      {item.completed && <p className="done-note">✓ Bu aracı başarıyla çalıştırdın. İstersen yeniden çalıştırabilirsin.</p>}
+      {tool.description && <p>{tool.description}</p>}
+      <p className="hint-line">En fazla {tool.timeoutSeconds} sn beklenir{tool.retries > 0 ? `; geçici hatalarda ${tool.retries} kez yeniden denenir` : ""}.</p>
+      <ToolRunner inputs={tool.inputs}
+        start={(input, clientRequestId) => api.post<ToolRun>("/api/tool-runs", { trainingId, itemKey: item.key, input, clientRequestId })}
+        onFinished={(r) => { if (r.status === "SUCCEEDED") onSucceeded(); }} />
     </div>
   );
 }

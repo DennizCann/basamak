@@ -117,6 +117,46 @@ export function createApi(opts: ApiOptions) {
     setToken: (t: string | null) => (accessToken = t),
     hasToken: () => accessToken !== null,
     tryRestore: () => refresh(),
+    /**
+     * Server-Sent Events read with fetch (EventSource cannot send the Authorization header, and fetch works the
+     * same in the browser and the mobile WebView). Resolves when the server closes the stream; the caller
+     * reconnects with the last id it saw, and the server replays what was missed.
+     */
+    async stream(path: string, onEvent: (e: { id: number; event: string; data: unknown }) => void,
+                 o: { signal?: AbortSignal; lastEventId?: number } = {}) {
+      const open = () => fetch(base + path, {
+        headers: {
+          Accept: "text/event-stream",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          ...(o.lastEventId ? { "Last-Event-ID": String(o.lastEventId) } : {}),
+        },
+        credentials: "include",
+        signal: o.signal,
+      });
+      let res = await open();
+      if (res.status === 401 && (await refresh())) res = await open();
+      if (!res.ok || !res.body) throw new ApiError("Canlı durum alınamadı.", res.status, "stream_failed");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        let cut: number;
+        while ((cut = buf.indexOf("\n\n")) >= 0) {
+          const block = buf.slice(0, cut);
+          buf = buf.slice(cut + 2);
+          let id = 0, event = "message", data = "";
+          for (const line of block.split("\n")) {
+            if (line.startsWith("id:")) id = Number(line.slice(3).trim());
+            else if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data += line.slice(5).replace(/^ /, "");
+          }
+          if (data) onEvent({ id, event, data: JSON.parse(data) });
+        }
+      }
+    },
     /** Raw download with auth (e.g. certificate PDF). */
     async download(path: string, filename: string) {
       let res = await fetch(base + path, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, credentials: "include" });

@@ -65,8 +65,8 @@ export function RuleForm({ body, onChange, disabled }: FormProps) {
   );
 }
 
-export function TrainingForm({ body, onChange, trainings, disabled, lockedKeys = [], onConfirmRemove }:
-  FormProps & { trainings: Item[]; lockedKeys?: string[]; onConfirmRemove?: (key: string) => void }) {
+export function TrainingForm({ body, onChange, trainings, tools = [], disabled, lockedKeys = [], onConfirmRemove }:
+  FormProps & { trainings: Item[]; tools?: Item[]; lockedKeys?: string[]; onConfirmRemove?: (key: string) => void }) {
   const set = (k: string, v: unknown) => onChange({ ...body, [k]: v });
   const items: Json[] = body.items ?? [];
   const remove = (i: number) => {
@@ -85,6 +85,7 @@ export function TrainingForm({ body, onChange, trainings, disabled, lockedKeys =
     const extra = type === "lesson" ? { content: "" }
       : type === "quiz" ? { passingScore: 60, attemptsAllowed: 3, timeLimitSeconds: 600, questionsPerAttempt: 1, showCorrectAnswers: true, shuffleOptions: true,
           questions: [{ id: "q1", type: "single", text: "", points: 1, options: [{ id: "a", text: "", correct: true }, { id: "b", text: "" }] }] }
+      : type === "tool" ? { toolId: tools.find((t) => t.publishedVersionNo)?.id ?? "", toolVersionNo: tools.find((t) => t.publishedVersionNo)?.publishedVersionNo ?? 1 }
       : { anonymous: false, questions: [{ id: "s1", type: "scale", text: "" }] };
     set("items", [...items, { ...base, ...extra }]);
   };
@@ -125,12 +126,15 @@ export function TrainingForm({ body, onChange, trainings, disabled, lockedKeys =
           {it.type === "lesson" && <TextArea label="Ders metni (Markdown)" rows={8} value={it.content ?? ""} onChange={(e) => setItem(i, { ...it, content: e.target.value })} />}
           {it.type === "quiz" && <QuizEditor quiz={it} onChange={(q) => setItem(i, q)} />}
           {it.type === "survey" && <SurveyEditor survey={it} onChange={(s) => setItem(i, s)} />}
+          {it.type === "tool" && <ToolPin item={it} tools={tools} onChange={(t) => setItem(i, t)} />}
         </div>
       ))}
       <div className="row">
         <button type="button" className="btn" onClick={() => add("lesson")}>+ Ders</button>
         <button type="button" className="btn" onClick={() => add("quiz")}>+ Quiz</button>
         <button type="button" className="btn" onClick={() => add("survey")}>+ Anket</button>
+        <button type="button" className="btn" onClick={() => add("tool")} disabled={!tools.some((t) => t.publishedVersionNo)}
+                title={tools.some((t) => t.publishedVersionNo) ? undefined : "Önce bir aracı yayınlayın."}>+ Araç</button>
       </div>
     </fieldset>
   );
@@ -195,5 +199,84 @@ function SurveyEditor({ survey, onChange }: { survey: Json; onChange: (s: Json) 
       ))}
       <button type="button" className="btn" onClick={() => onChange({ ...survey, questions: [...qs, { id: `s${qs.length + 1}-${Date.now().toString(36).slice(-3)}`, type: "scale", text: "" }] })}>+ Soru</button>
     </div>
+  );
+}
+
+/** Tool item: pins one published version of a tool (a newer tool version never changes this training silently). */
+function ToolPin({ item, tools, onChange }: { item: Json; tools: Item[]; onChange: (v: Json) => void }) {
+  const tool = tools.find((t) => t.id === item.toolId);
+  const versions = tool?.publishedVersionNo ? Array.from({ length: tool.publishedVersionNo }, (_, i) => i + 1) : [];
+  return (
+    <div className="row">
+      <SelectField label="Araç" value={item.toolId ?? ""} onChange={(e) => {
+        const t = tools.find((x) => x.id === e.target.value);
+        onChange({ ...item, toolId: e.target.value, toolVersionNo: t?.publishedVersionNo ?? 1 });
+      }}>
+        <option value="">Seçin…</option>
+        {tools.filter((t) => t.publishedVersionNo).map((t) => <option key={t.id} value={t.id}>{t.latest.title}</option>)}
+      </SelectField>
+      <SelectField label="Sabitlenen sürüm" value={item.toolVersionNo ?? 1} hint="Yalnız yayınlanmış bir sürüm yayına alınabilir."
+                   onChange={(e) => onChange({ ...item, toolVersionNo: Number(e.target.value) })}>
+        {versions.map((v) => <option key={v} value={v}>s{v}{v === tool?.publishedVersionNo ? " (yayındaki)" : ""}</option>)}
+      </SelectField>
+    </div>
+  );
+}
+
+/** CMS tool definition (versioned content). Secrets are NOT part of it: they are set on the "Sırlar ve deneme" tab. */
+export function ToolForm({ body, onChange, disabled }: FormProps) {
+  const set = (k: string, v: unknown) => onChange({ ...body, [k]: v });
+  const req = body.request ?? { method: "GET", url: "", headers: {} };
+  const setReq = (k: string, v: unknown) => set("request", { ...req, [k]: v });
+  const headers: [string, string][] = Object.entries(req.headers ?? {});
+  const setHeaders = (h: [string, string][]) => setReq("headers", Object.fromEntries(h));
+  const inputs: Json[] = body.inputs ?? [];
+  const setInput = (i: number, v: Json) => set("inputs", inputs.map((x, j) => (j === i ? v : x)));
+  return (
+    <fieldset disabled={disabled} className="stack">
+      <legend>Araç</legend>
+      <TextArea label="Açıklama (üyeye gösterilir)" rows={2} value={body.description ?? ""} onChange={(e) => set("description", e.target.value)} />
+      <div className="row">
+        <SelectField label="Yöntem" value={req.method} onChange={(e) => setReq("method", e.target.value)}>
+          <option value="GET">GET</option><option value="POST">POST</option>
+        </SelectField>
+        <div style={{ flex: "1 1 20rem" }}>
+          <TextField label="Adres (URL)" value={req.url ?? ""} onChange={(e) => setReq("url", e.target.value)}
+                     hint="Girdi: {{input.ad}} (yalnız yol/sorguda). Sır: {{secret.ad}}. İç ağ adresleri reddedilir; yerel sahte servis (localhost:8090) yalnız CMS araçlarına açıktır." />
+        </div>
+      </div>
+      <h3>Başlıklar</h3>
+      {headers.map(([k, v], i) => (
+        <div key={i} className="row">
+          <TextField label="Ad" value={k} onChange={(e) => setHeaders(headers.map((h, j) => (j === i ? [e.target.value, h[1]] : h)))} />
+          <TextField label="Değer" value={v} hint="Anahtar için {{secret.apiKey}} kullanın; değeri buraya yazmayın."
+                     onChange={(e) => setHeaders(headers.map((h, j) => (j === i ? [h[0], e.target.value] : h)))} />
+          <button type="button" className="btn btn-danger" onClick={() => setHeaders(headers.filter((_, j) => j !== i))}>Sil</button>
+        </div>
+      ))}
+      <div><button type="button" className="btn" onClick={() => setHeaders([...headers, ["X-Api-Key", "{{secret.apiKey}}"]])}>+ Başlık</button></div>
+      {req.method === "POST" && (
+        <TextArea label="İstek gövdesi (JSON şablonu)" rows={4} value={JSON.stringify(req.body ?? {}, null, 2)}
+                  onChange={(e) => { try { setReq("body", JSON.parse(e.target.value)); } catch { /* keep typing */ } }} />
+      )}
+      <h3>Girdiler</h3>
+      {inputs.map((inp, i) => (
+        <div key={i} className="row">
+          <TextField label="Ad" value={inp.name} onChange={(e) => setInput(i, { ...inp, name: e.target.value })} />
+          <TextField label="Etiket" value={inp.label ?? ""} onChange={(e) => setInput(i, { ...inp, label: e.target.value })} />
+          <SelectField label="Tür" value={inp.type ?? "string"} onChange={(e) => setInput(i, { ...inp, type: e.target.value })}>
+            <option value="string">Metin</option><option value="number">Sayı</option><option value="boolean">Evet/Hayır</option>
+          </SelectField>
+          <label className="choice"><input type="checkbox" checked={!!inp.required} onChange={(e) => setInput(i, { ...inp, required: e.target.checked })} /> Zorunlu</label>
+          <button type="button" className="btn btn-danger" onClick={() => set("inputs", inputs.filter((_, j) => j !== i))}>Sil</button>
+        </div>
+      ))}
+      <div><button type="button" className="btn" onClick={() => set("inputs", [...inputs, { name: `girdi${inputs.length + 1}`, label: "", type: "string", required: false }])}>+ Girdi</button></div>
+      <div className="row">
+        <TextField label="Zaman aşımı (sn, 1-30)" type="number" min={1} max={30} value={body.timeoutSeconds ?? 10} onChange={(e) => set("timeoutSeconds", Number(e.target.value))} />
+        <TextField label="Yeniden deneme (0-3)" type="number" min={0} max={3} value={body.retries ?? 2} onChange={(e) => set("retries", Number(e.target.value))} />
+        <TextField label="Sonuç alanı (isteğe bağlı)" placeholder="data.result" value={body.outputPath ?? ""} onChange={(e) => set("outputPath", e.target.value)} />
+      </div>
+    </fieldset>
   );
 }

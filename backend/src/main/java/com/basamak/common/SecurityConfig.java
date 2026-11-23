@@ -39,6 +39,8 @@ public class SecurityConfig {
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(a -> a
+                // SSE: the async re-dispatch of an already authorised stream must not be re-checked
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC, jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/health", "/api/public/**",
                         "/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-verification",
                         "/api/auth/login", "/api/auth/login/verify", "/api/auth/login/resend",

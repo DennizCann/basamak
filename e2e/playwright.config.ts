@@ -22,6 +22,8 @@ export default defineConfig({
     timezoneId: "Europe/Istanbul",
   },
   webServer: [
+    // fake external API for tools (JDK only); reused when a developer already runs it on :8090
+    { command: "java mock-api/MockApi.java", cwd: "..", url: "http://localhost:8090/health", reuseExistingServer: true, timeout: 60_000 },
     {
       command: "java -jar backend/target/basamak-backend-0.1.0.jar --spring.profiles.active=e2e",
       cwd: "..",
