@@ -46,6 +46,11 @@ public class JobQueue {
                 workerId, (double) lease.toSeconds(), limit);
     }
 
+    /** Long jobs extend their lease while they make progress, so no other worker takes them over. */
+    public void heartbeat(UUID id, Duration lease) {
+        jdbc.update("UPDATE job SET locked_until = now() + make_interval(secs => ?) WHERE id = ? AND status = 'RUNNING'", (double) lease.toSeconds(), id);
+    }
+
     public void done(UUID id) {
         jdbc.update("UPDATE job SET status = 'DONE', locked_until = NULL, updated_at = now() WHERE id = ?", id);
     }

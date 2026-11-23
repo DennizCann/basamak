@@ -206,6 +206,17 @@ public class ToolRunService implements JobHandler {
         return userToolVersion(toolId, (Integer) row.get("v"));
     }
 
+    /** For workflow steps: a member tool version, only if it belongs to the given owner. */
+    public Resolved ownedUserToolVersion(UUID owner, UUID toolId, int versionNo) {
+        UUID o = jdbc.query("SELECT owner_id FROM user_tool WHERE id = ? AND deleted_at IS NULL", rs -> rs.next() ? rs.getObject(1, UUID.class) : null, toolId);
+        if (o == null || !o.equals(owner)) throw ApiException.notFound("Araç");
+        return userToolVersion(toolId, versionNo);
+    }
+
+    public int currentUserToolVersion(UUID owner, UUID toolId) {
+        return (Integer) userTool(owner, toolId).versionNo();
+    }
+
     private Resolved userToolVersion(UUID toolId, int versionNo) {
         return jdbc.query("""
                 SELECT t.name, v.definition::text FROM user_tool t JOIN user_tool_version v ON v.tool_id = t.id

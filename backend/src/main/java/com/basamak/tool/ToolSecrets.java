@@ -39,7 +39,7 @@ public class ToolSecrets {
                 scope.name(), toolId);
     }
 
-    Map<String, String> decryptAll(Scope scope, UUID toolId) {
+    public Map<String, String> decryptAll(Scope scope, UUID toolId) {
         Map<String, String> out = new HashMap<>();
         jdbc.query("SELECT name, ciphertext FROM tool_secret WHERE scope = ? AND tool_id = ?",
                 rs -> { out.put(rs.getString("name"), crypto.decrypt(rs.getString("ciphertext"))); }, scope.name(), toolId);

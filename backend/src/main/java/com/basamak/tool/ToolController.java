@@ -43,6 +43,19 @@ public class ToolController {
                 "inputs", r.def().inputs(), "timeoutSeconds", r.def().timeoutSeconds(), "retries", r.def().retries());
     }
 
+    /** Published platform (CMS) tools a member may use in workflows: name, version and inputs only. */
+    @GetMapping("/tools")
+    public List<Map<String, Object>> platformTools() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (var p : published.list(com.basamak.content.ContentType.TOOL)) {
+            try {
+                var d = ToolDefinition.parse(p.body());
+                out.add(Map.of("id", p.itemId(), "name", p.title(), "versionNo", p.versionNo(), "description", d.description(), "inputs", d.inputs()));
+            } catch (ApiException ignored) { /* an invalid old definition is simply not offered */ }
+        }
+        return out;
+    }
+
     @PostMapping("/tool-runs")
     public Map<String, Object> start(@AuthenticationPrincipal AuthPrincipal p, @RequestBody RunReq r) {
         if (r.userToolId() != null) return runs.startUserTool(p.userId(), r.userToolId(), r.input(), r.clientRequestId());

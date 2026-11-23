@@ -36,6 +36,10 @@ public class GamificationService {
     private final JdbcTemplate jdbc;
     private final PublishedContent published;
     private final ObjectMapper json;
+    private final org.springframework.context.ApplicationEventPublisher events;
+
+    /** Published after points change; the leaderboard stream tells open screens to refresh. */
+    public record PointsChanged(UUID userId, int points) {}
 
     public record Award(boolean eventRecorded, int points, PointRule rule) {
         static final Award DUPLICATE = new Award(false, 0, null);
@@ -60,6 +64,7 @@ public class GamificationService {
                 e.eventKey(), idempotencyKey(r, e), r.action());
         if (inserted == 0) return new Award(true, 0, r);
         addToScore(e.userId(), r.points());
+        events.publishEvent(new PointsChanged(e.userId(), r.points()));
         return new Award(true, r.points(), r);
     }
 

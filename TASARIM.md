@@ -156,7 +156,7 @@ erDiagram
   - **Kanıt:** `JourneyPolicyIT.publishedItemKeysCannotSilentlyDisappear`.
 - **Neden kilitleme yok, gerçek zamanlı ortak düzenleme yok:** Düşük çakışma oranında (20 kişilik ekip) iyimser kilit basittir ve veri kaybını önler. Ortak düzenleme (CRDT) bu kapsam için fazla karmaşık; §11'de ertelenenler arasında.
 
-## 4. Araç ve iş akışı çalıştırma motoru *(araçlar F3'te yazıldı; iş akışları F4'te)*
+## 4. Araç ve iş akışı çalıştırma motoru
 
 ### 4.1 Araç modeli
 - **CMS aracı:** Sürümlü bir içeriktir (`TOOL`) ve taslak → inceleme → onay → yayın akışından geçer. Gövdesi `ToolDefinition`'dır: girdiler, yöntem, URL, başlıklar, JSON gövde şablonu, zaman aşımı (1–30 sn), yeniden deneme (0–3) ve sonuç alanı. Eğitim aracı `(toolId, versionNo)` ile **sabitler**. Yayın sırasında sabitlenen sürümün yayınlanmış olması zorunludur.
@@ -220,6 +220,31 @@ Yalnız JDK ile çalışan tek bir dosyadır (`java mock-api/MockApi.java`, :809
 - `/echo`: Gönderilen gövdeyi geri döner.
 
 Ücretli hiçbir servise gidilmez.
+
+### 4.5 İş akışları (senaryo 8) — kendi motorumuz
+- **Neden kendi motorumuz:** Temporal ya da Airflow ayrı bir altyapı ister; sıfır maliyet ve tek gün kısıtına uymaz. Akışlar kısa ve doğrusaldır (en fazla 20 adım), bu yüzden ADR-2'deki kuyrukta tek bir iş (`WORKFLOW_RUN`) olarak çalışır. İşçi her adımda kirasını uzatır (`heartbeat`).
+- **Model:** Adımlar sırayla çalışır. Türler: `tool` (platform aracı sürümüyle ya da üye aracı kayıt anındaki sürümüyle **sabitlenir**), `ai`, `condition` ve `workflow` (alt akış). Koşul adımı yalnız kendisinden *sonraki* adımlara dallanır; seçilmeyen dal SKIPPED olur.
+- **Eşleme:** Bir adım yalnız `{{input.x}}` ile girdiyi ve `{{steps.önceki.output.alan}}` ile *önceki* adımların çıktısını okuyabilir. Tek bir yer tutucudan oluşan değer JSON türünü korur. Bu kural, bir akışın içinde döngü kurulmasını yapısal olarak imkânsız kılar.
+- **Dolaylı döngü:** Alt akışlar çağrıldıkları anda alt akışın *güncel* sürümünü kullanır. Kayıt sırasında bütün alt akış grafiği DFS ile taranır (A → B → C → A ve kendini çağırma reddedilir; hata mesajı döngünün yolunu adlarıyla gösterir). Çalışma anında ayrıca 5 seviyelik derinlik sınırı vardır.
+- **Adım başına kayıt:** Her çalıştırma `workflow_step_run` tablosuna yazılır: girdi, çıktı, süre, token, maliyet, deneme sayısı ve alt akışın çalıştırma kimliği.
+- **Hatalı adımdan devam:** Devam edildiğinde aynı çalıştırma yeniden kuyruğa girer. Başarılı adımların son çıktıları kullanılır ve hatalı adımdan itibaren çalışılır. Geçmiş korunur: hatalı satır kalır, üzerine yeni satır eklenir. Sunucu çökerse yarıda kalan adım FAILED olarak kapatılır ve kira dolunca çalıştırma kaldığı yerden sürer.
+- **Çalışma sırasında aracın yeni sürümü yayınlanırsa:** Akış sabitlediği sürümü kullanmaya devam eder. Alt akışın yeni sürümü ise bir sonraki çağrıdan itibaren kullanılır. Hangi sürümün çalıştığı çalıştırma kaydında saklanır.
+- **Yapay zekâ:** `AiProvider` arayüzünün tek gerçeklemesi `MockAiProvider`'dır. Ücretsizdir ve deterministiktir. Token sayısı tahminidir (yaklaşık 4 karakter = 1 token), maliyet uydurma bir fiyat listesiyle hesaplanır ve arayüzde "benzetim" olarak etiketlenir. `[fail]` işareti bilerek hata üretir (devam etme senaryosunu göstermek için). Ollama gibi gerçek bir sağlayıcı **yazılmadı**.
+- **İstem enjeksiyonu:** Yapay zekâ çıktısı yalnız veridir. Sonraki adımın metnine ve koşula girebilir, ama araç, URL, sır ya da adım seçemez. Sırlar istemlere hiç girmez; URL'nin sunucu adı sabittir ve UrlGuard'dan geçer. En kötü durumda üretilen metin yanıltıcı olur.
+- **Büyük çıktı:** Araç cevabı 1 MB ile sınırlıdır (§4.2).
+
+### 4.6 Tetikleyiciler (senaryo 9)
+- **Cron:** 5 alanlı, Europe/Istanbul saatiyle ve en sık dakikada bir. Zamanlayıcı 15 saniyede bir, vadesi gelen akışları `FOR UPDATE SKIP LOCKED` ile kilitler. İş anahtarı `cron:{akış}:{planlanan zaman}` olduğu için aynı tik iki kez ateşlense bile tek çalıştırma olur (test edildi).
+- **Webhook:** `POST /api/hooks/workflows/{token}`. Token rastgeledir, yalnız bir kez gösterilir ve SHA-256 özeti saklanır. `Idempotency-Key` başlığı (yoksa gövdenin özeti) iş anahtarına girer: aynı teslimat 200 ve aynı çalıştırma kimliğiyle cevaplanır, ilk teslimat 202 alır.
+
+### 4.7 Paylaşım, çatallama ve sıralama (senaryo 11)
+- **Paylaşılan akışın anahtarı:** Paylaşılan (PUBLIC) bir akış yalnız platform araçlarını kullanabilir (anahtar platformundur, kota platformdan düşer). Üyenin kendi aracını kullanan akış paylaşılamaz. Paylaşılan bir akışın alt akışları da paylaşılmış olmalıdır.
+- **Çatallama:** Güncel tanım üyenin listesine kopyalanır (`forked_from`) ve `fork_count` artar. Yazar, her çatal için bir kez `SHARED_ITEM_FORKED` puanı kazanır. Kendi akışını çatallamak reddedilir. Başkası paylaşılan akışı alt akış olarak kullanırsa yazar günde bir kez `SHARED_ITEM_USED` puanı alır.
+- **Özgün sahip akışını silerse:** Çatallar bağımsız kopya olduğu için çalışmaya devam eder. Silinen akışı alt akış olarak kullanan akış, çalıştırma anında açık bir hata mesajıyla durur.
+- **Sıralama:**
+  - Haftalık sıralama, defterden pazartesi 00.00'dan (İstanbul) bu yana yazılan puanlarla hesaplanır (`ix_point_ledger_created`). Genel sıralama `user_score`'dan okunur.
+  - Canlı güncelleme için puan değişikliği commit edilince bir bayrak kalkar ve saniyede en fazla bir kez açık SSE akışlarına "changed" gönderilir. İstemci listeyi yeniden çeker.
+  - Ölçek önerisi (§9): haftalık toplam için saatlik bir özet tablo ya da Redis sorted set.
 
 ## 5. Oyunlaştırma ve puan defteri
 
@@ -520,10 +545,10 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☑ Çıktıların saklanma süresi (öneri: 90 gün; temizlik işi yok) · ☐ Kötü niyetli araçların tespiti (SSRF engeli var; içerik taraması yok) · ☑ Şablon enjeksiyonu → §4.1
 
 **3.6 İş akışları**
-- ☐ Akış modeli ve çalıştırma motoru (kendi motorumuz mu, hazır bir araç mı?)
-- ☐ Çalışma sırasında aracın ya da alt akışın yeni sürümü yayınlanırsa ne olur?
-- ☐ İstem enjeksiyonu · ☐ Büyük çıktı · ☐ Sunucu yeniden başlarsa ne olur? · ☐ Aynı webhook iki kez gelirse?
-- ☐ Çatallanan akışın özgün sahibi akışını silerse ne olur?
+- ☑ Akış modeli ve çalıştırma motoru: kendi motorumuz → §4.5
+- ☑ Çalışma sırasında aracın ya da alt akışın yeni sürümü yayınlanırsa ne olur? → §4.5
+- ☑ İstem enjeksiyonu · ☑ Büyük çıktı · ☑ Sunucu yeniden başlarsa ne olur? → §4.5 · ☑ Aynı webhook iki kez gelirse? → §4.6
+- ☑ Çatallanan akışın özgün sahibi akışını silerse ne olur? → §4.7
 
 **3.7 Oyunlaştırma**
 - ☑ Puan tablosu ve gerekçesi → §5.1 · ☑ Kural değişince geçmiş puanlar yeniden hesaplanır mı? Hayır → §5.3
@@ -531,7 +556,7 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☐ 50.000 üyede sıralama tablosu (taslak §5.3; F4'te ölçümle) · ☑ Çevrimdışı aksiyon puanı ve cihaz saatiyle oynanması → §5.3
 
 **3.8 Topluluk**
-- ☐ Yorumlarda kişisel veri ve küfür süzme · ☐ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? · ☐ Etkinlik akışının ölçeklenmesi
+- ☐ Yorumlarda kişisel veri ve küfür süzme · ☐ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? (☑ §4.7) · ☐ Etkinlik akışının ölçeklenmesi
 
 **3.9 Bildirimler**
 - ☑ WebSocket mi, SSE mi? → ADR-6 · ☑ Kaçırılan olaylar → ADR-6 · ☐ Bildirimin iki kez gitmemesi · ☐ Sessiz saatler

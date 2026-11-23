@@ -191,3 +191,9 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 /* auth pages */
 .auth { max-width: 26rem; margin: var(--space-6) auto 0; }
 .auth h1 { font-size: var(--font-size-2xl); }
+
+/* extra sections: in the bar on wide screens, in the account menu otherwise (keeps the mobile header one row) */
+.mainnav .nav-extra { display: none; }
+@media (min-width: 1100px) { .mainnav .nav-extra { display: inline-flex; } .menu-extra { display: none; } }
+.menu-extra a.menu-item { display: flex; text-decoration: none; color: inherit; }
+

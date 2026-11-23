@@ -8,6 +8,9 @@ import { TrainingPage } from "./pages/TrainingPage";
 import { CertificatesPage } from "./pages/CertificatesPage";
 import { ExplorePage } from "./pages/ExplorePage";
 import { ToolsPage } from "./pages/ToolsPage";
+import { WorkflowsPage } from "./pages/WorkflowsPage";
+import { WorkflowPage } from "./pages/WorkflowPage";
+import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
 import "./app.css";
 
@@ -29,6 +32,9 @@ export function App() {
             <Route path="/certificates" element={<RequireAuth><CertificatesPage /></RequireAuth>} />
             <Route path="/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
             <Route path="/tools" element={<RequireAuth><ToolsPage /></RequireAuth>} />
+            <Route path="/workflows" element={<RequireAuth><WorkflowsPage /></RequireAuth>} />
+            <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
+            <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
             <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />
             <Route path="*" element={<main className="page"><h1>Sayfa bulunamadı</h1><p><Link className="text-link" to="/">Öğrenimime dön</Link></p></main>} />
           </Routes>

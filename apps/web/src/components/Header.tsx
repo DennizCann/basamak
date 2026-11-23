@@ -31,8 +31,11 @@ export function Header() {
               {/* trainings belong to "Öğrenimim", so it stays the active section inside a training */}
               <Link to="/" aria-current={pathname === "/" || pathname.startsWith("/trainings/") ? "page" : undefined}>Öğrenimim</Link>
               <NavLink to="/explore">Keşfet</NavLink>
-              <NavLink to="/tools">Araçlar</NavLink>
               <NavLink to="/certificates" aria-label="Sertifikalarım"><span className="nav-long">Sertifikalarım</span><span className="nav-short" aria-hidden="true">Sertifikalar</span></NavLink>
+              {/* wide screens only; on narrow screens the same links live in the account menu (compact header) */}
+              <NavLink className="nav-extra" to="/tools">Araçlar</NavLink>
+              <NavLink className="nav-extra" to="/workflows">Akışlar</NavLink>
+              <NavLink className="nav-extra" to="/leaderboard">Sıralama</NavLink>
             </nav>
             <AccountMenu />
           </>
@@ -102,6 +105,12 @@ function AccountMenu() {
             </fieldset>
           </div>
           <div className="menu-sep" />
+          <nav className="menu-extra" aria-label="Üret ve yarış">
+            <Link className="menu-item" to="/tools" onClick={() => setOpen(false)}>Araçlarım</Link>
+            <Link className="menu-item" to="/workflows" onClick={() => setOpen(false)}>İş akışları</Link>
+            <Link className="menu-item" to="/leaderboard" onClick={() => setOpen(false)}>Sıralama</Link>
+            <div className="menu-sep" />
+          </nav>
           <button className="menu-item" onClick={() => { setOpen(false); setPointsOpen(true); }}>Puanlar nasıl kazanılır?</button>
           <button className="menu-item" onClick={() => { setOpen(false); logout(); }}>Çıkış yap</button>
         </div>
