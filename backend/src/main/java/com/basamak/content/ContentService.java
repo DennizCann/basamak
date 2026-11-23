@@ -146,6 +146,7 @@ public class ContentService {
         }
         requireStatus(v, EnumSet.of(VersionStatus.APPROVED, VersionStatus.SCHEDULED),
                 "Yalnız editörün onayladığı ya da daha önce yayınlanmış bir sürüm yayınlanabilir.");
+        validator.validateForPublish(item.getType(), v.getBody());
         if (scheduledAt != null && scheduledAt.isAfter(Instant.now())) {
             v.setStatus(VersionStatus.SCHEDULED);
             v.setScheduledAt(scheduledAt);

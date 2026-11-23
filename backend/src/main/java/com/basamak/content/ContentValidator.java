@@ -21,8 +21,27 @@ public class ContentValidator {
         if (body == null || !body.isObject()) throw ApiException.badRequest("invalid_body", "İçerik gövdesi bir nesne olmalı.");
         switch (type) {
             case JOURNEY -> journey(body);
-            case TRAINING -> training(itemId, body);
+            case TRAINING -> { training(itemId, body); TrainingSchema.validateItems(body); }
+            case POINT_RULE -> pointRule(body);
             default -> { /* validated by their own modules in later phases */ }
+        }
+    }
+
+    /** Extra checks before a version may go live. */
+    public void validateForPublish(ContentType type, JsonNode body) {
+        if (type == ContentType.TRAINING && (!body.path("items").isArray() || body.path("items").isEmpty())) {
+            throw ApiException.badRequest("invalid_training", "Yayınlanacak eğitimde en az bir içerik ögesi (ders, quiz, anket ya da araç) olmalı.");
+        }
+    }
+
+    private void pointRule(JsonNode b) {
+        if (b.path("action").asText("").isBlank()) throw ApiException.badRequest("invalid_rule", "Kuralın aksiyonu (action) boş olamaz.");
+        if (!b.path("points").canConvertToInt() || Math.abs(b.path("points").asInt()) > 10_000) {
+            throw ApiException.badRequest("invalid_rule", "Puan -10.000 ile 10.000 arasında bir tam sayı olmalı.");
+        }
+        String policy = b.path("policy").asText("ONCE_PER_OBJECT");
+        if (!java.util.Set.of("ONCE_PER_OBJECT", "ONCE_PER_DAY", "EVERY").contains(policy)) {
+            throw ApiException.badRequest("invalid_rule", "Tekrar politikası ONCE_PER_OBJECT, ONCE_PER_DAY ya da EVERY olmalı.");
         }
     }
 
