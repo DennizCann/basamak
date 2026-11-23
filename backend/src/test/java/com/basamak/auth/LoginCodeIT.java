@@ -101,6 +101,65 @@ class LoginCodeIT extends IntegrationTest {
            .andExpect(jsonPath("$.accessToken").doesNotExist());
     }
 
+    private jakarta.servlet.http.Cookie rememberedDevice(String email) throws Exception {
+        String challenge = passwordStep(email).get("challengeId").asText();
+        var r = mvc.perform(jsonPost("/api/auth/login/verify", Map.of("challengeId", challenge, "code", codeFromMail(lastMailTo(email)), "remember", true)))
+                .andExpect(status().isOk()).andReturn();
+        var c = r.getResponse().getCookie("bsm_dev");
+        assertThat(c).isNotNull();
+        assertThat(c.isHttpOnly()).isTrue();
+        return c;
+    }
+
+    @Test
+    void rememberedDeviceSkipsTheCodeButStillNeedsThePassword() throws Exception {
+        String email = member();
+        var device = rememberedDevice(email);
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD)).cookie(device))
+           .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("authenticated")).andExpect(jsonPath("$.accessToken").exists());
+        // wrong password is still refused on a remembered device
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", "yanlis-sifre-123")).cookie(device))
+           .andExpect(status().isUnauthorized());
+        // without the cookie (another browser) the code is required again
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD)))
+           .andExpect(jsonPath("$.status").value("code_required"));
+    }
+
+    @Test
+    void notRememberedByDefaultAndDeviceTokenIsBoundToItsAccount() throws Exception {
+        String email = member();
+        String challenge = passwordStep(email).get("challengeId").asText();
+        var r = mvc.perform(jsonPost("/api/auth/login/verify", Map.of("challengeId", challenge, "code", codeFromMail(lastMailTo(email)))))
+                .andExpect(status().isOk()).andReturn();
+        assertThat(r.getResponse().getCookie("bsm_dev")).isNull();
+
+        var device = rememberedDevice(email);
+        String other = member();
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", other, "password", PASSWORD)).cookie(device))
+           .andExpect(jsonPath("$.status").value("code_required")); // someone else's device token does not help
+    }
+
+    @Test
+    void passwordResetForgetsRememberedDevices() throws Exception {
+        String email = member();
+        var device = rememberedDevice(email);
+        mvc.perform(jsonPost("/api/auth/forgot-password", Map.of("email", email))).andExpect(status().isOk());
+        mvc.perform(jsonPost("/api/auth/reset-password", Map.of("token", tokenFromMail(lastMailTo(email)), "password", PASSWORD))).andExpect(status().isOk());
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD)).cookie(device))
+           .andExpect(jsonPath("$.status").value("code_required"));
+    }
+
+    @Test
+    void mobileRememberedDeviceTokenTravelsInTheBody() throws Exception {
+        String email = member();
+        String challenge = body(mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD, "client", "mobile"))).andReturn()).get("challengeId").asText();
+        JsonNode v = body(mvc.perform(jsonPost("/api/auth/login/verify", Map.of("challengeId", challenge, "code", codeFromMail(lastMailTo(email)), "remember", true)))
+                .andExpect(status().isOk()).andReturn());
+        String deviceToken = v.get("deviceToken").asText();
+        mvc.perform(jsonPost("/api/auth/login", Map.of("email", email, "password", PASSWORD, "client", "mobile", "deviceToken", deviceToken)))
+           .andExpect(jsonPath("$.status").value("authenticated")).andExpect(jsonPath("$.refreshToken").exists());
+    }
+
     @Test
     void mobileGetsRefreshTokenInBodyAfterTheCode() throws Exception {
         String email = member();

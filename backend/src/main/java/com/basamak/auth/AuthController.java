@@ -35,7 +35,7 @@ public class AuthController {
                               @NotBlank @Size(min = 2, max = 80) String displayName,
                               boolean consent) {}
 
-    public record LoginReq(@NotBlank String email, @NotBlank String password, String client) {}
+    public record LoginReq(@NotBlank String email, @NotBlank String password, String client, String deviceToken) {}
 
     public record TokenReq(@NotBlank String token) {}
 
@@ -82,22 +82,41 @@ public class AuthController {
         return Map.of("message", "Şifreniz değiştirildi. Bütün cihazlardaki oturumlar kapatıldı; yeni şifrenizle giriş yapın.");
     }
 
-    public record CodeReq(@jakarta.validation.constraints.NotNull UUID challengeId, String code) {}
+    public record CodeReq(@jakarta.validation.constraints.NotNull UUID challengeId, String code, Boolean remember) {}
 
     public record ChallengeReq(@jakarta.validation.constraints.NotNull UUID challengeId) {}
 
-    /** Step 1: password. Returns a challenge (no tokens); the code goes to the registered e-mail address. */
+    static final String DEVICE_COOKIE = "bsm_dev";
+
+    /**
+     * Step 1: password. On a remembered device (cookie on web, deviceToken in the body on mobile) this already returns
+     * a session ({"status":"authenticated"}). Otherwise a 6-digit code is e-mailed ({"status":"code_required"}).
+     */
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@Valid @RequestBody LoginReq r, HttpServletRequest req) {
-        return challengeDto(auth.memberLogin(r.email(), r.password(), r.client(), info(req)));
+    public Map<String, Object> login(@Valid @RequestBody LoginReq r, HttpServletRequest req, HttpServletResponse res) {
+        boolean mobile = "mobile".equals(r.client());
+        String device = mobile ? r.deviceToken() : cookies.read(req, DEVICE_COOKIE);
+        var outcome = auth.memberLogin(r.email(), r.password(), r.client(), info(req), device);
+        if (outcome.tokens() != null) {
+            Map<String, Object> out = new java.util.LinkedHashMap<>(tokenResponse(outcome.tokens(), mobile, WEB_COOKIE, res));
+            out.put("status", "authenticated");
+            return out;
+        }
+        return challengeDto(outcome.challenge());
     }
 
     /** Step 2: the e-mailed 6-digit code -> session (cookie for web, body refresh token for mobile). */
     @PostMapping("/api/auth/login/verify")
     public Map<String, Object> verifyCode(@Valid @RequestBody CodeReq r, HttpServletRequest req, HttpServletResponse res) {
-        var t = auth.verifyLoginCode(r.challengeId(), r.code(), info(req));
-        boolean mobile = "mobile".equals(jwtAudience(t));
-        return tokenResponse(t, mobile, WEB_COOKIE, res);
+        var result = auth.verifyLoginCode(r.challengeId(), r.code(), info(req), Boolean.TRUE.equals(r.remember()));
+        boolean mobile = "mobile".equals(jwtAudience(result.tokens()));
+        Map<String, Object> out = new java.util.LinkedHashMap<>(tokenResponse(result.tokens(), mobile, WEB_COOKIE, res));
+        if (result.deviceToken() != null) {
+            if (mobile) out.put("deviceToken", result.deviceToken()); // stored in Keystore/Keychain by the app
+            else cookies.writeDevice(res, DEVICE_COOKIE, result.deviceToken());
+        }
+        out.put("status", "authenticated");
+        return out;
     }
 
     @PostMapping("/api/auth/login/resend")
@@ -107,6 +126,7 @@ public class AuthController {
 
     private Map<String, Object> challengeDto(EmailCodeService.Challenge c) {
         Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("status", "code_required");
         out.put("challengeId", c.id());
         out.put("maskedEmail", c.maskedEmail());
         out.put("expiresAt", c.expiresAt());

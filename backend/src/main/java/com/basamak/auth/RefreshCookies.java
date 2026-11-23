@@ -26,6 +26,12 @@ public class RefreshCookies {
                 .sameSite("Strict").path("/api").maxAge(Duration.ofDays(30)).build().toString());
     }
 
+    /** Remembered-device cookie: only sent to the auth endpoints, 30 days, HttpOnly, SameSite=Strict. */
+    void writeDevice(HttpServletResponse res, String name, String value) {
+        res.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(name, value).httpOnly(true).secure(secure)
+                .sameSite("Strict").path("/api/auth").maxAge(TrustedDeviceService.TTL).build().toString());
+    }
+
     void clear(HttpServletResponse res, String name) {
         res.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from(name, "").httpOnly(true).secure(secure)
                 .sameSite("Strict").path("/api").maxAge(0).build().toString());
