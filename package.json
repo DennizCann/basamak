@@ -1,0 +1,17 @@
+{
+  "name": "basamak",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "packages/*",
+    "apps/web",
+    "apps/cms"
+  ],
+  "scripts": {
+    "tokens": "node packages/ui/scripts/build-tokens.mjs",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:cms": "npm run dev -w apps/cms",
+    "build": "npm run tokens && npm run build -w apps/web -w apps/cms",
+    "typecheck": "npm run typecheck -w apps/web -w apps/cms"
+  }
+}
