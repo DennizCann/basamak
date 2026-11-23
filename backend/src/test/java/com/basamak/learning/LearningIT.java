@@ -138,7 +138,8 @@ class LearningIT extends IntegrationTest {
         // v2: lesson a reworded, lesson b removed, lesson c added
         JsonNode item = getJson("/api/cms/items/" + id, admin);
         JsonNode saved = body(mvc.perform(jsonPut("/api/cms/items/" + id + "/draft",
-                Map.of("lockVersion", item.get("lockVersion").asLong(), "title", item.at("/latest/title").asText(), "body", lessons("v2 metni", "a", "c")))
+                Map.of("lockVersion", item.get("lockVersion").asLong(), "title", item.at("/latest/title").asText(), "body", lessons("v2 metni", "a", "c"),
+                        "confirmRemovedKeys", List.of("b"))) // removing a published item must be confirmed explicitly
                 .header("Authorization", bearer(admin))).andReturn());
         publishVersion(admin, saved.at("/latest/id").asText());
 

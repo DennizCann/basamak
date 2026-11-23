@@ -29,6 +29,8 @@ class ContentWorkflowIT extends IntegrationTest {
     @Autowired ContentService contentService;
 
     String author, editor, editor2, publisher, member;
+    /** A journey can only be published with at least one published training (empty-journey guard). */
+    static List<String> seedTrainings;
 
     @BeforeEach
     void tokens() throws Exception {
@@ -37,6 +39,17 @@ class ContentWorkflowIT extends IntegrationTest {
         editor2 = cmsToken("editor2@basamak.local");
         publisher = cmsToken("publisher@basamak.local");
         member = memberToken("member@basamak.local");
+        if (seedTrainings == null) {
+            // a dedicated published training so these test journeys never overlap with real/seed learning paths
+            JsonNode t = body(mvc.perform(jsonPost("/api/cms/items", Map.of("type", "TRAINING", "title", "CW test eğitimi",
+                    "body", Map.of("items", List.of(Map.of("key", "a", "type", "lesson", "title", "A", "content", "x")))))
+                    .header("Authorization", bearer(author))).andExpect(status().isCreated()).andReturn());
+            String v = t.at("/latest/id").asText();
+            mvc.perform(post("/api/cms/versions/" + v + "/submit").header("Authorization", bearer(author))).andExpect(status().isOk());
+            mvc.perform(post("/api/cms/versions/" + v + "/approve").header("Authorization", bearer(editor))).andExpect(status().isOk());
+            mvc.perform(post("/api/cms/versions/" + v + "/publish").header("Authorization", bearer(publisher))).andExpect(status().isOk());
+            seedTrainings = List.of(t.get("id").asText());
+        }
     }
 
     @Test
@@ -47,7 +60,7 @@ class ContentWorkflowIT extends IntegrationTest {
         assertThat(titles).startsWith("Beginner", "Expert", "Master");
 
         String title = "Architect " + System.nanoTime();
-        JsonNode item = create("JOURNEY", title, Map.of("order", 4, "description", "Yeni seviye", "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", title, Map.of("order", 4, "description", "Yeni seviye", "trainingIds", seedTrainings));
         String itemId = item.get("id").asText();
         // draft is invisible to members, by list and by id
         assertThat(journeyTitles()).doesNotContain(title);
@@ -63,7 +76,7 @@ class ContentWorkflowIT extends IntegrationTest {
     @Test
     void scenario2_reviewPublishSecondVersionDiffAndRollback() throws Exception {
         String title = "Sürüm Testi " + System.nanoTime();
-        JsonNode item = create("JOURNEY", title, Map.of("order", 9, "description", "ilk", "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", title, Map.of("order", 9, "description", "ilk", "trainingIds", seedTrainings));
         String id = item.get("id").asText();
         String v1 = item.at("/latest/id").asText();
 
@@ -72,7 +85,7 @@ class ContentWorkflowIT extends IntegrationTest {
 
         // second version through the same flow
         JsonNode saved = body(mvc.perform(jsonPut("/api/cms/items/" + id + "/draft",
-                        Map.of("lockVersion", lock(id), "title", title, "body", Map.of("order", 9, "description", "ikinci", "trainingIds", List.of())))
+                        Map.of("lockVersion", lock(id), "title", title, "body", Map.of("order", 9, "description", "ikinci", "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(author))).andExpect(status().isOk()).andReturn());
         String v2 = saved.at("/latest/id").asText();
         assertThat(saved.at("/latest/versionNo").asInt()).isEqualTo(2);
@@ -84,7 +97,7 @@ class ContentWorkflowIT extends IntegrationTest {
         mvc.perform(jsonPost("/api/cms/versions/" + v2 + "/request-changes", Map.of("note", "Açıklamayı netleştir"))
                 .header("Authorization", bearer(editor))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("CHANGES_REQUESTED"));
         JsonNode v3Item = body(mvc.perform(jsonPut("/api/cms/items/" + id + "/draft",
-                        Map.of("lockVersion", lock(id), "title", title, "body", Map.of("order", 9, "description", "ikinci (düzeltildi)", "trainingIds", List.of())))
+                        Map.of("lockVersion", lock(id), "title", title, "body", Map.of("order", 9, "description", "ikinci (düzeltildi)", "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(author))).andExpect(status().isOk()).andReturn());
         String v3 = v3Item.at("/latest/id").asText();
         mvc.perform(post("/api/cms/versions/" + v3 + "/submit").header("Authorization", bearer(author))).andExpect(status().isOk());
@@ -120,7 +133,7 @@ class ContentWorkflowIT extends IntegrationTest {
 
     @Test
     void rolesAreEnforcedOnTheServer() throws Exception {
-        JsonNode item = create("JOURNEY", "Rol Testi " + System.nanoTime(), Map.of("order", 8, "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", "Rol Testi " + System.nanoTime(), Map.of("order", 8, "trainingIds", seedTrainings));
         String v = item.at("/latest/id").asText();
         mvc.perform(post("/api/cms/versions/" + v + "/submit").header("Authorization", bearer(author))).andExpect(status().isOk());
         // author cannot approve or publish
@@ -129,26 +142,26 @@ class ContentWorkflowIT extends IntegrationTest {
         // publisher cannot publish something that was not approved
         mvc.perform(post("/api/cms/versions/" + v + "/publish").header("Authorization", bearer(publisher))).andExpect(status().isConflict());
         // editor cannot approve their own version
-        JsonNode own = body(mvc.perform(jsonPost("/api/cms/items", Map.of("type", "JOURNEY", "title", "Editör kendi", "body", Map.of("order", 7, "trainingIds", List.of())))
+        JsonNode own = body(mvc.perform(jsonPost("/api/cms/items", Map.of("type", "JOURNEY", "title", "Editör kendi", "body", Map.of("order", 7, "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(editor))).andExpect(status().isCreated()).andReturn());
         String ownV = own.at("/latest/id").asText();
         mvc.perform(post("/api/cms/versions/" + ownV + "/submit").header("Authorization", bearer(editor))).andExpect(status().isOk());
         mvc.perform(post("/api/cms/versions/" + ownV + "/approve").header("Authorization", bearer(editor))).andExpect(status().isForbidden());
         // another author cannot edit someone else's content (object-level rule) - editor can
         mvc.perform(jsonPut("/api/cms/items/" + own.get("id").asText() + "/draft",
-                Map.of("lockVersion", lock(own.get("id").asText()), "title", "x", "body", Map.of("order", 7, "trainingIds", List.of())))
+                Map.of("lockVersion", lock(own.get("id").asText()), "title", "x", "body", Map.of("order", 7, "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(author))).andExpect(status().isForbidden());
     }
 
     @Test
     void scenario4_staleSaveIsRejectedNotOverwritten() throws Exception {
-        JsonNode item = create("JOURNEY", "Çakışma " + System.nanoTime(), Map.of("order", 6, "description", "v1", "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", "Çakışma " + System.nanoTime(), Map.of("order", 6, "description", "v1", "trainingIds", seedTrainings));
         String id = item.get("id").asText();
         long loaded = lock(id); // both editors open the same version
 
-        mvc.perform(jsonPut("/api/cms/items/" + id + "/draft", Map.of("lockVersion", loaded, "title", "A", "body", Map.of("order", 6, "description", "editor A", "trainingIds", List.of())))
+        mvc.perform(jsonPut("/api/cms/items/" + id + "/draft", Map.of("lockVersion", loaded, "title", "A", "body", Map.of("order", 6, "description", "editor A", "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(editor))).andExpect(status().isOk());
-        mvc.perform(jsonPut("/api/cms/items/" + id + "/draft", Map.of("lockVersion", loaded, "title", "B", "body", Map.of("order", 6, "description", "editor B", "trainingIds", List.of())))
+        mvc.perform(jsonPut("/api/cms/items/" + id + "/draft", Map.of("lockVersion", loaded, "title", "B", "body", Map.of("order", 6, "description", "editor B", "trainingIds", seedTrainings)))
                 .header("Authorization", bearer(editor2)))
            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("edit_conflict"))
            .andExpect(jsonPath("$.latestVersionNo").value(2));
@@ -159,7 +172,7 @@ class ContentWorkflowIT extends IntegrationTest {
 
     @Test
     void scenario4_trulyConcurrentSavesExactlyOneWins() throws Exception {
-        JsonNode item = create("JOURNEY", "Eşzamanlı " + System.nanoTime(), Map.of("order", 5, "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", "Eşzamanlı " + System.nanoTime(), Map.of("order", 5, "trainingIds", seedTrainings));
         String id = item.get("id").asText();
         long loaded = lock(id);
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -169,7 +182,7 @@ class ContentWorkflowIT extends IntegrationTest {
             results.add(pool.submit(() -> {
                 start.await();
                 return mvc.perform(jsonPut("/api/cms/items/" + id + "/draft",
-                        Map.of("lockVersion", loaded, "title", "T", "body", Map.of("order", 5, "trainingIds", List.of())))
+                        Map.of("lockVersion", loaded, "title", "T", "body", Map.of("order", 5, "trainingIds", seedTrainings)))
                         .header("Authorization", bearer(who))).andReturn().getResponse().getStatus();
             }));
         }
@@ -184,7 +197,7 @@ class ContentWorkflowIT extends IntegrationTest {
 
     @Test
     void scheduledPublicationHappensWhenDue() throws Exception {
-        JsonNode item = create("JOURNEY", "Zamanlı " + System.nanoTime(), Map.of("order", 11, "trainingIds", List.of()));
+        JsonNode item = create("JOURNEY", "Zamanlı " + System.nanoTime(), Map.of("order", 11, "trainingIds", seedTrainings));
         String id = item.get("id").asText();
         String v = item.at("/latest/id").asText();
         mvc.perform(post("/api/cms/versions/" + v + "/submit").header("Authorization", bearer(author))).andExpect(status().isOk());

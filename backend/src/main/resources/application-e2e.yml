@@ -1,0 +1,16 @@
+# Isolated stack for Playwright end-to-end tests (never the developer's `basamak` database).
+# Uses the throw-away test database and rebuilds it from scratch on every start, so test content
+# (journeys, members, points) can never leak into the normal catalogue.
+# NOTE: shares basamak_test with `mvnw verify`; do not run both at the same time.
+server:
+  port: 8081
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:basamak_test}
+  liquibase:
+    drop-first: true
+basamak:
+  web-base-url: http://localhost:5183
+  cms-base-url: http://localhost:5184
+  rate-limit:
+    auth-per-minute: 200

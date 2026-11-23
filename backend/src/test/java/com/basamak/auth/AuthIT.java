@@ -79,6 +79,31 @@ class AuthIT extends IntegrationTest {
     }
 
     @Test
+    void concurrentRefreshWithSameTokenRotatesOnlyOnce() throws Exception {
+        MvcResult login = mvc.perform(jsonPost("/api/auth/login", Map.of("email", "member@basamak.local", "password", PASSWORD)))
+                .andExpect(status().isOk()).andReturn();
+        Cookie rt = login.getResponse().getCookie("bsm_rt");
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var go = new java.util.concurrent.CountDownLatch(1);
+        var futures = new java.util.ArrayList<java.util.concurrent.Future<MvcResult>>();
+        for (int i = 0; i < 2; i++) {
+            futures.add(pool.submit(() -> { go.await(); return mvc.perform(post("/api/auth/refresh").cookie(rt).header("X-Requested-With", "basamak")).andReturn(); }));
+        }
+        go.countDown();
+        var codes = new java.util.ArrayList<Integer>();
+        Cookie winner = null;
+        for (var f : futures) {
+            MvcResult r = f.get();
+            codes.add(r.getResponse().getStatus());
+            if (r.getResponse().getStatus() == 200) winner = r.getResponse().getCookie("bsm_rt");
+        }
+        pool.shutdown();
+        assertThat(codes).containsExactlyInAnyOrder(200, 401);
+        // the cookie the browser keeps (from the successful response) still works afterwards
+        mvc.perform(post("/api/auth/refresh").cookie(winner).header("X-Requested-With", "basamak")).andExpect(status().isOk());
+    }
+
+    @Test
     void revokedSessionInvalidatesAccessTokenImmediately() throws Exception {
         String access = memberToken("member@basamak.local");
         JsonNode sessions = body(mvc.perform(get("/api/me/sessions").header("Authorization", bearer(access))).andExpect(status().isOk()).andReturn());
