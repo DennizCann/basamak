@@ -24,6 +24,7 @@ public class LearningController {
     private final JourneyProgressService journeys;
     private final CertificateService certificates;
     private final com.basamak.gamification.GamificationService gamification;
+    private final com.basamak.content.PublishedContent published;
 
     public record AnswersReq(JsonNode answers) {}
 
@@ -102,6 +103,17 @@ public class LearningController {
     @GetMapping("/api/public/certificates/{serial}")
     public Map<String, Object> verify(@PathVariable String serial) {
         return certificates.verify(serial);
+    }
+
+    /** Published point rules, so members can see how points are earned (real CMS data, read-only). */
+    @GetMapping("/api/point-rules")
+    public List<Map<String, Object>> pointRules() {
+        return published.list(com.basamak.content.ContentType.POINT_RULE).stream()
+                .map(r -> Map.<String, Object>of("title", r.title(), "action", r.body().path("action").asText(),
+                        "points", r.body().path("points").asInt(), "policy", r.body().path("policy").asText("ONCE_PER_OBJECT")))
+                .filter(r -> ((Integer) r.get("points")) > 0)
+                .sorted(java.util.Comparator.comparingInt(r -> (Integer) r.get("points")))
+                .toList();
     }
 
     @GetMapping("/api/me/journeys")

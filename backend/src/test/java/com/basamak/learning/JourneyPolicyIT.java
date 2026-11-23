@@ -122,6 +122,30 @@ class JourneyPolicyIT extends IntegrationTest {
            .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("not_enrolled"));
     }
 
+    @Test
+    void journeyCardsCarryRealProgressAndRulesAreListed() throws Exception {
+        String m = newMember("cards");
+        JsonNode intro = null;
+        for (JsonNode t : getJson("/api/me/journeys", m).get(0).get("trainings")) if (t.get("title").asText().equals("Basamak'a Giriş")) intro = t;
+        assertThat(intro.get("itemCount").asInt()).isEqualTo(4);
+        assertThat(intro.get("completedItems").asInt()).isZero();
+        assertThat(intro.get("currentKey").isNull()).isTrue();
+        String id = intro.get("id").asText();
+        postJson("/api/trainings/" + id + "/enroll", null, m);
+        postJson("/api/trainings/" + id + "/items/hos-geldin/complete", null, m);
+        postJson("/api/trainings/" + id + "/items/puanlar/view", null, m);
+        JsonNode after = null;
+        for (JsonNode t : getJson("/api/me/journeys", m).get(0).get("trainings")) if (t.get("id").asText().equals(id)) after = t;
+        assertThat(after.get("status").asText()).isEqualTo("IN_PROGRESS");
+        assertThat(after.get("completedItems").asInt()).isEqualTo(1);
+        assertThat(after.get("currentKey").asText()).isEqualTo("puanlar");
+        assertThat(after.get("lastActivityAt").isNull()).isFalse();
+
+        JsonNode rules = getJson("/api/point-rules", m);
+        assertThat(rules.size()).isGreaterThan(5);
+        assertThat(rules.toString()).contains("Quiz geçme");
+    }
+
     // ---- helpers ----
 
     private JsonNode create(String type, String title, Map<String, Object> body) throws Exception {

@@ -29,7 +29,14 @@ public class JourneyProgressService {
     private final GamificationService gamification;
     private final CertificateService certificates;
 
-    public record TrainingProgress(UUID id, String title, String status) {}
+    /**
+     * Card data for one training. itemCount/completedItems come from the version the member is on (pinned
+     * enrolment) or the latest published version; currentKey/lastActivityAt are only present when an enrolment exists.
+     */
+    public record TrainingProgress(UUID id, String title, String status, String summary, int itemCount,
+                                   int completedItems, String currentKey, java.time.Instant lastActivityAt) {}
+
+    private record EnrollmentRow(String status, int versionNo, String currentKey, java.time.Instant updatedAt, int done) {}
 
     /**
      * comingSoon: published but without any published training (possible for journeys published before the
@@ -42,9 +49,13 @@ public class JourneyProgressService {
 
     @Transactional(readOnly = true)
     public List<JourneyProgress> forUser(UUID userId) {
-        Map<UUID, String> status = new HashMap<>();
-        jdbc.query("SELECT training_id, status FROM enrollment WHERE user_id = ?",
-                rs -> { status.put((UUID) rs.getObject(1), rs.getString(2)); }, userId);
+        Map<UUID, EnrollmentRow> enr = new HashMap<>();
+        jdbc.query("""
+                SELECT e.training_id, e.status, e.training_version_no, e.current_item_key, e.updated_at,
+                       (SELECT count(*) FROM item_progress p WHERE p.enrollment_id = e.id AND p.completed_at IS NOT NULL)
+                FROM enrollment e WHERE e.user_id = ?""",
+                rs -> { enr.put((UUID) rs.getObject(1), new EnrollmentRow(rs.getString(2), rs.getInt(3), rs.getString(4),
+                        rs.getTimestamp(5).toInstant(), rs.getInt(6))); }, userId);
         Map<UUID, String> certs = new HashMap<>();
         jdbc.query("SELECT journey_id, serial FROM certificate WHERE user_id = ? AND revoked_at IS NULL",
                 rs -> { certs.put((UUID) rs.getObject(1), rs.getString(2)); }, userId);
@@ -59,8 +70,13 @@ public class JourneyProgressService {
             List<TrainingProgress> ts = new ArrayList<>();
             for (JsonNode tid : j.body().path("trainingIds")) {
                 UUID id = UUID.fromString(tid.asText());
-                published.get(id, ContentType.TRAINING).ifPresent(t ->
-                        ts.add(new TrainingProgress(id, t.title(), status.getOrDefault(id, "NOT_STARTED"))));
+                published.get(id, ContentType.TRAINING).ifPresent(t -> {
+                    EnrollmentRow e = enr.get(id);
+                    JsonNode body = e == null ? t.body() : published.pinned(id, e.versionNo()).map(Published::body).orElse(t.body());
+                    ts.add(new TrainingProgress(id, t.title(), e == null ? "NOT_STARTED" : e.status(),
+                            t.body().path("summary").asText(""), body.path("items").size(),
+                            e == null ? 0 : e.done(), e == null ? null : e.currentKey(), e == null ? null : e.updatedAt()));
+                });
             }
             int done = (int) ts.stream().filter(t -> "COMPLETED".equals(t.status())).count();
             boolean complete = certs.containsKey(j.itemId()) || (!ts.isEmpty() && done == ts.size());
