@@ -1,33 +1,65 @@
-import { useEffect, useState } from "react";
-import { StateView, ThemeToggle } from "@basamak/ui";
+import { BrowserRouter, Navigate, NavLink, Route, Routes } from "react-router-dom";
+import type { ReactNode } from "react";
+import { ThemeToggle } from "@basamak/ui";
+import { AuthProvider, useAuth } from "./auth";
+import { LoginPage } from "./pages/LoginPage";
+import { ContentListPage } from "./pages/ContentListPage";
+import { EditorPage } from "./pages/EditorPage";
+
+export const TYPES = [
+  { type: "JOURNEY", label: "Journey'ler", path: "journeys" },
+  { type: "TRAINING", label: "Eğitimler", path: "trainings" },
+  { type: "POINT_RULE", label: "Puan kuralları", path: "point-rules" },
+] as const;
 
 export function App() {
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Shell>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/" element={<Navigate to="/content/journeys" replace />} />
+            {TYPES.map((t) => (
+              <Route key={t.type} path={`/content/${t.path}`} element={<RequireStaff><ContentListPage type={t.type} label={t.label} /></RequireStaff>} />
+            ))}
+            <Route path="/items/:id" element={<RequireStaff><EditorPage /></RequireStaff>} />
+            <Route path="*" element={<main className="container"><h1>Sayfa bulunamadı</h1></main>} />
+          </Routes>
+        </Shell>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
 
-  const load = () => {
-    setError(null);
-    setStatus(null);
-    fetch("/api/public/ping")
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => setStatus(d.status))
-      .catch(() => setError("Sunucuya ulaşılamadı. Arka ucun çalıştığını kontrol edip tekrar deneyin."));
-  };
-  useEffect(load, []);
-
+function Shell({ children }: { children: ReactNode }) {
+  const { user, logout } = useAuth();
   return (
     <>
       <a className="skip-link" href="#main">İçeriğe geç</a>
-      <header className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-3)", paddingBlock: "var(--space-3)" }}>
-        <strong>Basamak CMS</strong>
-        <ThemeToggle />
+      <header className="app-header">
+        <div className="container row" style={{ justifyContent: "space-between", paddingBlock: "var(--space-2)" }}>
+          <strong>Basamak CMS</strong>
+          {user && (
+            <nav aria-label="CMS menüsü" className="row">
+              {TYPES.map((t) => <NavLink key={t.type} to={`/content/${t.path}`}>{t.label}</NavLink>)}
+            </nav>
+          )}
+          <div className="row">
+            <ThemeToggle />
+            {user && <span className="muted">{user.displayName} · {user.roles.join(", ")}</span>}
+            {user && <button className="btn" onClick={logout}>Çıkış</button>}
+          </div>
+        </div>
       </header>
-      <main id="main" className="container stack">
-        <h1>İçerik Yönetimi</h1>
-        <StateView loading={!status && !error} error={error} onRetry={load}>
-          <p>API durumu: {status}</p>
-        </StateView>
-      </main>
+      <div id="main" tabIndex={-1}>{children}</div>
     </>
   );
+}
+
+function RequireStaff({ children }: { children: ReactNode }) {
+  const { user, ready } = useAuth();
+  if (!ready) return <main className="container"><p role="status">Oturum kontrol ediliyor…</p></main>;
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 }
