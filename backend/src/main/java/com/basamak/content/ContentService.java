@@ -56,6 +56,17 @@ public class ContentService {
 
     @Transactional
     public ContentVersion saveDraft(AuthPrincipal actor, UUID itemId, long expectedLockVersion, String title, JsonNode body) {
+        return saveDraft(actor, itemId, expectedLockVersion, title, body, Set.of());
+    }
+
+    /**
+     * @param confirmedRemovedKeys training item keys that were published before and that the editor explicitly
+     *        confirms removing. Item keys identify progress, points and quiz attempts; a published key may not
+     *        disappear (e.g. by being renamed) through an ordinary save.
+     */
+    @Transactional
+    public ContentVersion saveDraft(AuthPrincipal actor, UUID itemId, long expectedLockVersion, String title, JsonNode body,
+                                    Set<String> confirmedRemovedKeys) {
         ContentItem item = item(itemId);
         requireAny(actor, WRITERS, "İçeriği düzenlemek için yazar, editör ya da yönetici rolü gerekir.");
         if (actor.has(Role.AUTHOR) && !actor.hasAny(Role.EDITOR, Role.ADMIN) && !item.getOwnerId().equals(actor.userId())) {
@@ -66,6 +77,7 @@ public class ContentService {
             throw conflict(item, latest);
         }
         validator.validate(item.getType(), itemId, body);
+        if (item.getType() == ContentType.TRAINING) requireKeepsPublishedKeys(itemId, body, confirmedRemovedKeys);
         // older unsubmitted drafts are superseded by this save (they stay in history)
         versions.findByItemIdOrderByVersionNoDesc(itemId).stream()
                 .filter(v -> v.getStatus() == VersionStatus.DRAFT || v.getStatus() == VersionStatus.CHANGES_REQUESTED)
@@ -238,6 +250,24 @@ public class ContentService {
         v.setBody(body);
         v.setCreatedBy(actor.userId());
         return versions.save(v);
+    }
+
+    /** Keys of every version that was ever published must stay unless their removal is explicitly confirmed. */
+    private void requireKeepsPublishedKeys(UUID itemId, JsonNode body, Set<String> confirmed) {
+        Set<String> publishedKeys = new java.util.TreeSet<>();
+        for (ContentVersion v : versions.findByItemIdOrderByVersionNoDesc(itemId)) {
+            if (v.getPublishedAt() != null) v.getBody().path("items").forEach(it -> publishedKeys.add(it.path("key").asText()));
+        }
+        Set<String> newKeys = new java.util.HashSet<>();
+        body.path("items").forEach(it -> newKeys.add(it.path("key").asText()));
+        List<String> missing = publishedKeys.stream().filter(k -> !newKeys.contains(k) && !confirmed.contains(k)).toList();
+        if (!missing.isEmpty()) {
+            throw ApiException.conflict("published_keys_removed",
+                    "Yayınlanmış ögelerin anahtarı kaldırılıyor ya da değiştiriliyor: " + String.join(", ", missing)
+                            + ". Bu ögelerde üyelerin ilerlemesi yeni sürüme taşınmaz ve yeniden tamamlanırsa tekrar puan verilir. "
+                            + "Ögeyi gerçekten kaldırmak istiyorsanız silmeyi onaylayın; anahtarı değiştirmek yerine başlığı değiştirin.",
+                    Map.of("keys", missing));
+        }
     }
 
     private void touch(ContentItem item) {

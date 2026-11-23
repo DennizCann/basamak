@@ -32,6 +32,17 @@ public class ContentValidator {
         if (type == ContentType.TRAINING && (!body.path("items").isArray() || body.path("items").isEmpty())) {
             throw ApiException.badRequest("invalid_training", "Yayınlanacak eğitimde en az bir içerik ögesi (ders, quiz, anket ya da araç) olmalı.");
         }
+        if (type == ContentType.JOURNEY) {
+            // An empty journey would be a dead end: it can never be completed, so the next journey stays locked.
+            boolean hasPublishedTraining = false;
+            for (JsonNode id : body.path("trainingIds")) {
+                if (versions.findPublished(UUID.fromString(id.asText()), ContentType.TRAINING).isPresent()) { hasPublishedTraining = true; break; }
+            }
+            if (!hasPublishedTraining) {
+                throw ApiException.badRequest("empty_journey",
+                        "Bu Journey'de yayında olan bir eğitim yok. Üyeler ilerleyemeyeceği için yayınlanamaz; önce en az bir yayınlanmış eğitim ekleyin.");
+            }
+        }
     }
 
     private void pointRule(JsonNode b) {

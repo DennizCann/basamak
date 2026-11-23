@@ -75,30 +75,44 @@ public class DataSeeder implements ApplicationRunner {
         }
 
         boolean noTrainings = content.list(ContentType.TRAINING).isEmpty();
-        List<UUID> starter = List.of();
+        boolean noJourneys = content.list(ContentType.JOURNEY).isEmpty();
         if (noTrainings) {
             UUID intro = publish(author, editor, publisher, ContentType.TRAINING, "Basamak'a Giriş", introTraining());
             UUID second = publish(author, editor, publisher, ContentType.TRAINING, "İlk Aracını Tanı", secondTraining());
-            starter = List.of(intro, second);
-        }
-        if (content.list(ContentType.JOURNEY).isEmpty()) {
-            journey(author, editor, publisher, "Beginner", "Temel kavramlar ve ilk araçlar.", 1, false, starter);
-            journey(author, editor, publisher, "Expert", "İleri iş akışları ve otomasyon.", 2, true, List.of());
-            journey(author, editor, publisher, "Master", "Topluluğa katkı ve karmaşık akışlar.", 3, true, List.of());
-            log.info("Seeded 3 journeys");
-        } else if (noTrainings) {
-            // upgrade path for databases seeded before trainings existed: attach them as a new Beginner version
-            content.list(ContentType.JOURNEY).stream()
-                    .filter(j -> content.latest(j.getId()).getBody().path("order").asInt() == 1).findFirst()
-                    .ifPresent(j -> addTrainings(author, editor, publisher, j.getId(), j.getLockVersion()));
+            List<UUID> beginner = List.of(intro, second);
+            if (noJourneys) {
+                // every journey ships with at least one training: an empty journey cannot be published (dead end)
+                UUID expert = publish(author, editor, publisher, ContentType.TRAINING, "İş Akışlarına Giriş",
+                        lessonOnly("Araç, yapay zekâ adımı ve koşulları birleştirerek iş akışı kurmayı öğrenin.", "akis-nedir", "İş akışı nedir?",
+                                "Bir **iş akışı**, birbirini izleyen adımlardan oluşur; bir adımın çıktısı sonrakinin girdisidir."));
+                UUID master = publish(author, editor, publisher, ContentType.TRAINING, "Topluluğa Katkı",
+                        lessonOnly("Araç ve iş akışlarınızı toplulukla paylaşın.", "paylasim", "Paylaşmak ve çatallamak",
+                                "Paylaştığınız bir iş akışını başkası çatallarsa siz de puan kazanırsınız."));
+                journey(author, editor, publisher, "Beginner", "Temel kavramlar ve ilk araçlar.", 1, false, beginner);
+                journey(author, editor, publisher, "Expert", "İleri iş akışları ve otomasyon.", 2, true, List.of(expert));
+                journey(author, editor, publisher, "Master", "Topluluğa katkı ve karmaşık akışlar.", 3, true, List.of(master));
+                log.info("Seeded 3 journeys with trainings");
+            } else {
+                // upgrade path for databases seeded before trainings existed: attach them as a new Beginner version
+                content.list(ContentType.JOURNEY).stream()
+                        .filter(j -> content.latest(j.getId()).getBody().path("order").asInt() == 1).findFirst()
+                        .ifPresent(j -> addTrainings(editor, publisher, j.getId(), j.getLockVersion(), beginner));
+            }
         }
     }
 
-    private void addTrainings(User author, User editor, User publisher, UUID journeyId, long lock) {
+    private JsonNode lessonOnly(String summary, String key, String title, String text) {
+        ObjectNode b = json.createObjectNode().put("summary", summary);
+        b.putArray("prerequisites");
+        b.putArray("items").addObject().put("key", key).put("type", "lesson").put("title", title).put("content", text);
+        return b;
+    }
+
+    private void addTrainings(User editor, User publisher, UUID journeyId, long lock, List<UUID> trainings) {
         ContentVersion latest = content.latest(journeyId);
         ObjectNode body = latest.getBody().deepCopy();
         var ids = body.putArray("trainingIds");
-        content.list(ContentType.TRAINING).forEach(t -> ids.add(t.getId().toString()));
+        trainings.forEach(t -> ids.add(t.toString()));
         ContentVersion v = content.saveDraft(principal(editor), journeyId, lock, latest.getTitle(), body);
         content.submit(principal(editor), v.getId());
         content.approve(principal(admin()), v.getId(), "Tohum verisi: eğitimler eklendi");

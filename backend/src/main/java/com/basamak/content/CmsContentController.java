@@ -27,7 +27,7 @@ public class CmsContentController {
 
     public record CreateReq(@NotNull ContentType type, @NotBlank @Size(max = 200) String title, @NotNull JsonNode body) {}
 
-    public record SaveReq(long lockVersion, @NotBlank @Size(max = 200) String title, @NotNull JsonNode body) {}
+    public record SaveReq(long lockVersion, @NotBlank @Size(max = 200) String title, @NotNull JsonNode body, List<String> confirmRemovedKeys) {}
 
     public record NoteReq(String note) {}
 
@@ -59,7 +59,8 @@ public class CmsContentController {
 
     @PutMapping("/items/{id}/draft")
     public ItemDto save(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @Valid @RequestBody SaveReq r) {
-        content.saveDraft(p, id, r.lockVersion(), r.title(), r.body());
+        content.saveDraft(p, id, r.lockVersion(), r.title(), r.body(),
+                r.confirmRemovedKeys() == null ? Set.of() : new HashSet<>(r.confirmRemovedKeys()));
         return itemDto(content.item(id));
     }
 

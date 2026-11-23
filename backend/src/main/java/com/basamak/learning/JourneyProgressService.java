@@ -31,9 +31,14 @@ public class JourneyProgressService {
 
     public record TrainingProgress(UUID id, String title, String status) {}
 
+    /**
+     * comingSoon: published but without any published training (possible for journeys published before the
+     * empty-journey publish guard, or when its last training is unpublished). It is shown as "Yakında", is never
+     * auto-completed (no points/certificates), and the next journey names it as the reason it is still locked.
+     */
     public record JourneyProgress(UUID id, String title, String description, int order, int versionNo,
                                   List<TrainingProgress> trainings, int completedCount, boolean completed,
-                                  boolean locked, String lockReason, String certificateSerial) {}
+                                  boolean locked, String lockReason, String certificateSerial, boolean comingSoon) {}
 
     @Transactional(readOnly = true)
     public List<JourneyProgress> forUser(UUID userId) {
@@ -49,6 +54,7 @@ public class JourneyProgressService {
         journeys.sort(Comparator.comparingInt(j -> j.body().path("order").asInt()));
         List<JourneyProgress> out = new ArrayList<>();
         boolean previousComplete = true;
+        String previousTitle = null;
         for (Published j : journeys) {
             List<TrainingProgress> ts = new ArrayList<>();
             for (JsonNode tid : j.body().path("trainingIds")) {
@@ -61,13 +67,15 @@ public class JourneyProgressService {
             String reason = null;
             JsonNode unlock = j.body().path("unlock");
             if (unlock.path("requiresPreviousJourney").asBoolean(false) && !previousComplete) {
-                reason = "Bu Journey, bir önceki Journey tamamlanınca açılır.";
+                reason = "Bu Journey, '" + previousTitle + "' tamamlanınca açılır.";
             } else if (points < unlock.path("minPoints").asInt(0)) {
                 reason = "Bu Journey'i açmak için en az " + unlock.path("minPoints").asInt() + " puan gerekiyor (şu an " + points + ").";
             }
             out.add(new JourneyProgress(j.itemId(), j.title(), j.body().path("description").asText(""),
-                    j.body().path("order").asInt(), j.versionNo(), ts, done, complete, reason != null, reason, certs.get(j.itemId())));
+                    j.body().path("order").asInt(), j.versionNo(), ts, done, complete, reason != null, reason,
+                    certs.get(j.itemId()), ts.isEmpty() && !complete));
             previousComplete = complete;
+            previousTitle = j.title();
         }
         return out;
     }
