@@ -79,10 +79,11 @@ Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo 
 | Yönetici | `admin@basamak.local` | CMS ve web |
 
 ### Giriş akışları
-**Üye (web ve mobil): şifre + e-postayla gelen kod**
+**Üye (web ve mobil): şifre; yeni cihazda ek olarak e-postayla gelen kod**
 1. E-posta ve şifreyi girin, **Devam**'a basın.
-2. Hesabın kayıtlı adresine 6 haneli bir kod gönderilir. Yerelde e-postalar **Mailpit**'e düşer (http://localhost:8025); gerçek ortamda yapılandırılmış SMTP kullanılır.
-3. Ekranda maskelenmiş adres ve kodun kalan süresi görünür. Kodu girin.
+2. **Bu tarayıcı ya da uygulama daha önce hatırlandıysa** doğrudan giriş yapılır.
+3. **Yeni bir cihazdaysanız** hesabın kayıtlı adresine 6 haneli bir kod gönderilir. Yerelde e-postalar **Mailpit**'e düşer (http://localhost:8025; arama kutusuna kendi adresinizi yazın), gerçek ortamda yapılandırılmış SMTP kullanılır. Ekranda maskelenmiş adres ve kodun kalan süresi görünür.
+4. Kodu girerken **"Bu cihazı 30 gün hatırla"** varsayılan olarak işaretlidir. Sonraki girişlerde o cihazda yalnız şifre yeter. Şifre sıfırlanınca hatırlanan bütün cihazlar unutulur.
 
 Kod 10 dakika geçerlidir ve tek kullanımlıktır. 60 saniye sonra "Kodu yeniden gönder" ile yeni kod istenebilir; yeni kod öncekini geçersiz kılar. 5 yanlış denemeden sonra şifreyle baştan başlanır.
 

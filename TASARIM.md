@@ -284,6 +284,14 @@ OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya ek
 - `/api/auth/**` uç noktalarında IP başına hız sınırı vardır. Kod doğrulanmadan oturum açılmaz ve token verilmez.
 - Gönderim başarısız olursa kullanıcıya açık mesaj gösterilir ve yeniden gönderme seçeneği sunulur.
 
+**Cihazı hatırlama (yalnız üye):**
+- **Neden:** Her girişte kod istemek gereksiz bir yük. Ödev üye için ikinci adım istemiyor; e-posta doğrulaması ve şifre yeterli. E-posta kodu bu yüzden yalnız **yeni bir cihazda** istenir.
+- **Nasıl çalışır:** Kod doğrulanırken "Bu cihazı 30 gün hatırla" seçiliyse cihaza rastgele bir token verilir. Web'de bu, `bsm_dev` adlı HttpOnly, `SameSite=Strict` ve `path=/api/auth` olan bir cookie'dir; mobilde güvenli depoda tutulur. Sunucu yalnız token'ın SHA-256 özetini saklar (`trusted_device`).
+- **Sınırlar:** Token yalnız sahibinin hesabında geçerlidir. **Şifre her zaman istenir.** Şifre sıfırlama hatırlanan bütün cihazları iptal eder.
+- **Kanıt:** `LoginCodeIT.remembered*`, `passwordResetForgetsRememberedDevices`, `mobileRememberedDeviceTokenTravelsInTheBody`, e2e `remembered device`.
+
+CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CMS oturumu 12 saat sürer.
+
 **TOTP geçişi:** CMS'teki TOTP kayıtları değişmedi. Bu adımda veri geçişi yok; kayıtlı hesaplar aynı uygulamayla girmeye devam eder.
 
 **Kanıt:** `LoginCodeIT` (kodun yalnız özet olarak saklanması ve tek kullanım, yanlış kod sınırı, süre dolması ve yeniden gönderme, bekleme süresi, gönderim hatası, mobil), `AuthIT`, e2e `member.spec.ts`.
