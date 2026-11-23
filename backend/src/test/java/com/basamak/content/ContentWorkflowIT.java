@@ -226,6 +226,40 @@ class ContentWorkflowIT extends IntegrationTest {
     }
 
     @Test
+    void unpublishIsRoleCheckedReasonedAuditedAndReversible() throws Exception {
+        JsonNode item = create("JOURNEY", "Kaldırılacak " + System.nanoTime(), Map.of("order", 12, "trainingIds", seedTrainings));
+        String id = item.get("id").asText();
+        approveAndPublish(item.at("/latest/id").asText());
+        mvc.perform(get("/api/journeys/" + id).header("Authorization", bearer(member))).andExpect(status().isOk());
+
+        // only publishers/admins, and a reason is required
+        mvc.perform(jsonPost("/api/cms/items/" + id + "/unpublish", Map.of("reason", "x")).header("Authorization", bearer(author)))
+           .andExpect(status().isForbidden());
+        mvc.perform(jsonPost("/api/cms/items/" + id + "/unpublish", Map.of("reason", " ")).header("Authorization", bearer(publisher)))
+           .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("reason_required"));
+
+        mvc.perform(jsonPost("/api/cms/items/" + id + "/unpublish", Map.of("reason", "Test verisi")).header("Authorization", bearer(publisher)))
+           .andExpect(status().isOk()).andExpect(jsonPath("$.publishedVersionNo").value(org.hamcrest.Matchers.nullValue()));
+        // gone for members (by id and from the list); nothing deleted in history
+        mvc.perform(get("/api/journeys/" + id).header("Authorization", bearer(member))).andExpect(status().isNotFound());
+        assertThat(journeyTitles()).doesNotContain(item.at("/latest/title").asText());
+        JsonNode history = body(mvc.perform(get("/api/cms/items/" + id + "/versions").header("Authorization", bearer(editor))).andReturn());
+        assertThat(history).hasSize(1);
+        assertThat(history.get(0).get("status").asText()).isEqualTo("ARCHIVED");
+        mvc.perform(jsonPost("/api/cms/items/" + id + "/unpublish", Map.of("reason", "tekrar")).header("Authorization", bearer(publisher)))
+           .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("not_published"));
+
+        JsonNode audit = body(mvc.perform(get("/api/cms/items/" + id + "/audit").header("Authorization", bearer(editor))).andReturn());
+        assertThat(audit.get(0).get("action").asText()).isEqualTo("content.unpublished");
+        assertThat(audit.get(0).get("details").asText()).contains("Test verisi");
+
+        // reversible: the archived version can be re-published
+        mvc.perform(post("/api/cms/versions/" + history.get(0).get("id").asText() + "/publish").header("Authorization", bearer(publisher)))
+           .andExpect(status().isOk());
+        mvc.perform(get("/api/journeys/" + id).header("Authorization", bearer(member))).andExpect(status().isOk());
+    }
+
+    @Test
     void auditLogIsAppendOnly() {
         assertThatThrownBy(() -> jdbc.update("UPDATE audit_log SET action = 'x'")).hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.update("DELETE FROM audit_log")).hasMessageContaining("append-only");

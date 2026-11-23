@@ -89,6 +89,13 @@ public class CmsContentController {
         return audit.forEntity(item.getType().name(), id.toString());
     }
 
+    public record ReasonReq(String reason) {}
+
+    @PostMapping("/items/{id}/unpublish")
+    public ItemDto unpublish(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @RequestBody ReasonReq r) {
+        return itemDto(content.unpublish(p, id, r.reason()));
+    }
+
     @PostMapping("/versions/{id}/submit")
     public VersionDto submit(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
         return single(content.submit(p, id));

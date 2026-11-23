@@ -26,7 +26,7 @@ export function typeLabel(type: string): string {
 export const AUDIT_LABEL: Record<string, string> = {
   "content.created": "İçerik oluşturuldu", "content.draft_saved": "Taslak kaydedildi", "content.submitted": "İncelemeye gönderildi",
   "content.approved": "Onaylandı", "content.changes_requested": "Düzeltme istendi", "content.scheduled": "Yayın zamanlandı",
-  "content.published": "Yayınlandı", "content.published_scheduled": "Zamanlanmış yayın yapıldı", "content.republished": "Eski sürüm yeniden yayınlandı",
+  "content.published": "Yayınlandı", "content.unpublished": "Yayından kaldırıldı", "content.published_scheduled": "Zamanlanmış yayın yapıldı", "content.republished": "Eski sürüm yeniden yayınlandı",
 };
 
 export const STATUS_LABEL: Record<string, string> = {

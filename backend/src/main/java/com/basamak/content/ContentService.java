@@ -172,6 +172,30 @@ public class ContentService {
         return v;
     }
 
+    /**
+     * Takes content off the member side without deleting anything: the published pointer is cleared and the
+     * published version becomes ARCHIVED (so it can be re-published later). History stays; a reason is mandatory
+     * and the action is audited. Members already enrolled in a pinned version keep their own history.
+     */
+    @Transactional
+    public ContentItem unpublish(AuthPrincipal actor, UUID itemId, String reason) {
+        ContentItem item = item(itemId);
+        requireAny(actor, PUBLISHERS, "Yayından kaldırmak için yayıncı ya da yönetici rolü gerekir.");
+        if (reason == null || reason.isBlank()) {
+            throw ApiException.badRequest("reason_required", "Yayından kaldırma gerekçesini yazın; denetim kaydına eklenecek.");
+        }
+        if (item.getPublishedVersionId() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "not_published", "Bu içerik zaten yayında değil.");
+        }
+        ContentVersion v = version(item.getPublishedVersionId());
+        v.setStatus(VersionStatus.ARCHIVED);
+        item.setPublishedVersionId(null);
+        touch(item);
+        audit.record(actor.userId(), "content.unpublished", item.getType().name(), itemId,
+                Map.of("versionNo", v.getVersionNo(), "reason", reason.trim()));
+        return item;
+    }
+
     /** Called by the scheduler for due SCHEDULED versions (rows locked with SKIP LOCKED). */
     @Transactional
     public int publishDue(Instant now) {

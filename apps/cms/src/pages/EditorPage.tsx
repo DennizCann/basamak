@@ -88,6 +88,7 @@ export function EditorPage() {
         </div>
         <WorkflowActions version={v} dirty={dirty} can={can} onAction={workflow} />
       </section>
+      {item.publishedVersionNo && can("PUBLISHER") && <Unpublish itemId={item.id} versionNo={item.publishedVersionNo} onDone={(m) => { setNotice(m); load(); }} onError={setError} />}
 
       {error && <Alert kind="error"><p>{error}</p></Alert>}
       {notice && <Alert kind="success"><p>{notice}</p></Alert>}
@@ -169,6 +170,29 @@ function WorkflowActions({ version, dirty, can, onAction }: { version: Version; 
       {s === "IN_REVIEW" && !can("EDITOR") && <span className="muted">Editör incelemesi bekleniyor.</span>}
       {s === "APPROVED" && !can("PUBLISHER") && <span className="muted">Yayıncı bekleniyor.</span>}
     </div>
+  );
+}
+
+/** Takes the content off the member side; history stays and the archived version can be re-published. */
+function Unpublish({ itemId, versionNo, onDone, onError }: { itemId: string; versionNo: number; onDone: (m: string) => void; onError: (m: string) => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!window.confirm(`Yayındaki s${versionNo} üyelerden kaldırılacak. Sürüm geçmişi korunur ve daha sonra yeniden yayınlanabilir. Devam edilsin mi?`)) return;
+    setBusy(true);
+    try { await api.post(`/api/cms/items/${itemId}/unpublish`, { reason }); setReason(""); onDone("Yayından kaldırıldı. Sürüm geçmişi korundu."); }
+    catch (e) { onError(errorMessage(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <details className="card">
+      <summary>Yayından kaldır</summary>
+      <div className="stack" style={{ marginTop: "var(--space-3)" }}>
+        <p className="muted" style={{ margin: 0 }}>İçerik üyelere görünmez olur; hiçbir sürüm silinmez. İşlem denetim kaydına gerekçesiyle yazılır.</p>
+        <TextArea label="Gerekçe (zorunlu)" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+        <div><button className="btn btn-danger" disabled={!reason.trim() || busy} onClick={submit}>Yayından kaldır</button></div>
+      </div>
+    </details>
   );
 }
 
