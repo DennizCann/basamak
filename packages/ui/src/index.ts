@@ -1,4 +1,5 @@
-export { ThemeToggle, applyStoredTheme } from "./ThemeToggle";
+export { ThemeToggle, applyStoredTheme, useThemePreference } from "./ThemeToggle";
+export type { Theme } from "./ThemeToggle";
 export { StateView } from "./StateView";
 export { Markdown } from "./Markdown";
 export { TextField, TextArea, SelectField, Alert, ProgressBar, fmt } from "./Field";

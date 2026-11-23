@@ -31,7 +31,11 @@ a { color: var(--color-primary); }
 }
 .btn:hover { background: var(--color-surface-2); }
 .btn-primary { background: var(--color-primary); color: var(--color-primary-contrast); border-color: var(--color-primary); }
-.btn-primary:hover { filter: brightness(1.08); background: var(--color-primary); }
+.btn-primary:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); }
+.btn-ghost { background: transparent; border-color: transparent; }
+.btn-ghost:hover { background: var(--color-surface-2); }
+.btn-sm { min-height: 40px; padding: 0 var(--space-3); font-size: var(--font-size-sm); }
+a.btn { text-decoration: none; }
 .btn-danger { color: var(--color-danger); }
 .btn[disabled], .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 
@@ -94,7 +98,7 @@ pre { white-space: pre-wrap; word-break: break-word; font-family: var(--font-mon
 .diff-added { color: var(--color-success); }
 .diff-removed { color: var(--color-danger); }
 .diff-changed { color: var(--color-warning); }
-h1 { font-size: var(--font-size-xl); margin: var(--space-4) 0 var(--space-3); }
+h1 { font-size: var(--font-size-2xl); margin: var(--space-4) 0 var(--space-3); line-height: 1.25; }
 
 .skeleton { background: var(--color-surface-2); border-radius: var(--radius-sm); min-height: 1em; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .5; } }
