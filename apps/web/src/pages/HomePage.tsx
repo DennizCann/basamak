@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { StateView, errorMessage, fmt } from "@basamak/ui";
-import { api, useAuth } from "../auth";
+import { useAuth } from "../auth";
+import { cachedGet } from "../offline";
 import { Meter } from "../components/Meter";
 import { CertificateActions } from "../components/CertificateActions";
 import { PointsDialog } from "../components/PointsDialog";
@@ -16,8 +17,8 @@ export function HomePage() {
 
   const load = useCallback(() => {
     setError(null);
-    Promise.all([api.get<Journey[]>("/api/me/journeys"), api.get<Summary>("/api/me/summary")])
-      .then(([j, s]) => { setJourneys(j); setSummary(s); })
+    Promise.all([cachedGet<Journey[]>("/api/me/journeys"), cachedGet<Summary>("/api/me/summary")])
+      .then(([j, s]) => { setJourneys(j.data); setSummary(s.data); })
       .catch((e) => setError(errorMessage(e)));
   }, []);
   useEffect(load, [load]);

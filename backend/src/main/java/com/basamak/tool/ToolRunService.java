@@ -42,6 +42,7 @@ public class ToolRunService implements JobHandler {
     private final PublishedContent published;
     private final GamificationService gamification;
     private final LearningService learning;
+    private final com.basamak.notification.NotificationService notifications;
 
     public record Resolved(ToolSecrets.Scope scope, UUID toolId, int versionNo, String name, ToolDefinition def) {}
 
@@ -188,6 +189,12 @@ public class ToolRunService implements JobHandler {
                 status, http, output == null ? null : output.toString(), error, durationMs, runId);
         Map<String, Object> dto = dto(runId);
         events.append(runId, event, dto);
+        if (!"CANCELLED".equals(status)) {
+            String link = dto.get("trainingId") != null ? "/trainings/" + dto.get("trainingId") + "?item=" + dto.get("itemKey") : "/tools";
+            boolean ok = "SUCCEEDED".equals(status);
+            notifications.notify((UUID) dto.get("userId"), "TOOL_RUN", ok ? "Araç tamamlandı" : "Araç başarısız oldu",
+                    dto.get("toolName") + (ok ? " sonucu hazır." : ": " + error), link, "tool-run:" + runId);
+        }
         return dto;
     }
 

@@ -107,6 +107,7 @@ public class PrivacyService {
         out.put("toolSecretNames", rows("SELECT tool_id, name, updated_at FROM tool_secret WHERE scope = 'USER' AND updated_by = ?", userId));
         out.put("toolRuns", rows("SELECT * FROM tool_run WHERE user_id = ? ORDER BY created_at", userId));
         out.put("workflows", rows("SELECT * FROM workflow WHERE owner_id = ?", userId));
+        out.put("notifications", rows("SELECT * FROM notification WHERE user_id = ?", userId));
         out.put("workflowRuns", rows("SELECT * FROM workflow_run WHERE user_id = ? ORDER BY created_at", userId));
         audit.record(userId, "privacy.exported", "USER", userId, Map.of());
         return out;
@@ -154,6 +155,7 @@ public class PrivacyService {
         // certificates: the holder name is personal data; the public verification page now says "revoked"
         jdbc.update("UPDATE certificate SET holder_name = 'Silinmiş üye', revoked_at = coalesce(revoked_at, now()) WHERE user_id = ?", userId);
         jdbc.update("DELETE FROM user_score WHERE user_id = ?", userId);
+        jdbc.update("DELETE FROM notification WHERE user_id = ?", userId);
         audit.record(userId, "privacy.account_deleted", "USER", userId, Map.of());
     }
 

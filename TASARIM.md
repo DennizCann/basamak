@@ -432,14 +432,33 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - `apps/mobile` bir Capacitor 7 kabuğudur. İçine `apps/web`'in **aynı React kodu** `vite build --mode mobile` ile derlenip `apps/mobile/www`'ye konur (`npm run build:mobile -w apps/web`). Ardından `npx cap sync android` çalışır ve APK `gradlew assembleDebug` ile üretilir.
 - Platform farkları tek bir dosyada toplanır (`apps/web/src/platform.ts`):
   - **API adresi:** `VITE_API_BASE`. Emülatörde `http://10.0.2.2:8080` (`apps/web/.env.mobile`).
-  - **Oturum:** Web, refresh token'ı HttpOnly cookie'de tutar. Mobil ise `client: "mobile"` ile giriş yapar; refresh token ve hatırlanan cihaz token'ı gövdede döner ve uygulama deposunda saklanır (Capacitor Preferences). **F6'da Android Keystore ve iOS Keychain'e taşınacak.** Bugünkü depolama uygulamaya özel alandır ve `allowBackup="false"` ile yedeklemeye girmez, ama şifrelenmiş değildir.
+  - **Oturum:** Web, refresh token'ı HttpOnly cookie'de tutar. Mobil ise `client: "mobile"` ile giriş yapar; refresh token ve hatırlanan cihaz token'ı gövdede döner ve uygulama deposunda saklanır **Android Keystore**'da saklanır. Uygulamanın kendi eklentisi `SecureStoragePlugin` EncryptedSharedPreferences kullanır (AES-256-GCM, anahtar Keystore'da). Eski sürümlerden kalan düz kayıt ilk açılışta şifreli depoya taşınır ve silinir (emülatörde doğrulandı). iOS Keychain **yazılmadı**; iOS'ta Preferences'a düşülür. `allowBackup="false"`.
   - **Android Geri tuşu:** Uygulama içinde geri gider; ilk ekrandaysa uygulamayı kapatır (`@capacitor/app`).
+  - Mobil yapıştırıcı kod tek bir bileşende toplanır: `MobileBridge.tsx`.
 - **Ağ güvenliği:** `network_security_config.xml` düz HTTP'ye yalnız `10.0.2.2` ve `localhost` için izin verir. Diğer bütün hostlar HTTPS ister ve release derlemesi HTTPS bir API adresi kullanır.
 - **Android 15 edge-to-edge:** WebView durum çubuğunun altına çiziliyordu (emülatörde görüldü). Tema `windowOptOutEdgeToEdgeEnforcement` ile düzeltildi. Kalıcı çözüm safe-area padding'idir (F6).
 - **Web değişikliği mobile nasıl yansır:** Yeniden `build:mobile`, `cap sync` ve APK gerekir. Backend ve CMS'ten yayınlanan içerik değişiklikleri ise anında yansır, çünkü aynı API kullanılır.
 
-### 8.2 Doğrulama durumu
-- **Android:** Pixel 7 emülatöründe (API 35) debug APK kuruldu ve açıldı. Şifre, Mailpit'ten e-posta kodu ve Journey listesi çalışıyor. Uygulama kapatılıp açılınca oturum geri yükleniyor (`docs/mobile/*.png`). Gerçek cihazda **denenmedi**.
+### 8.2 Mobil özellikler (F6, senaryo 14)
+- **Çevrimdışı okuma:** Ana sayfa ve eğitim verisi her başarılı okumada cihaza yazılır (`cachedGet`). Bağlantı yokken kayıtlı kopya gösterilir; üstte "Çevrimdışısın" bandı çıkar.
+- **Çevrimdışı ilerleme ve eşitleme:**
+  - Ders tamamlama, anket ve quiz cevabı bağlantı yokken bir giden kutusuna yazılır (`postOrQueue`). Ekranda hemen tamamlanmış görünür.
+  - Bağlantı gelince (`online`, uygulamaya dönüş ya da 30 saniyede bir) sırayla gönderilir.
+  - Çift sayım olmaz: sunucu uçları idempotenttir (öge başına tek tamamlama, üye başına tek anket, deneme başına tek gönderim) ve puan defteri tekrar olayı yok sayar.
+  - **Çakışma kuralı:** Sunucunun cevabı geçerlidir. Reddedilen işlem (örneğin quiz süresi dolmuş, eğitim yeni sürüme geçmiş) kutudan çıkarılır ve üyeye nedeni gösterilir. Quiz denemesi yalnız çevrimiçiyken başlatılabilir, çünkü sorular sunucuda rastgele seçilir ve cevaplar istemciye gönderilmez. Cevaplar çevrimdışı verilebilir. Olayların cihaz saati `occurred_at`'e, sunucu saati `received_at`'e yazılır.
+- **Bildirimler:**
+  - Sunucu, araç ya da iş akışı bitince, sertifika verilince ve akış çatallanınca `notification` kaydı oluşturur. Kayıt `dedup_key` ile idempotenttir.
+  - Kayıtlar kullanıcıya özel SSE akışıyla (`Last-Event-ID` tekrar oynatma) uygulamaya gelir. Uygulama bunları **yerel bildirim** olarak gösterir; bildirime dokununca ilgili ekran açılır (emülatörde doğrulandı).
+  - **FCM yok:** Firebase projesi ve `google-services.json` gerekir (ücretsiz ama hesap açmak kullanıcının işi). Bu yüzden uygulama süreci tamamen kapalıyken bildirim gelmez. FCM eklenince aynı `notification` kaydı push olarak gönderilir.
+- **Derin bağlantı:** `basamak://trainings/{id}?item=anahtar`, `basamak://workflows/{id}?run=…`, `basamak://verify/{seri}` gibi bağlantılar ilgili ekranı açar. Yalnız izin listesindeki uygulama içi yollar açılır (açık yönlendirme yok). https App Links için doğrulanmış bir alan adı gerekir; yapılmadı.
+- **Gizlilik ekranı:** Giriş, hesap ve araç (sır) ekranlarında `FLAG_SECURE` açıktır: ekran görüntüsü, kayıt ve son uygulamalar önizlemesi boş görünür (emülatörde siyah görüntüyle doğrulandı). Diğer ekranlarda kapalıdır.
+- **Sertifika PDF'i:** WebView'da `<a download>` çalışmaz. PDF oturumla indirilir, uygulamanın önbellek klasörüne yazılır ve sistemin paylaşım ekranına verilir (`@capacitor/filesystem`, `@capacitor/share`). **Emülatörde denenmedi** (demo hesabında sertifika yok).
+- **Bulunan ve düzeltilen hatalar:**
+  - Bildirime dokunma olayı `extra` alanı olmadan geliyordu; bağlantı bildirim kimliğiyle uygulama içinde eşlendi.
+  - Eski WebView, özel şemaya göreli yolu farklı çözüyordu; göreli bağlantılar ayrı ayrıştırılıyor.
+
+### 8.3 Doğrulama durumu
+- **Android:** Pixel 7 emülatöründe (API 35) debug APK kuruldu ve açıldı. Şifre, Mailpit'ten e-posta kodu ve Journey listesi çalışıyor. Uygulama kapatılıp açılınca oturum geri yükleniyor. F6'da emülatörde elle doğrulananlar: Keystore'a geçiş, derin bağlantı, çevrimdışı ders tamamlama ve eşitleme, bildirim ve dokununca ekran açılması, gizlilik ekranı (`docs/mobile/*.png`). Gerçek cihazda **denenmedi**. Araç ve iş akışı ekranları mobilde açılıyor (bildirimden açılan akış ekranı), ama mobilde tam bir çalıştırma ekranı turu yapılmadı.
 - **iOS:** `@capacitor/ios` bağımlılığı ve `capacitor.config.ts` hazır. Xcode yalnız macOS'ta çalıştığı için iOS projesi üretilmedi ve **hiç test edilmedi**. macOS'ta yapılacaklar: `npm run build:mobile -w apps/web`, `cd apps/mobile`, `npx cap add ios`, `npx cap open ios`. API adresi simülatörde `http://localhost:8080` olur; bunun için Info.plist'e geliştirme amaçlı bir ATS istisnası gerekir.
 
 ## 9. Ölçeklenme, izleme ve hata yönetimi *(F7'de ölçümlerle yazılacak)*

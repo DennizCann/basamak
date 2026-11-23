@@ -43,6 +43,7 @@ public class LearningService {
     private final GamificationService gamification;
     private final JourneyProgressService journeys;
     private final ObjectMapper json;
+    private final com.basamak.notification.NotificationService notifications;
 
     record Enrollment(UUID id, UUID trainingId, int versionNo, String status, String currentKey) {}
 
@@ -427,6 +428,9 @@ public class LearningService {
         gamification.record(event(userId, "training-complete:" + userId + ":" + trainingId, "TRAINING_COMPLETED", "TRAINING",
                 trainingId.toString(), e.versionNo(), source));
         List<String> certs = journeys.onTrainingCompleted(userId, trainingId);
+        for (String serial : certs) {
+            notifications.notify(userId, "CERTIFICATE", "Sertifikan hazır", "Bir Journey'i tamamladın; sertifikanı indirebilirsin.", "/certificates", "cert:" + serial);
+        }
         return Map.of("trainingCompleted", true, "certificatesIssued", certs);
     }
 

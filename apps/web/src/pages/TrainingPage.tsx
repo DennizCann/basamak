@@ -7,13 +7,14 @@ import {
 import { api } from "../auth";
 import { Meter } from "../components/Meter";
 import { ToolRunner, type ToolInput, type ToolRun } from "../components/ToolRunner";
+import { cachedGet, patchCache, postOrQueue } from "../offline";
 
 type Training = {
   id: string; title: string; summary: string; versionNo: number; latestVersionNo: number; newerVersionAvailable: boolean;
   items: PlayerItem[]; lockReason: string | null;
   enrollment: null | { status: string; versionNo: number; completedCount: number; total: number; currentKey: string };
 };
-type Outcome = { pointsAwarded?: number; trainingCompleted?: boolean; certificatesIssued?: string[] };
+type Outcome = { pointsAwarded?: number; trainingCompleted?: boolean; certificatesIssued?: string[]; queued?: true };
 
 export function TrainingPage() {
   const { id } = useParams();
@@ -24,13 +25,19 @@ export function TrainingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const requested = params.get("item");
+  const [savedCopy, setSavedCopy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
-    try { setT(await api.get<Training>(`/api/trainings/${id}`)); }
+    try {
+      const r = await cachedGet<Training>(`/api/trainings/${id}`);
+      setT(r.data);
+      setSavedCopy(r.offline ? r.savedAt ?? null : null);
+    }
     catch (e) { setError(errorMessage(e)); }
   }, [id]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { const h = () => { setNotice(null); load(); }; window.addEventListener("basamak:synced", h); return () => window.removeEventListener("basamak:synced", h); }, [load]);
 
   // The URL (?item=key) is the source of truth for the selected item: back/forward, reload and deep links work.
   const fallbackKey = t ? (t.enrollment?.currentKey || t.items.find((i) => !i.completed)?.key || t.items[0]?.key || null) : null;
@@ -56,6 +63,10 @@ export function TrainingPage() {
   const act = async (fn: () => Promise<Outcome | void>) => {
     try {
       const r = await fn();
+      if (r && r.queued) {
+        setNotice("Çevrimdışı kaydedildi; bağlantı gelince eşitlenecek.");
+        return;
+      }
       const parts: string[] = [];
       if (r && r.pointsAwarded) parts.push(`+${fmt.num(r.pointsAwarded)} puan kazandın.`);
       if (r && r.trainingCompleted) parts.push("Eğitimi tamamladın.");
@@ -67,6 +78,20 @@ export function TrainingPage() {
       setError(errorMessage(e));
     }
   };
+
+  /** offline: show the item as done now (screen + stored copy); the server confirms when the outbox is sent */
+  function markDoneLocally(key: string) {
+    const upd = (x: Training): Training => {
+      const was = x.items.find((i) => i.key === key)?.completed;
+      return {
+        ...x,
+        items: x.items.map((i) => (i.key === key ? { ...i, completed: true } : i)),
+        enrollment: x.enrollment && !was ? { ...x.enrollment, completedCount: x.enrollment.completedCount + 1 } : x.enrollment,
+      };
+    };
+    setT((x) => (x ? upd(x) : x));
+    patchCache<Training>(`/api/trainings/${id}`, upd).catch(() => {});
+  }
 
   if (!t) {
     return <main className="page"><StateView loading={!error} error={error} onRetry={load} /></main>;
@@ -130,6 +155,7 @@ export function TrainingPage() {
           </aside>
 
           <section className="reader" aria-labelledby="item-title">
+            {savedCopy && <p className="hint-line">Çevrimdışı kopya: {fmt.dateTime(savedCopy)} tarihli.</p>}
             {unknownItem && <Alert kind="warning"><p>Bağlantıdaki içerik bu eğitimin senin sürümünde yok (kaldırılmış olabilir). Listeden bir içerik seç.</p></Alert>}
             {item && !unknownItem && (
               <>
@@ -137,11 +163,19 @@ export function TrainingPage() {
                   <span className="item-type">{ITEM_TYPE_LABEL[item.type]} · {index + 1}/{t.items.length}</span>
                   <h2 id="item-title" tabIndex={-1} ref={headingRef}>{item.title}</h2>
                 </div>
-                {item.type === "lesson" && <Lesson trainingId={id!} item={item} onComplete={() => act(() => api.post(`/api/trainings/${id}/items/${item.key}/complete`))} />}
+                {item.type === "lesson" && <Lesson trainingId={id!} item={item} onComplete={() => act(async () => {
+                  const r = await postOrQueue<Outcome>(`/api/trainings/${id}/items/${item.key}/complete`, undefined, `Ders: ${item.title}`);
+                  if ((r as Outcome).queued) markDoneLocally(item.key);
+                  return r as Outcome;
+                })} />}
                 {item.type === "quiz" && <Quiz trainingId={id!} item={item} onDone={(r) => act(async () => r)} />}
                 {item.type === "survey" && (item.completed
                   ? <p className="done-note">✓ Anketi doldurdun, teşekkürler.</p>
-                  : <SurveyForm item={item} onSubmit={(answers) => act(() => api.post(`/api/trainings/${id}/items/${item.key}/survey`, { answers }))} />)}
+                  : <SurveyForm item={item} onSubmit={(answers) => act(async () => {
+                    const r = await postOrQueue<Outcome>(`/api/trainings/${id}/items/${item.key}/survey`, { answers }, `Anket: ${item.title}`);
+                    if ((r as Outcome).queued) markDoneLocally(item.key);
+                    return r as Outcome;
+                  })} />)}
                 {item.type === "tool" && <TrainingTool key={item.key} trainingId={id!} item={item} onSucceeded={load} />}
 
                 {!next && (
@@ -191,8 +225,9 @@ function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerIt
   const [error, setError] = useState<string | null>(null);
   const [left, setLeft] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [queued, setQueued] = useState(false);
 
-  useEffect(() => { setAttempt(null); setResult(null); setReview(null); setError(null); }, [item.key]);
+  useEffect(() => { setAttempt(null); setResult(null); setReview(null); setError(null); setQueued(false); }, [item.key]);
   useEffect(() => {
     if (!attempt?.deadlineAt) { setLeft(null); return; }
     const tick = () => setLeft(Math.max(0, Math.round((new Date(attempt.deadlineAt!).getTime() - Date.now()) / 1000)));
@@ -210,10 +245,11 @@ function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerIt
     if (!attempt || busy) return;
     setBusy(true);
     try {
-      const r = await api.post<QuizResultData & Outcome>(`/api/quiz-attempts/${attempt.attemptId}/submit`, { answers });
-      setResult(r);
+      const r = await postOrQueue<QuizResultData & Outcome>(`/api/quiz-attempts/${attempt.attemptId}/submit`, { answers }, `Quiz: ${item.title}`);
       setAttempt(null);
-      onDone(r);
+      if ((r as Outcome).queued) { setQueued(true); return; } // graded by the server when the outbox is sent
+      setResult(r as QuizResultData & Outcome);
+      onDone(r as QuizResultData & Outcome);
     } catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); }
   };
@@ -231,6 +267,7 @@ function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerIt
       <p style={{ margin: 0 }}>{attemptsText(used, allowed, !!item.completed)}</p>
       {error && <Alert kind="error"><p>{error}</p></Alert>}
       {item.completed && <p className="done-note">✓ Bu quiz'i geçtin{item.bestPercent != null ? ` (%${item.bestPercent})` : ""}</p>}
+      {queued && <Alert kind="warning"><p>Cevapların cihazda saklandı. Bağlantı gelince gönderilecek ve sonucu Geçmişim'de ve burada göreceksin. Süre sınırını aşan cevaplar sunucu kuralına göre değerlendirilir.</p></Alert>}
       {result && <QuizResult result={result} />}
       {!attempt && !item.completed && (
         <div><button className="btn btn-primary" disabled={used >= allowed} onClick={start}>{used === 0 ? "Quiz'e başla" : "Yeniden dene"}</button></div>

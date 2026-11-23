@@ -34,6 +34,7 @@ public class WorkflowService {
     private final ToolRunService tools;
     private final PublishedContent published;
     private final GamificationService gamification;
+    private final com.basamak.notification.NotificationService notifications;
 
     public record Wf(UUID id, UUID ownerId, String ownerName, String name, String description, JsonNode definition, int versionNo,
                      String visibility, UUID forkedFrom, int forkCount, boolean hasWebhook, String cron, JsonNode cronInput,
@@ -146,6 +147,7 @@ public class WorkflowService {
         jdbc.update("INSERT INTO workflow_version(workflow_id, version_no, definition) VALUES (?, 1, CAST(? AS jsonb))", id, src.definition().toString());
         jdbc.update("UPDATE workflow SET fork_count = fork_count + 1 WHERE id = ?", src.id());
         gamification.record(ActivityEvent.web(src.ownerId(), "forked:" + id, "SHARED_ITEM_FORKED", "WORKFLOW", id.toString(), src.versionNo()));
+        notifications.notify(src.ownerId(), "FORKED", "Akışın çatallandı", src.name() + " bir üye tarafından çatallandı; puan kazandın.", "/workflows/" + src.id(), "forked:" + id);
         return get(id);
     }
 

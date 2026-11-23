@@ -48,6 +48,7 @@ public class WorkflowEngine implements JobHandler {
     private final ToolSecrets secrets;
     private final AiProvider ai;
     private final GamificationService gamification;
+    private final com.basamak.notification.NotificationService notifications;
 
     // ------------------------------------------------------------------ start / resume
 
@@ -90,7 +91,12 @@ public class WorkflowEngine implements JobHandler {
     public Decision handle(JobQueue.Claimed job) {
         Map<String, Object> run = jdbc.queryForMap("SELECT status FROM workflow_run WHERE id = ?", job.refId());
         if (!Set.of("QUEUED", "RUNNING").contains((String) run.get("status"))) return new Done();
-        execute(job.refId(), job.id(), 0);
+        String result = execute(job.refId(), job.id(), 0);
+        Map<String, Object> r = jdbc.queryForMap("SELECT r.user_id, r.workflow_id, r.resume_count, w.name, r.failed_step_id FROM workflow_run r JOIN workflow w ON w.id = r.workflow_id WHERE r.id = ?", job.refId());
+        boolean ok = "SUCCEEDED".equals(result);
+        notifications.notify((UUID) r.get("user_id"), "WORKFLOW_RUN", ok ? "İş akışı tamamlandı" : "İş akışı bir adımda durdu",
+                r.get("name") + (ok ? " başarıyla bitti." : ": '" + r.get("failed_step_id") + "' adımı hata verdi. Kaldığı yerden devam ettirebilirsin."),
+                "/workflows/" + r.get("workflow_id") + "?run=" + job.refId(), "workflow-run:" + job.refId() + ":" + r.get("resume_count"));
         return new Done();
     }
 

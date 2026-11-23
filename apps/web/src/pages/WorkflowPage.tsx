@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, SelectField, StateView, TextArea, TextField, errorMessage, fmt } from "@basamak/ui";
 import { api, useAuth } from "../auth";
 import type { ToolInput } from "../components/ToolRunner";
@@ -18,7 +18,10 @@ export function WorkflowPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
-  const [openRun, setOpenRun] = useState<string | null>(null);
+  const [params] = useSearchParams();
+  const [openRun, setOpenRun] = useState<string | null>(params.get("run")); // deep link / notification
+  const runParam = params.get("run");
+  useEffect(() => { if (runParam) setOpenRun(runParam); }, [runParam]);
 
   const load = useCallback(async () => {
     try {

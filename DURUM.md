@@ -15,11 +15,11 @@
 | F0 | İskelet, DB, Mailpit, web ve CMS iskeleti, CI, belge iskeletleri | **tamamlandı** (23.11 ~15.40) — F1 için onay bekleniyor |
 | F1 | Kimlik, roller, TOTP, sürümleme, yayın, audit, Journey, tohum verisi | **tamamlandı** (23.11 16.45; backend API, UI yok) — F2 için onay bekleniyor |
 | F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | **tamamlandı** (23.11 ~17.50) — F2.5 için onay bekleniyor |
-| F2.5 | Capacitor iskeleti ve ilk debug APK | **tamamlandı** (23.11 ~20.40): emülatörde giriş ve Journey listesi çalışıyor; iOS test edilmedi |
-| F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | **tamamlandı** (24.11 ~00.15): web ve CMS; mobilde araç ekranı denenmedi |
-| F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | **tamamlandı** (24.11 ~01.30): web; mobilde denenmedi |
-| F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 ~02.45) |
-| F6 | Mobil özellikler (14) | başlanmadı |
+| F2.5 | Capacitor iskeleti ve ilk debug APK | **tamamlandı** (23.11 23.40, commit 79f7118): emülatörde giriş ve Journey listesi çalışıyor; iOS test edilmedi |
+| F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | **tamamlandı** (24.11 00.00, commit 06c6586): web ve CMS; mobilde araç ekranı denenmedi |
+| F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | **tamamlandı** (24.11 00.23, commit 450096f): web; mobilde denenmedi |
+| F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 00.36, commit 8958c2f) |
+| F6 | Mobil özellikler (14) | **tamamlandı** (24.11 ~01.00): Android emülatöründe elle doğrulandı; iOS test edilmedi |
 | F7 | Kalite ve ölçümler (15) | başlanmadı |
 | F8 | Teslim belgeleri | başlanmadı |
 
@@ -40,7 +40,7 @@
 | 15 | kısmen (giriş ve ana sayfa: 320 px, koyu tema, klavye) | `e2e/member.spec.ts` |
 | 12 | tamamlandı (web) | `PrivacyReportIT.scenario12_*` (3), `e2e/privacy.spec.ts` |
 | 13 | tamamlandı (CMS) | `PrivacyReportIT.scenario13_*`, `e2e/privacy.spec.ts` |
-| 14 | kısmen | — (14: Android'de yalnız giriş ve Journey listesi elle doğrulandı) |
+| 14 | kısmen (Android emülatör: giriş, Journey, ders, çevrimdışı ve eşitleme, bildirimden ekrana geçiş, derin bağlantı, Geçmişim; PDF paylaşımı denenmedi; iOS yok; FCM yok) | elle: `docs/mobile/*.png`; `NotificationIT` | — (14: Android'de yalnız giriş ve Journey listesi elle doğrulandı) |
 
 ## F1'de yapılanlar (özet)
 - **Kimlik:**
@@ -79,14 +79,17 @@
 | 23.11 ~20.00 | QA fazı: `cd backend; .\mvnw.cmd -B -o verify` | **33/33** (yeni: JourneyPolicyIT 5, AuthIT eşzamanlı refresh) |
 | 23.11 ~20.05 | QA fazı: `npm run typecheck`, `npm run build` | temiz |
 | 23.11 ~20.10 | QA fazı: `$env:PW_CHANNEL="msedge"; npm run e2e` (izole :8081/:5183/:5184) | **8/8** |
-| 23.11 ~20.45 | F2.5: `npm run typecheck`, `npm run build`, izole e2e (msedge) | temiz; **21 geçti** (1 isteğe bağlı ekran testi atlandı). Backend kodu değişmediği için `mvnw verify` yeniden çalıştırılmadı (son: 46/46) |
-| 23.11 ~20.40 | F2.5: `gradlew assembleDebug` ve `adb install`, Pixel 7 emülatörü | APK kuruldu; giriş, kod ve Journey listesi elle doğrulandı |
-| 24.11 ~00.10 | F3: `cd backend; .\mvnw.cmd -B -o verify` | **79/79** (yeni: ToolIT 8, UrlGuardTest 25) |
-| 24.11 ~00.15 | F3: typecheck, build, izole e2e (msedge; sahte API :8090) | temiz; **23 geçti**, 1 isteğe bağlı test atlandı (yeni: `e2e/tools.spec.ts` 2) |
-| 24.11 ~01.20 | F4: `mvnw -B -o verify` | **86/86** (yeni: WorkflowIT 7) |
-| 24.11 ~01.30 | F4: typecheck, izole e2e (msedge) | **24 geçti**, 1 isteğe bağlı test atlandı. İlk koşuda 3 hata: 2'si yeni menü bağlantılarının mobil başlığı 64 px'ten uzun yapmasıydı (düzeltildi: dar ekranda bu bağlantılar hesap menüsünde), 1'i tools.spec'te tekrar etmeyen bir hataydı (yavaş koşu, 4,4 dk) |
-| 24.11 ~02.40 | F5: `mvnw -B -o verify` | **90/90** (yeni: PrivacyReportIT 4) |
-| 24.11 ~02.45 | F5: typecheck, izole e2e | **26 geçti**, 1 atlandı. e2e gerçek bir hata buldu: cevapsız anket sorusunda rapor 500 veriyordu (`Map.of` null kabul etmiyor); düzeltildi ve entegrasyon testine eklendi |
+| 23.11 ~23.35 | F2.5: `npm run typecheck`, `npm run build`, izole e2e (msedge) | temiz; **21 geçti** (1 isteğe bağlı ekran testi atlandı). Backend kodu değişmediği için `mvnw verify` yeniden çalıştırılmadı (son: 46/46) |
+| 23.11 ~23.30 | F2.5: `gradlew assembleDebug` ve `adb install`, Pixel 7 emülatörü | APK kuruldu; giriş, kod ve Journey listesi elle doğrulandı |
+| 23.11 ~23.55 | F3: `cd backend; .\mvnw.cmd -B -o verify` | **79/79** (yeni: ToolIT 8, UrlGuardTest 25) |
+| 23.11 ~23.58 | F3: typecheck, build, izole e2e (msedge; sahte API :8090) | temiz; **23 geçti**, 1 isteğe bağlı test atlandı (yeni: `e2e/tools.spec.ts` 2) |
+| 24.11 ~00.15 | F4: `mvnw -B -o verify` | **86/86** (yeni: WorkflowIT 7) |
+| 24.11 ~00.20 | F4: typecheck, izole e2e (msedge) | **24 geçti**, 1 isteğe bağlı test atlandı. İlk koşuda 3 hata: 2'si yeni menü bağlantılarının mobil başlığı 64 px'ten uzun yapmasıydı (düzeltildi: dar ekranda bu bağlantılar hesap menüsünde), 1'i tools.spec'te tekrar etmeyen bir hataydı (yavaş koşu, 4,4 dk) |
+| 24.11 ~00.30 | F5: `mvnw -B -o verify` | **90/90** (yeni: PrivacyReportIT 4) |
+| 24.11 ~00.34 | F5: typecheck, izole e2e | **26 geçti**, 1 atlandı. e2e gerçek bir hata buldu: cevapsız anket sorusunda rapor 500 veriyordu (`Map.of` null kabul etmiyor); düzeltildi ve entegrasyon testine eklendi |
+| 24.11 ~00.55 | F6: `mvnw -B -o verify` | **91/91** (yeni: NotificationIT) |
+| 24.11 ~00.58 | F6: izole e2e | **26 geçti**, 1 atlandı |
+| 24.11 ~00.50 | F6: APK, Pixel 7 emülatörü | Keystore'a geçiş (düz depoda token yok), derin bağlantı, uçak modunda ders tamamlama → bağlantı gelince eşitlendi (sunucuda doğrulandı), bildirim → dokununca akış ekranı (2 hata bulundu ve düzeltildi), FLAG_SECURE (hesap ekranı siyah, diğer ekranlar normal) |
 
 ## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
 Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş Journey politikası, E2E izolasyonu, CMS dönüş bağlantısı, öge anahtarı koruması (sunucu ve UI), quiz incelemesi ve cevap gösterme politikası, URL ile içerik gezinmesi, ortak bileşenli etkileşimli önizleme, Türkçe etiketler, PDF indirme geri bildirimi.
@@ -138,6 +141,14 @@ Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictM
 - **Web:** "Geçmişim" (süzgeçler URL'de) ve "Hesabım ve verilerim" (indirme, silme). İkisi de hesap menüsünde.
 - **CMS:** "Raporlar".
 - **Yapılmadı:** Açık uçlu cevaplarda kişisel veri taraması, saklama süresi işleri (TASARIM §7.6).
+
+> **Saat düzeltmesi (24.11 ~01.00):** F2.5–F5 için önceden yazılan saatler tahminiydi ve yanlıştı. Yukarıdaki saatler commit zamanlarından düzeltildi.
+
+## F6 Mobil özellikler (24.11 gece)
+- **Native:** `SecureStoragePlugin` (EncryptedSharedPreferences ve Keystore), `PrivacyScreenPlugin` (FLAG_SECURE), `basamak://` intent filtresi, POST_NOTIFICATIONS izni.
+- **Web (mobil kipi):** `offline.ts` (önbellek ve giden kutusu), `MobileBridge.tsx` (derin bağlantı, geri tuşu, gizlilik ekranı, eşitleme, bildirimler), `share.ts` (PDF paylaşımı).
+- **Backend:** Migration `0008` (`notification`), `NotificationService` ve `NotificationController` (liste, okundu, SSE). Araç, iş akışı, sertifika ve çatal bildirimleri. Bildirimler hesap silmede silinir, dışa aktarmada yer alır.
+- **Yapılmadı:** FCM push (Firebase projesi gerekir), iOS Keychain ve iOS testi, App Links (alan adı gerekir), PDF paylaşımının cihazda denenmesi.
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

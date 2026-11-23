@@ -200,3 +200,5 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .danger-zone { border-color: var(--color-danger); }
 .account-panel a.menu-item { display: flex; text-decoration: none; color: var(--color-text); }
 
+.sync-banner { position: sticky; top: 0; z-index: 20; padding: var(--space-2) var(--space-4) 0; max-width: var(--size-content-max); margin: 0 auto; }
+

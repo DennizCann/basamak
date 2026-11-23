@@ -2,6 +2,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth";
 import { Header } from "./components/Header";
+import { MobileBridge } from "./components/MobileBridge";
 import { LoginPage, RegisterPage, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthPages";
 import { HomePage } from "./pages/HomePage";
 import { TrainingPage } from "./pages/TrainingPage";
@@ -22,6 +23,7 @@ export function App() {
       <AuthProvider>
         <a className="skip-link" href="#main">İçeriğe geç</a>
         <Header />
+        <MobileBridge />
         <div id="main" tabIndex={-1}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

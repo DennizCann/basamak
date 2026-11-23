@@ -157,6 +157,13 @@ export function createApi(opts: ApiOptions) {
         }
       }
     },
+    /** Authenticated binary fetch (mobile: the file is saved and shared natively instead of an <a download>). */
+    async blob(path: string): Promise<Blob> {
+      let res = await fetch(base + path, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, credentials: "include" });
+      if (res.status === 401 && (await refresh())) res = await fetch(base + path, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: "include" });
+      if (!res.ok) throw new ApiError("Dosya alınamadı. Tekrar deneyin.", res.status, "download_failed");
+      return res.blob();
+    },
     /** Raw download with auth (e.g. certificate PDF). */
     async download(path: string, filename: string) {
       let res = await fetch(base + path, { headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}, credentials: "include" });
