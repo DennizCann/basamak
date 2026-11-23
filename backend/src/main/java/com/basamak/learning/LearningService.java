@@ -429,7 +429,7 @@ public class LearningService {
                 trainingId.toString(), e.versionNo(), source));
         List<String> certs = journeys.onTrainingCompleted(userId, trainingId);
         for (String serial : certs) {
-            notifications.notify(userId, "CERTIFICATE", "Sertifikan hazır", "Bir Journey'i tamamladın; sertifikanı indirebilirsin.", "/certificates", "cert:" + serial);
+            notifications.notify(userId, "CERTIFICATE", "Seviye atladın, sertifikan hazır", "Bir Journey'i tamamladın ve yeni seviyeye geçtin. Sertifikanı indirebilirsin.", "/certificates", "cert:" + serial);
         }
         return Map.of("trainingCompleted", true, "certificatesIssued", certs);
     }

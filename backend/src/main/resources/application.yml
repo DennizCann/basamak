@@ -4,6 +4,9 @@ spring:
     import: optional:file:../.env[.properties],optional:file:.env[.properties]
   application:
     name: basamak
+  lifecycle:
+    # open SSE streams must not hold a restart for minutes; clients reconnect with Last-Event-ID
+    timeout-per-shutdown-phase: 15s
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:basamak}
     username: ${DB_USER:basamak}

@@ -36,3 +36,21 @@ function secureStore(key: string) {
 
 export const refreshTokenStore = secureStore("basamak.refresh");
 export const deviceTokenStore = secureStore("basamak.device");
+
+/**
+ * Notification permission is asked only when it is first useful (the first tool / workflow run), after explaining
+ * why, never at sign-in. A "no" is remembered and not asked again from here (the system settings still work).
+ */
+export async function askNotificationPermissionOnce(): Promise<void> {
+  if (!isMobile) return;
+  try {
+    const { LocalNotifications } = await import("@capacitor/local-notifications");
+    const state = (await LocalNotifications.checkPermissions()).display;
+    if (state !== "prompt" && state !== "prompt-with-rationale") return;
+    const asked = await Preferences.get({ key: "basamak.notifyAsked" });
+    if (asked.value) return;
+    await Preferences.set({ key: "basamak.notifyAsked", value: "1" });
+    const ok = window.confirm("İş bitince haber verelim mi?\n\nAraç ya da iş akışı arka planda çalışır. Bittiğinde (ya da hata verdiğinde) bildirim gönderip dokununca sonucu açabiliriz. İzni istediğin zaman telefon ayarlarından kapatabilirsin.");
+    if (ok) await LocalNotifications.requestPermissions();
+  } catch { /* no plugin (web) */ }
+}

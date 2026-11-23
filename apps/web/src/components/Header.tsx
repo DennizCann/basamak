@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { useThemePreference, type Theme } from "@basamak/ui";
 import { useAuth } from "../auth";
 import { PointsDialog } from "./PointsDialog";
+import { useNotifications } from "../notifications";
 
 /** Three rising steps: the Basamak mark ("basamak" = step). */
 export function BrandMark({ size = 26 }: { size?: number }) {
@@ -37,11 +38,26 @@ export function Header() {
               <NavLink className="nav-extra" to="/workflows">Akışlar</NavLink>
               <NavLink className="nav-extra" to="/leaderboard">Sıralama</NavLink>
             </nav>
+            <NotificationBell />
             <AccountMenu />
           </>
         ) : <span style={{ marginLeft: "auto" }} />}
       </div>
     </header>
+  );
+}
+
+/** Bell with the unread count; updates live (SSE). The count is in the accessible name, not only in the badge. */
+function NotificationBell() {
+  const { unread } = useNotifications();
+  const label = unread ? `Bildirimler, ${unread} okunmamış` : "Bildirimler";
+  return (
+    <NavLink to="/notifications" className="bell" aria-label={label} title={label}>
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M12 3a6 6 0 0 0-6 6v3.6L4.3 15.5A1 1 0 0 0 5.2 17h13.6a1 1 0 0 0 .9-1.5L18 12.6V9a6 6 0 0 0-6-6Zm-2.5 15a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      </svg>
+      {unread > 0 && <span className="bell-badge" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}
+    </NavLink>
   );
 }
 

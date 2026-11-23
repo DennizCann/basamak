@@ -202,3 +202,10 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 
 .sync-banner { position: sticky; top: 0; z-index: 20; padding: var(--space-2) var(--space-4) 0; max-width: var(--size-content-max); margin: 0 auto; }
 
+
+/* notification bell + centre */
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border-radius: 999px; color: var(--color-text); margin-left: auto; }
+.bell:hover { background: var(--color-surface-2, rgba(127,127,127,.12)); }
+.bell[aria-current="page"] { color: var(--color-primary); }
+.bell-badge { position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--color-danger, #c62828); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.notice-unread { border-left: 4px solid var(--color-primary); }

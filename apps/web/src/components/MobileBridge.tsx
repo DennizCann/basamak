@@ -69,14 +69,14 @@ export function MobileBridge() {
     if (!isMobile || !user) return;
     const ctrl = new AbortController();
     let last = 0;
-    LocalNotifications.requestPermissions().catch(() => {});
     (async () => {
       while (!ctrl.signal.aborted) {
         try {
           await api.stream("/api/me/notifications/stream", (e) => {
             if (e.event !== "notification" || e.id <= last) return;
             last = e.id;
-            const n = e.data as { id: number; title: string; body: string; link: string | null };
+            const n = e.data as { id: number; title: string; body: string; link: string | null; push?: boolean };
+            if (n.push === false) return; // the member turned push off for this event type
             const nid = n.id % 2_000_000_000;
             if (n.link) { shownLinks.set(nid, n.link); lastLink = n.link; }
             LocalNotifications.schedule({ notifications: [{ id: nid, title: n.title, body: n.body, extra: { link: n.link } }] }).catch(() => {});

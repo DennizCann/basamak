@@ -1,3 +1,4 @@
+import { askNotificationPermissionOnce } from "../platform";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, TextField, errorMessage, fmt } from "@basamak/ui";
 import { api } from "../auth";
@@ -82,6 +83,7 @@ export function ToolRunner({ inputs, start, onFinished }: {
         if (v === undefined || v === "") continue;
         input[i.name] = i.type === "number" ? Number(v) : v;
       }
+      await askNotificationPermissionOnce();
       const r = await start(input, crypto.randomUUID());
       setRun(r);
       follow(r.id);

@@ -1,3 +1,4 @@
+import { askNotificationPermissionOnce } from "../platform";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Alert, SelectField, StateView, TextArea, TextField, errorMessage, fmt } from "@basamak/ui";
@@ -246,6 +247,7 @@ function RunPanel({ wf, onStarted, onError }: { wf: Workflow; onStarted: (id: st
     e.preventDefault();
     setBusy(true);
     try {
+      await askNotificationPermissionOnce();
       const r = await api.post<WorkflowRun>(`/api/workflows/${wf.id}/runs`, { input: values, clientRequestId: crypto.randomUUID() });
       onStarted(r.id);
     } catch (err) { onError(errorMessage(err)); }

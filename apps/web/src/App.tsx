@@ -15,12 +15,15 @@ import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
+import { NotificationsPage } from "./pages/NotificationsPage";
+import { NotificationsProvider } from "./notifications";
 import "./app.css";
 
 export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <NotificationsProvider>
         <a className="skip-link" href="#main">İçeriğe geç</a>
         <Header />
         <MobileBridge />
@@ -40,11 +43,13 @@ export function App() {
             <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
             <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+            <Route path="/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
             <Route path="/account" element={<RequireAuth><AccountPage /></RequireAuth>} />
             <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />
             <Route path="*" element={<main className="page"><h1>Sayfa bulunamadı</h1><p><Link className="text-link" to="/">Öğrenimime dön</Link></p></main>} />
           </Routes>
         </div>
+        </NotificationsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

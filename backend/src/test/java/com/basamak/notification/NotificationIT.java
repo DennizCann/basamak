@@ -11,6 +11,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Scenario 14 (server side): a finished run creates exactly one notification with an in-app link. */
 class NotificationIT extends IntegrationTest {
@@ -41,6 +45,33 @@ class NotificationIT extends IntegrationTest {
         assertThat(getJson("/api/me/notifications", m).get("items").size()).isEqualTo(1);
 
         postJson("/api/me/notifications/read-all", null, m);
+        assertThat(getJson("/api/me/notifications", m).get("unread").asInt()).isZero();
+    }
+
+    @Test
+    void channelPreferences_emailOn_inAppOff() throws Exception {
+        String m = newMember("prefs");
+        String email = getJson("/api/me", m).get("email").asText();
+        JsonNode prefs = getJson("/api/me/notifications/prefs", m);
+        assertThat(prefs.findValuesAsText("type")).contains("TOOL_RUN", "WORKFLOW_RUN", "CERTIFICATE");
+        mvc.perform(jsonPut("/api/me/notifications/prefs", List.of(Map.of("type", "WORKFLOW_RUN", "inApp", false, "email", true, "push", false)))
+                .header("Authorization", bearer(m))).andExpect(status().isOk());
+        mvc.perform(jsonPut("/api/me/notifications/prefs", List.of(Map.of("type", "NOPE", "inApp", true, "email", true, "push", true)))
+                .header("Authorization", bearer(m))).andExpect(status().isBadRequest());
+
+        UUID userId = UUID.fromString(getJson("/api/me", m).get("id").asText());
+        notifications.notify(userId, "WORKFLOW_RUN", "İş akışı tamamlandı", "Özet", "/workflows/x", "pref-test:" + userId);
+        // stored (dedup, export) but hidden from the in-app centre; delivered by e-mail instead
+        assertThat(getJson("/api/me/notifications", m).get("items").size()).isZero();
+        verify(mail, timeout(2000)).send(eq(email), contains("İş akışı tamamlandı"), contains("/workflows/x"));
+
+        // a type left on defaults still shows in-app and sends no e-mail
+        clearInvocations(mail);
+        notifications.notify(userId, "TOOL_RUN", "Araç tamamlandı", "", "/tools", "pref-test2:" + userId);
+        JsonNode list = getJson("/api/me/notifications", m);
+        assertThat(list.get("unread").asInt()).isEqualTo(1);
+        verify(mail, never()).send(eq(email), anyString(), anyString());
+        postJson("/api/me/notifications/" + list.get("items").get(0).get("id").asText() + "/read", null, m);
         assertThat(getJson("/api/me/notifications", m).get("unread").asInt()).isZero();
     }
 }
