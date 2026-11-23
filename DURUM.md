@@ -69,6 +69,15 @@
 | 23.11 17.38 | `$env:PW_CHANNEL="msedge"; npm run e2e` | **3/3**: kayıt, Mailpit doğrulaması ve ders tamamlama; CMS'te Journey oluşturma ve web'de görünme; 320 px, koyu tema ve klavye. CMS testi tekrar çalıştırıldı, yine geçti |
 | 23.11 17.44 | `npm run build` | web ve CMS başarılı |
 
+| 23.11 ~20.00 | QA fazı: `cd backend; .\mvnw.cmd -B -o verify` | **33/33** (yeni: JourneyPolicyIT 5, AuthIT eşzamanlı refresh) |
+| 23.11 ~20.05 | QA fazı: `npm run typecheck`, `npm run build` | temiz |
+| 23.11 ~20.10 | QA fazı: `$env:PW_CHANNEL="msedge"; npm run e2e` (izole :8081/:5183/:5184) | **8/8** |
+
+## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
+Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş Journey politikası, E2E izolasyonu, CMS dönüş bağlantısı, öge anahtarı koruması (sunucu ve UI), quiz incelemesi ve cevap gösterme politikası, URL ile içerik gezinmesi, ortak bileşenli etkileşimli önizleme, Türkçe etiketler, PDF indirme geri bildirimi.
+Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictMode çift isteği, eşzamanlı refresh yarışı (CMS oturum kaybı), CMS listesinde geç gelen cevap yarışı, önizlemede viewport'a göre yanlış yerleşim.
+**Android/iOS: Capacitor henüz yok; hiçbir mobil kontrol yapılmadı.** Bulgu raporunun 13. bölümü F2.5/F6 kabul listesine taşındı.
+
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.
 

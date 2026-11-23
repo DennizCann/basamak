@@ -149,6 +149,11 @@ erDiagram
 - Editör içeriği açtığında `lockVersion` değerini alır ve kaydederken bu değeri geri gönderir. Değer güncel değilse **409 `edit_conflict`** döner; cevapta son sürüm numarası ve onu kaydeden kişi yer alır. CMS çakışma ekranı bu bilgiyle "güncel sürümü yükle ve değişikliğini yeniden uygula" seçeneğini sunar.
 - Kontrol ile yazma arasındaki yarış durumunu JPA `@Version` kapatır (`UPDATE … WHERE lock_version = ?`). Ayrıca `(item_id, version_no)` UNIQUE kısıtı ikinci bir güvencedir.
 - **Kanıt:** `ContentWorkflowIT.scenario4_trulyConcurrentSavesExactlyOneWins`, iki iş parçacığını aynı anda kaydettirir. Sonuç tam olarak bir 200 ve bir 409; geçmişte yalnız bir yeni sürüm oluşuyor.
+- **Öge anahtarlarının sabitliği:** Eğitim ögesinin `key` alanı; ilerleme, defterdeki tek seferlik puan anahtarı (`eğitim:anahtar`) ve quiz denemeleri için kimlik görevi görür. Yayınlanmış bir anahtarın değişmesi iki zarar doğurur: ilerleme yeni sürüme taşınmaz ve öge yeniden tamamlanınca **tekrar puan** verilir.
+  - **Kural:** Daha önce yayınlanmış bir anahtar sıradan bir kayıtla kaybolamaz (yeniden adlandırma ya da silme). Sunucu 409 `published_keys_removed` döndürür.
+  - **Bilerek kaldırma:** Ancak açık onayla (`confirmRemovedKeys`) yapılır.
+  - **CMS'te:** Yayınlanmış anahtar alanı salt okunurdur; yayınlanmış bir ögeyi silmek onay ister.
+  - **Kanıt:** `JourneyPolicyIT.publishedItemKeysCannotSilentlyDisappear`.
 - **Neden kilitleme yok, gerçek zamanlı ortak düzenleme yok:** Düşük çakışma oranında (20 kişilik ekip) iyimser kilit basittir ve veri kaybını önler. Ortak düzenleme (CRDT) bu kapsam için fazla karmaşık; §11'de ertelenenler arasında.
 
 ## 4. Araç ve iş akışı çalıştırma motoru *(F3–F4'te yazılacak)*
@@ -214,6 +219,12 @@ sequenceDiagram
 - **Journey'in tamamlanması:** Journey, içindeki **o anki** bütün yayınlanmış eğitimler bitince tamamlanır. O anda sertifika verilir ve `JOURNEY_COMPLETED` kaydedilir.
 - **Açılma koşulları:** `requiresPreviousJourney` (sırada bir önceki Journey bitmiş olmalı) ve `minPoints`. Kilitli bir Journey'in eğitimine başlanamaz (`training_locked`, 403).
 - **Seviye** = tamamlanmamış ilk Journey. **Seviye düşmez:** sertifikası olan Journey tamamlanmış sayılır. Sonradan eklenen bir eğitim "yeni" olarak görünür ama seviyeyi geri almaz.
+- **Boş Journey (QA bulgusu, P1):** Hiç yayınlanmış eğitimi olmayan bir Journey hiçbir zaman tamamlanamaz, bu yüzden ondan sonraki Journey'leri sonsuza kadar kilitler.
+  - **Önlem:** Sunucu böyle bir Journey'in **yayınlanmasını reddeder** (`empty_journey`). CMS'teki düzenleyici bunu yayından önce uyarı olarak gösterir.
+  - **Eskiden yayınlanmış ya da son eğitimi yayından çekilmiş Journey:** Üyeye **"Yakında"** olarak gösterilir. Kendiliğinden tamamlanmaz; puan ya da sertifika vermez. Sonraki Journey hangi Journey'i beklediğini adıyla söyler.
+  - **Neden "atla" seçilmedi:** Boş Journey'i atlamak, ona otomatik tamamlanma vermek anlamına gelir ve sertifika ile seviye kuralını belirsizleştirir.
+  - **Kanıt:** `JourneyPolicyIT.emptyJourneyCannotBePublished`, `legacyEmptyJourneyIsComingSoonAndNextOneSaysWhatItWaitsFor`.
+- **Doğrudan bağlantı:** Kayıt olmamış üyeye eğitimin yalnız **ana hatları** (başlık ve tür) döner. Ders metni ve anket soruları kayıt gerektirir, kayıt da Journey kilidi ve ön koşullarla korunur (`notEnrolledMemberGetsOnlyTheOutline`).
 - **Yayından çekilen Journey:** Kazanılmış sertifika ve puanlar geçerli kalır; sertifika, Journey'in o anki sürüm numarasını taşır.
 - **Puan ve seviye ilişkisi:** Seviye eğitim tamamlamaya bağlıdır, puana değil. Puan yalnız `minPoints` açılma koşulunda kullanılır, böylece puan biriktirerek eğitim atlanamaz.
 
@@ -227,6 +238,8 @@ sequenceDiagram
 ### 5.6 Quiz ve anket kararları
 - **Soru seçimi:** Soru bankasından `SecureRandom` ile rastgele seçim yapılır ve şıklar karıştırılır. Seçilen sorular denemeye kaydedilir, böylece sayfa yenilenince aynı sorular gelir. **Doğru cevaplar asla istemciye gönderilmez**; testler bunu doğrular.
 - **Süre:** Süre sunucuda tutulur (`deadline_at`). Bağlantı koparsa açık deneme süre içinde kaldığı yerden devam eder. Süre dolduktan sonra **60 saniyelik ağ toleransı** tanınır; daha geç gelen gönderim "geç" sayılır ve geçemez. Mobil çevrimdışı quiz için F6'da ayrı kural yazılacak.
+- **Doğru cevapların gösterilmesi:** "Üye doğru cevapları görsün" ayarı açıksa doğru cevaplar **yalnız quiz geçildiğinde ya da deneme hakkı bittiğinde** gösterilir. Başarısız olup hakkı kalan üyeye gösterilmez; aksi halde bir sonraki denemede kullanılabilirdi.
+- **Deneme incelemesi:** Üye kendi gönderdiği denemeleri inceleyebilir: sorular **gösterildiği hâliyle** (deneme kaydındaki kopya), verdiği cevaplar ve sonuç. Doğru cevaplar aynı kurala bağlıdır. Değerlendirme, denemenin sabitlendiği eğitim sürümünden yapılır; güncel soru bankası kullanılmaz. İnceleme deneme hakkını, puanı ya da ilerlemeyi değiştirmez (`quizReviewShowsOwnAttemptsAndRevealsAnswersOnlyWhenAllowed`).
 - **Açık uçlu sorular** otomatik puana katılmaz ve "değerlendirme bekliyor" olarak işaretlenir. İnsan değerlendirmesi ve itiraz akışı ertelendi (§11). Seçmeli madde olan yapay zekâ ön değerlendirmesi yapılmadı.
 - **Anonim anket:** Cevap satırında `user_id` yoktur, zaman damgası yerine yalnız tarih tutulur. Tekrar doldurmayı önleyen `survey_submission` kaydı cevapla ilişkilendirilmez, böylece yönetici bile cevabı kişiyle eşleştiremez. Raporlarda az sayıda cevapta dağılım gizlenecek (F5).
 
@@ -251,6 +264,7 @@ OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya ek
 
 - Refresh token'lar veritabanında yalnız SHA-256 özeti olarak tutulur (`refresh_sessions`). Her oturum bir cihazdır; üye açık oturumlarını görür ve kapatır.
 - JWT'deki `sid` her istekte kontrol edilir. Bu yüzden kapatılan bir oturumun access token'ı da **hemen** geçersiz olur (bkz. `AuthIT.revokedSessionInvalidatesAccessTokenImmediately`). Bedeli istek başına bir birincil anahtar okumasıdır; ölçekte bu kontrol önbelleğe alınabilir.
+- **Eşzamanlı refresh:** Token döndürme, oturum satırı kilitlenerek (`SELECT … FOR UPDATE`) yapılır. Aynı token'la gelen iki eşzamanlı istekten yalnız biri döndürür, diğeri 401 alır. Tarayıcıda kalan cookie her zaman geçerli kalır (`AuthIT.concurrentRefreshWithSameTokenRotatesOnlyOnce`). Bu bir QA bulgusuydu: StrictMode altında CMS oturumu sayfa yenilemede kayboluyordu.
 - **CSRF:** API Bearer token ile çalıştığı için CSRF'ye açık değildir. Cookie kullanan tek uç nokta refresh'tir ve `X-Requested-With: basamak` başlığı zorunludur. Siteler arası bir form bu başlığı ekleyemez.
 
 ### 7.2 Yetki modeli: rol tabanlı ve nesne düzeyinde

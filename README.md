@@ -53,11 +53,18 @@ Frontend tip kontrolü ve derleme:
 ```powershell
 npm run typecheck; npm run build
 ```
-Uçtan uca testler (Playwright). Önce backend ve Mailpit çalışıyor olmalı; Vite sunucularını test kendisi başlatır. Yerelde kurulu Edge'i kullanmak için:
+Uçtan uca testler (Playwright) **kendi izole yığınlarında** çalışır ve geliştirme verinize dokunmaz:
+- backend `e2e` profiliyle :8081'de çalışır ve `basamak_test` veritabanını her başlangıçta sıfırdan kurar;
+- web :5183'te, CMS :5184'te açılır.
+
+Bütün yığını test kendisi başlatır ve kapatır. Gerekenler: PostgreSQL ve Mailpit çalışıyor olmalı, backend jar'ı derlenmiş olmalı. `mvnw verify` ile aynı anda çalıştırmayın; ikisi de `basamak_test`'i kullanır.
+```powershell
+cd backend; .\mvnw.cmd -DskipTests package; cd ..
+```
 ```powershell
 $env:PW_CHANNEL="msedge"; npm run e2e
 ```
-Ya da önce `npx playwright install chromium` çalıştırıp `npm run e2e`.
+`PW_CHANNEL="msedge"` yerelde kurulu Edge'i kullanır. Bunun yerine önce `npx playwright install chromium` çalıştırıp `npm run e2e` de kullanabilirsiniz.
 
 ## Deneme hesapları
 Uygulama ilk açılışta tohum verisini kendisi yükler (`DataSeeder`; işlem idempotent). Yüklenenler: aşağıdaki hesaplar ve yayınlanmış üç Journey (Beginner, Expert, Master).
