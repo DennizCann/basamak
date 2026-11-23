@@ -5,7 +5,8 @@
   "workspaces": [
     "packages/*",
     "apps/web",
-    "apps/cms"
+    "apps/cms",
+    "apps/mobile"
   ],
   "scripts": {
     "tokens": "node packages/ui/scripts/build-tokens.mjs",

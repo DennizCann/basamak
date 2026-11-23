@@ -323,7 +323,21 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 
 *(OWASP Top 10 eşlemesi ve KVKK bölümü F5'te tamamlanacak.)*
 
-## 8. Mobil *(F2.5 ve F6'da yazılacak)*
+## 8. Mobil *(F2.5 yazıldı; çevrimdışı, bildirim ve derin bağlantı F6'da)*
+
+### 8.1 Yapı (ADR-5)
+- `apps/mobile` bir Capacitor 7 kabuğudur. İçine `apps/web`'in **aynı React kodu** `vite build --mode mobile` ile derlenip `apps/mobile/www`'ye konur (`npm run build:mobile -w apps/web`). Ardından `npx cap sync android` çalışır ve APK `gradlew assembleDebug` ile üretilir.
+- Platform farkları tek bir dosyada toplanır (`apps/web/src/platform.ts`):
+  - **API adresi:** `VITE_API_BASE`. Emülatörde `http://10.0.2.2:8080` (`apps/web/.env.mobile`).
+  - **Oturum:** Web, refresh token'ı HttpOnly cookie'de tutar. Mobil ise `client: "mobile"` ile giriş yapar; refresh token ve hatırlanan cihaz token'ı gövdede döner ve uygulama deposunda saklanır (Capacitor Preferences). **F6'da Android Keystore ve iOS Keychain'e taşınacak.** Bugünkü depolama uygulamaya özel alandır ve `allowBackup="false"` ile yedeklemeye girmez, ama şifrelenmiş değildir.
+  - **Android Geri tuşu:** Uygulama içinde geri gider; ilk ekrandaysa uygulamayı kapatır (`@capacitor/app`).
+- **Ağ güvenliği:** `network_security_config.xml` düz HTTP'ye yalnız `10.0.2.2` ve `localhost` için izin verir. Diğer bütün hostlar HTTPS ister ve release derlemesi HTTPS bir API adresi kullanır.
+- **Android 15 edge-to-edge:** WebView durum çubuğunun altına çiziliyordu (emülatörde görüldü). Tema `windowOptOutEdgeToEdgeEnforcement` ile düzeltildi. Kalıcı çözüm safe-area padding'idir (F6).
+- **Web değişikliği mobile nasıl yansır:** Yeniden `build:mobile`, `cap sync` ve APK gerekir. Backend ve CMS'ten yayınlanan içerik değişiklikleri ise anında yansır, çünkü aynı API kullanılır.
+
+### 8.2 Doğrulama durumu
+- **Android:** Pixel 7 emülatöründe (API 35) debug APK kuruldu ve açıldı. Şifre, Mailpit'ten e-posta kodu ve Journey listesi çalışıyor. Uygulama kapatılıp açılınca oturum geri yükleniyor (`docs/mobile/*.png`). Gerçek cihazda **denenmedi**.
+- **iOS:** `@capacitor/ios` bağımlılığı ve `capacitor.config.ts` hazır. Xcode yalnız macOS'ta çalıştığı için iOS projesi üretilmedi ve **hiç test edilmedi**. macOS'ta yapılacaklar: `npm run build:mobile -w apps/web`, `cd apps/mobile`, `npx cap add ios`, `npx cap open ios`. API adresi simülatörde `http://localhost:8080` olur; bunun için Info.plist'e geliştirme amaçlı bir ATS istisnası gerekir.
 
 ## 9. Ölçeklenme, izleme ve hata yönetimi *(F7'de ölçümlerle yazılacak)*
 
@@ -378,6 +392,15 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
   - Alt ögenin tek başına geçmişi, eğitimin geçmişinden fark alınarak görülür.
   - Araçlar bağımsız sürümlenir ve sabitlenir (§3.3).
   - Medya dosyaları kopyaya gömülmez; içerik adresli (hash) dosya anahtarlarıyla referans verilir. Aynı dosya sürümler arasında bir kez saklanır.
+
+### ADR-5 — Mobil: Capacitor ile web kodunun yeniden kullanımı
+- **Bağlam:** PDF, Android ve iOS uygulaması istiyor (RN, Flutter ya da yerel, seçim bize bırakılmış). Ekip tek kişi ve süre bir gün. Üye ekranları web'de zaten var ve test edildi (320 px, koyu tema, klavye).
+- **Seçenekler:**
+  - (a) React Native: native bileşenler ve daha iyi kaydırma ve animasyon hissi. Ama bütün ekranlar yeniden yazılır ve iki ayrı UI test edilir.
+  - (b) Flutter: (a)'nın sorunlarına ek olarak yeni bir dil gerekir.
+  - (c) Capacitor: web kodu native bir kabukta çalışır. Native API'lere (bildirim, Keystore, dosya, derin bağlantı) eklentilerle erişilir.
+- **Karar:** (c). Tek UI kodu, tek tasarım sistemi ve tek test seti kullanılır; web'deki erişilebilirlik ve tema işi mobile kendiliğinden geçer. Capacitor bir PWA değildir; mağazaya giden gerçek bir APK ya da IPA üretir.
+- **Sonuçlar:** Çok uzun listelerde ve ağır animasyonlarda WebView, RN'nin gerisinde kalır; bu ürünün ekranları içerik ve form ağırlıklı olduğu için kabul edildi. Platforma özgü davranış `platform.ts` ve eklentilerle sınırlı tutulur. Soğuk açılış süresi F7'de ölçülecek.
 
 ## 11. İleriye bırakılanlar *(her fazda güncellenir)*
 - **Gerçek zamanlı ortak düzenleme (CRDT veya OT):** Yerine iyimser kilit ve çakışma ekranı kullanıldı (§3.4).

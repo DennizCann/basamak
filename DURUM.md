@@ -6,7 +6,7 @@
 ## Çalışma kuralları
 - Sıfır ek maliyet.
 - Push ve repo oluşturma onayla yapılır.
-- Her faz sonunda: test, yerel commit, DURUM.md güncellemesi, kısa rapor ve **onay beklenir**.
+- Her faz sonunda: test, commit, push, DURUM.md güncellemesi ve kısa rapor. Kullanıcı 23.11 akşamı F2.5'ten itibaren fazlar arası onay beklemeden devam edilmesini istedi.
 - Saatler garanti değil, kontrol noktasıdır. Süre aşılırsa kapsam daraltılır.
 
 ## Faz durumu
@@ -15,7 +15,7 @@
 | F0 | İskelet, DB, Mailpit, web ve CMS iskeleti, CI, belge iskeletleri | **tamamlandı** (23.11 ~15.40) — F1 için onay bekleniyor |
 | F1 | Kimlik, roller, TOTP, sürümleme, yayın, audit, Journey, tohum verisi | **tamamlandı** (23.11 16.45; backend API, UI yok) — F2 için onay bekleniyor |
 | F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | **tamamlandı** (23.11 ~17.50) — F2.5 için onay bekleniyor |
-| F2.5 | Capacitor iskeleti ve ilk debug APK | başlanmadı |
+| F2.5 | Capacitor iskeleti ve ilk debug APK | **tamamlandı** (23.11 ~20.40): emülatörde giriş ve Journey listesi çalışıyor; iOS test edilmedi |
 | F3 | Araçlar, kuyruk, SSE, SSRF (6, 7) | başlanmadı |
 | F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | başlanmadı |
 | F5 | Geçmişim, KVKK, raporlar (12, 13) | başlanmadı |
@@ -72,6 +72,8 @@
 | 23.11 ~20.00 | QA fazı: `cd backend; .\mvnw.cmd -B -o verify` | **33/33** (yeni: JourneyPolicyIT 5, AuthIT eşzamanlı refresh) |
 | 23.11 ~20.05 | QA fazı: `npm run typecheck`, `npm run build` | temiz |
 | 23.11 ~20.10 | QA fazı: `$env:PW_CHANNEL="msedge"; npm run e2e` (izole :8081/:5183/:5184) | **8/8** |
+| 23.11 ~20.45 | F2.5: `npm run typecheck`, `npm run build`, izole e2e (msedge) | temiz; **21 geçti** (1 isteğe bağlı ekran testi atlandı). Backend kodu değişmediği için `mvnw verify` yeniden çalıştırılmadı (son: 46/46) |
+| 23.11 ~20.40 | F2.5: `gradlew assembleDebug` ve `adb install`, Pixel 7 emülatörü | APK kuruldu; giriş, kod ve Journey listesi elle doğrulandı |
 
 ## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
 Tarayıcı incelemesi bulguları için ayrıntılı rapor sohbette. Özet: boş Journey politikası, E2E izolasyonu, CMS dönüş bağlantısı, öge anahtarı koruması (sunucu ve UI), quiz incelemesi ve cevap gösterme politikası, URL ile içerik gezinmesi, ortak bileşenli etkileşimli önizleme, Türkçe etiketler, PDF indirme geri bildirimi.
@@ -90,6 +92,13 @@ Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictM
 - **Salt okunur backend eklemeleri:** Eğitim kartı alanları (`summary`, `itemCount`, `completedItems`, `currentKey`, `lastActivityAt`) ve `GET /api/point-rules`. Veri modeli ve iş kuralı değişmedi.
 - **Testler:** backend 34/34; typecheck ve build temiz; izole e2e **16/16** (yeni `e2e/ux.spec.ts`: 8 kabul senaryosu, %200 metin büyütme dahil).
 - **Yan düzeltme:** CMS'te liste yüklenmeden "Taslak oluştur" basılınca yeni Journey'in sırası 1 oluyordu; artık düğme liste yüklenene kadar pasif.
+
+## F2.5 Erken Android (23.11 akşam)
+- `apps/mobile`: Capacitor 7 (Android projesi üretildi, iOS yalnız yapılandırma). Web kodu `npm run build:mobile -w apps/web` ile paketleniyor. Ayrıntı: TASARIM §8 ve ADR-5.
+- **Emülatör doğrulaması (Pixel 7, API 35):** APK kuruldu ve açıldı. Şifre ve Mailpit kodu ile giriş, ana sayfa ve Journey listesi çalışıyor; uygulama kapatılıp açılınca oturum geri yükleniyor. Ekran görüntüleri: `docs/mobile/`.
+- **Bulunan ve düzeltilen:** Android 15 edge-to-edge yüzünden başlık durum çubuğunun altında kalıyordu.
+- **Yapılmadı / test edilmedi:** iOS (macOS gerekir), gerçek Android cihaz, Keystore, çevrimdışı mod, bildirimler, derin bağlantı, mobilde PDF indirme (hepsi F6).
+- APK üretimi: `cd apps/mobile/android; $env:JAVA_HOME=<JDK 21>; $env:ANDROID_HOME="$env:LOCALAPPDATA\Android\Sdk"; .\gradlew.bat assembleDebug`.
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

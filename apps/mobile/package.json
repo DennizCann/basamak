@@ -1,0 +1,21 @@
+{
+  "name": "@basamak/mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Capacitor shell for the Basamak member app (Android, iOS). The UI is the member web app bundled into the app.",
+  "scripts": {
+    "build:web": "npm run build:mobile -w apps/web --prefix ../..",
+    "sync": "cap sync",
+    "apk": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/core": "^7.0.0",
+    "@capacitor/ios": "^7.0.0",
+    "@capacitor/preferences": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  }
+}

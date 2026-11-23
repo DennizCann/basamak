@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Basamak</string>
+    <string name="title_activity_main">Basamak</string>
+    <string name="package_name">com.basamak.app</string>
+    <string name="custom_url_scheme">com.basamak.app</string>
+</resources>

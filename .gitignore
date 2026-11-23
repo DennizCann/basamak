@@ -40,3 +40,7 @@ e2e/.totp-secrets.local.json
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Mobile: bundled web build is generated; the Vite mobile mode file holds no secrets
+apps/mobile/www/
+!apps/web/.env.mobile
