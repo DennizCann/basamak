@@ -1,0 +1,36 @@
+# Secrets
+.env
+.env.*
+!.env.example
+**/google-services.json
+**/GoogleService-Info.plist
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Build
+target/
+node_modules/
+dist/
+build/
+.gradle/
+*.apk
+coverage/
+playwright-report/
+test-results/
+
+# Local tools & data
+tools/
+data/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Assignment brief (company document, not redistributed)
+Teknik-Odev-Basamak.pdf
