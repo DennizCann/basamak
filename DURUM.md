@@ -64,6 +64,6 @@
 ## Açık işler ve engeller
 - [x] `scripts/db-init.ps1` — BOM hatası düzeltildi; kullanıcı çalıştırdı, iki DB de hazır.
 - [x] Mailpit çalışıyor (kullanıcı doğruladı, :8025).
-- [ ] CI henüz GitHub'da koşmadı (remote yok).
+- [x] CI: #1 ve #2 backend'de başarısızdı. Sebep: CI'da Mailpit yoktu, mail sağlık kontrolü DOWN dönüyordu, HealthIT 503 alıyordu. Mailpit servis container'ı eklendi; **CI #3 (`243cf1f`) yeşil** (backend ve frontend).
 - [ ] Web ve CMS dev sunucusu tarayıcıda açılarak denenmedi; yalnız derlemeleri doğrulandı (F1/F2'de UI ile birlikte doğrulanacak).
 - [ ] Kullanıcı: Docker Desktop kurulumu, Firebase projesi, GitHub'da private repo (hepsi isteğe bağlı ya da paralel).
