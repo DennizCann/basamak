@@ -37,3 +37,6 @@ Teknik-Odev-Basamak.pdf
 
 # Local e2e state
 e2e/.totp-secrets.local.json
+
+# TypeScript incremental build info
+*.tsbuildinfo
