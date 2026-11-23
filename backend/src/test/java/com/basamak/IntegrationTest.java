@@ -94,6 +94,27 @@ public abstract class IntegrationTest {
         return new DefaultCodeGenerator().generate(secret, Math.floorDiv(Instant.now().getEpochSecond(), 30));
     }
 
+    /** Registers + verifies a fresh member and returns an access token. */
+    protected String newMember(String prefix) throws Exception {
+        String email = uniqueEmail(prefix);
+        MvcResult r = mvc.perform(jsonPost("/api/auth/register", Map.of("email", email, "password", PASSWORD, "displayName", "Test " + prefix, "consent", true))).andReturn();
+        if (r.getResponse().getStatus() != 201) throw new AssertionError(r.getResponse().getContentAsString());
+        mvc.perform(jsonPost("/api/auth/verify-email", Map.of("token", tokenFromMail(lastMailTo(email)))));
+        return memberToken(email);
+    }
+
+    protected JsonNode getJson(String url, String token) throws Exception {
+        MvcResult r = mvc.perform(get(url).header("Authorization", bearer(token))).andReturn();
+        if (r.getResponse().getStatus() != 200) throw new AssertionError(url + " -> " + r.getResponse().getStatus() + " " + r.getResponse().getContentAsString());
+        return body(r);
+    }
+
+    protected JsonNode postJson(String url, Object payload, String token) throws Exception {
+        MvcResult r = mvc.perform(jsonPost(url, payload == null ? Map.of() : payload).header("Authorization", bearer(token))).andReturn();
+        if (r.getResponse().getStatus() != 200) throw new AssertionError(url + " -> " + r.getResponse().getStatus() + " " + r.getResponse().getContentAsString());
+        return body(r);
+    }
+
     protected static String bearer(String token) {
         return "Bearer " + token;
     }
