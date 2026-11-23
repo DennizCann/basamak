@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:basamak_test}
+  liquibase:
+    drop-first: true
+logging:
+  structured:
+    format:
+      console: ""

@@ -1,0 +1,46 @@
+# Values come from the repo-root .env (never committed). See .env.example.
+spring:
+  config:
+    import: optional:file:../.env[.properties],optional:file:.env[.properties]
+  application:
+    name: basamak
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:basamak}
+    username: ${DB_USER:basamak}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+  jackson:
+    time-zone: UTC
+server:
+  port: 8080
+  shutdown: graceful
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+logging:
+  structured:
+    format:
+      console: ecs
+basamak:
+  web-base-url: ${WEB_BASE_URL:http://localhost:5173}
+  cms-base-url: ${CMS_BASE_URL:http://localhost:5174}
+  api-base-url: ${API_BASE_URL:http://localhost:8080}
+  jwt-secret: ${JWT_SECRET}
+  encryption-key: ${ENCRYPTION_KEY}
+  cert-secret: ${CERT_SECRET}
+  ai-provider: ${AI_PROVIDER:mock}
