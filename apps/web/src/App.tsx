@@ -1,33 +1,60 @@
-import { useEffect, useState } from "react";
-import { StateView, ThemeToggle } from "@basamak/ui";
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { ThemeToggle } from "@basamak/ui";
+import { AuthProvider, useAuth } from "./auth";
+import { LoginPage, RegisterPage, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthPages";
+import { HomePage } from "./pages/HomePage";
+import { TrainingPage } from "./pages/TrainingPage";
+import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
+import type { ReactNode } from "react";
 
 export function App() {
-  const [status, setStatus] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <Shell>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/verify/:serial" element={<VerifyCertificatePage />} />
+            <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
+            <Route path="/trainings/:id" element={<RequireAuth><TrainingPage /></RequireAuth>} />
+            <Route path="*" element={<main className="container"><h1>Sayfa bulunamadı</h1><p><a href="/">Ana sayfaya dön</a></p></main>} />
+          </Routes>
+        </Shell>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
 
-  const load = () => {
-    setError(null);
-    setStatus(null);
-    fetch("/api/public/ping")
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d) => setStatus(d.status))
-      .catch(() => setError("Sunucuya ulaşılamadı. Arka ucun çalıştığını kontrol edip tekrar deneyin."));
-  };
-  useEffect(load, []);
-
+function Shell({ children }: { children: ReactNode }) {
+  const { user, logout } = useAuth();
   return (
     <>
       <a className="skip-link" href="#main">İçeriğe geç</a>
-      <header className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--space-3)", paddingBlock: "var(--space-3)" }}>
-        <strong>Basamak</strong>
-        <ThemeToggle />
+      <header className="app-header">
+        <div className="container row" style={{ justifyContent: "space-between", paddingBlock: "var(--space-2)" }}>
+          <NavLink to="/" style={{ fontWeight: 700, textDecoration: "none" }}>Basamak</NavLink>
+          <nav aria-label="Ana menü" className="row">
+            {user && <NavLink to="/" end>Ana sayfa</NavLink>}
+          </nav>
+          <div className="row">
+            <ThemeToggle />
+            {user && <button className="btn" onClick={logout}>Çıkış</button>}
+          </div>
+        </div>
       </header>
-      <main id="main" className="container stack">
-        <h1>Basamak</h1>
-        <StateView loading={!status && !error} error={error} onRetry={load}>
-          <p>API durumu: {status}</p>
-        </StateView>
-      </main>
+      <div id="main" tabIndex={-1}>{children}</div>
     </>
   );
+}
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { user, ready } = useAuth();
+  const loc = useLocation();
+  if (!ready) return <main className="container"><p role="status">Oturum kontrol ediliyor…</p></main>;
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname)}`} replace />;
+  return <>{children}</>;
 }
