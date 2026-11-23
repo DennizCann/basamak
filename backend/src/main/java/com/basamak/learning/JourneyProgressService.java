@@ -101,9 +101,36 @@ public class JourneyProgressService {
         return ps.isEmpty() ? null : ps.get(ps.size() - 1).title();
     }
 
+    public record CatalogEntry(UUID id, String title, String summary, int itemCount, String status,
+                               List<Map<String, Object>> journeys, String lockReason) {}
+
+    /**
+     * Every published training (also ones not in any journey) with the journeys that contain it and the same lock
+     * rule used when enrolling. Read-only; starting a locked training is still refused by enroll().
+     */
+    @Transactional(readOnly = true)
+    public List<CatalogEntry> catalog(UUID userId) {
+        List<JourneyProgress> ps = forUser(userId);
+        Map<UUID, String> status = new HashMap<>();
+        jdbc.query("SELECT training_id, status FROM enrollment WHERE user_id = ?", rs -> { status.put((UUID) rs.getObject(1), rs.getString(2)); }, userId);
+        List<CatalogEntry> out = new ArrayList<>();
+        for (Published t : published.list(ContentType.TRAINING)) {
+            List<Map<String, Object>> js = ps.stream().filter(p -> p.trainings().stream().anyMatch(x -> x.id().equals(t.itemId())))
+                    .map(p -> Map.<String, Object>of("id", p.id(), "title", p.title(), "order", p.order())).toList();
+            out.add(new CatalogEntry(t.itemId(), t.title(), t.body().path("summary").asText(""), t.body().path("items").size(),
+                    status.getOrDefault(t.itemId(), "NOT_STARTED"), js, lockReason(ps, userId, t.itemId(), t.body())));
+        }
+        out.sort(Comparator.comparingInt((CatalogEntry e) -> e.journeys().stream().mapToInt(j -> (Integer) j.get("order")).min().orElse(Integer.MAX_VALUE))
+                .thenComparing(CatalogEntry::title));
+        return out;
+    }
+
     /** Why the member may not start this training yet, or null if they may. */
     public String lockReason(UUID userId, UUID trainingId, JsonNode trainingBody) {
-        List<JourneyProgress> ps = forUser(userId);
+        return lockReason(forUser(userId), userId, trainingId, trainingBody);
+    }
+
+    private String lockReason(List<JourneyProgress> ps, UUID userId, UUID trainingId, JsonNode trainingBody) {
         List<JourneyProgress> containing = ps.stream().filter(p -> p.trainings().stream().anyMatch(t -> t.id().equals(trainingId))).toList();
         if (!containing.isEmpty() && containing.stream().allMatch(JourneyProgress::locked)) return containing.get(0).lockReason();
         for (JsonNode pre : trainingBody.path("prerequisites")) {

@@ -116,6 +116,12 @@ public class LearningController {
                 .toList();
     }
 
+    /** Catalogue of published trainings with the member's lock state (read-only). */
+    @GetMapping("/api/catalog/trainings")
+    public List<JourneyProgressService.CatalogEntry> catalog(@AuthenticationPrincipal AuthPrincipal p) {
+        return journeys.catalog(p.userId());
+    }
+
     @GetMapping("/api/me/journeys")
     public List<JourneyProgressService.JourneyProgress> myJourneys(@AuthenticationPrincipal AuthPrincipal p) {
         return journeys.forUser(p.userId());

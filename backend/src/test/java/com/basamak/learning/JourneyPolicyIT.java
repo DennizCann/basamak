@@ -146,6 +146,27 @@ class JourneyPolicyIT extends IntegrationTest {
         assertThat(rules.toString()).contains("Quiz geçme");
     }
 
+    @Test
+    void catalogListsPublishedTrainingsWithJourneyAndLockState() throws Exception {
+        String m = newMember("catalog");
+        JsonNode cat = getJson("/api/catalog/trainings", m);
+        Map<String, JsonNode> byTitle = new HashMap<>();
+        cat.forEach(t -> byTitle.put(t.get("title").asText(), t));
+        JsonNode intro = byTitle.get("Basamak'a Giriş");
+        assertThat(intro.get("status").asText()).isEqualTo("NOT_STARTED");
+        assertThat(intro.get("itemCount").asInt()).isEqualTo(4);
+        assertThat(intro.get("lockReason").isNull()).isTrue();
+        assertThat(intro.get("journeys").get(0).get("title").asText()).isEqualTo("Beginner");
+        // an Expert training is listed but locked with the same reason enroll() would give
+        JsonNode expert = byTitle.get("İş Akışlarına Giriş");
+        assertThat(expert.get("lockReason").asText()).contains("Beginner");
+        mvc.perform(post("/api/trainings/" + expert.get("id").asText() + "/enroll").header("Authorization", bearer(m)))
+           .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("training_locked"));
+        // drafts are never in the catalogue
+        String draft = create("TRAINING", "Taslak katalog " + System.nanoTime(), LearningIT.lessons("x", "a")).get("id").asText();
+        assertThat(getJson("/api/catalog/trainings", m).toString()).doesNotContain(draft);
+    }
+
     // ---- helpers ----
 
     private JsonNode create(String type, String title, Map<String, Object> body) throws Exception {
