@@ -3,6 +3,10 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:basamak_test}
   liquibase:
     drop-first: true
+basamak:
+  rate-limit:
+    auth-per-minute: 10000   # integration tests log in many times from one IP; the limiter has its own unit test
+  publish-scheduler-ms: 3600000
 logging:
   structured:
     format:
