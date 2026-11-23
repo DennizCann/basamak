@@ -33,11 +33,24 @@ export function HomePage() {
             <NextStep action={action} firstName={firstName} certificateCount={summary.certificates.length} />
 
             <section aria-label="Özet" className="stats">
-              <div className="stat">
-                <span className="label">Seviyen</span>
-                <span className="value">{summary.level || "—"}</span>
-                <span className="help muted">{journeys.every((j) => j.completed) ? "Bütün Journey'leri tamamladın" : "Tamamlamadığın ilk Journey"}</span>
-              </div>
+              {(() => {
+                // Business rule (unchanged): the level value is the first journey not yet completed, i.e. the stage the
+                // member is working towards. Only when everything is completed is it the last (completed) journey.
+                const allDone = journeys.length > 0 && journeys.every((j) => j.completed);
+                const stage = journeys.find((j) => !j.completed);
+                return (
+                  <div className="stat">
+                    <span className="label">{allDone ? "Tamamladığın son aşama" : "Sıradaki aşaman"}</span>
+                    <span className="value">{summary.level || "—"}</span>
+                    <span className="help muted">
+                      {allDone ? "Bütün Journey'leri tamamladın"
+                        : stage?.comingSoon ? "Eğitimleri hazırlanıyor"
+                        : stage?.locked ? "Henüz kilitli"
+                        : "Eğitimlerini bitirince tamamlanır"}
+                    </span>
+                  </div>
+                );
+              })()}
               <div className="stat">
                 <span className="label">Toplam puan</span>
                 <span className="value">{fmt.num(summary.totalPoints)}</span>

@@ -30,8 +30,8 @@ export function PointsDialog({ open, onClose }: { open: boolean; onClose: () => 
       <div className="stack">
         <h2 id="points-title">Puanlar ve seviyeler</h2>
         <p>
-          <strong>Seviyen</strong>, öğrenme yolunda henüz tamamlamadığın ilk Journey'dir. Bir Journey'deki eğitimlerin hepsini bitirdiğinde
-          sertifika alırsın ve bir sonraki Journey açılır. Seviye eğitim tamamlamaya bağlıdır; puan biriktirerek eğitim atlanmaz.
+          <strong>Sıradaki aşaman</strong>, öğrenme yolunda henüz tamamlamadığın ilk Journey'dir. Bir Journey'deki eğitimlerin hepsini
+          bitirdiğinde sertifika alırsın ve bir sonraki Journey açılır. İlerleme eğitim tamamlamaya bağlıdır; puan biriktirerek eğitim atlanmaz.
         </p>
         <p><strong>Puanlar</strong> yaptığın her işten gelir ve toplam puanına eklenir. Aynı işi tekrarlamak puanı artırmaz.</p>
         <StateView loading={!rules && !error} error={error}>

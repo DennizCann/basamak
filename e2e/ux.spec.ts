@@ -26,6 +26,9 @@ test("in-progress member: continue goes to the stored current item", async ({ pa
   await api("POST", `/api/trainings/${intro}/items/puanlar/view`, m.token);
   await webLogin(page, m.email);
   await expect(page.getByRole("heading", { level: 1, name: "Kaldığın yerden devam et" })).toBeVisible();
+  const stage = page.locator(".stat").first();
+  await expect(stage.locator(".label")).toHaveText("Sıradaki aşaman");
+  await expect(stage.locator(".value")).toHaveText("Beginner");
   await page.locator(".hero").getByRole("link", { name: "Devam et" }).click();
   await expect(page).toHaveURL(`${WEB}/trainings/${intro}?item=puanlar`);
   await expect(page.getByRole("heading", { level: 2, name: "Puanlar ve seviyeler" })).toBeVisible();
@@ -38,6 +41,7 @@ test("member who finished everything sees the achievement, certificates and no f
   await expect(page.getByRole("heading", { level: 1, name: "Mevcut eğitimlerin hepsini tamamladın" })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Devam et/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /^Başla/ })).toHaveCount(0);
+  await expect(page.locator(".stat").first().locator(".label")).toHaveText(/Tamamladığın son aşama|Sıradaki aşaman/);
   await page.locator(".hero").getByRole("link", { name: "Sertifikalarımı gör" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Sertifikalarım" })).toBeVisible();
   // one certificate per completed journey (other specs in the run may add journeys containing the same training)
@@ -65,6 +69,9 @@ test("finished available content while the next journey is coming soon: honest m
   await webLogin(page, m.email);
   await expect(page.getByRole("heading", { level: 1, name: "Mevcut eğitimlerin hepsini tamamladın" })).toBeVisible();
   await expect(page.getByText("Sıradaki Journey “Expert” için eğitimler hazırlanıyor.")).toBeVisible();
+  const stage = page.locator(".stat").first();
+  await expect(stage.locator(".label")).toHaveText("Sıradaki aşaman");
+  await expect(stage.locator(".help")).toHaveText("Eğitimleri hazırlanıyor");
   await expect(page.getByRole("listitem", { name: "2. Expert" }).getByText("Yakında")).toBeVisible();
   await expect(page.getByRole("listitem", { name: "3. Master" }).getByText("'Expert' tamamlanınca açılır")).toBeVisible();
   await expect(page.getByRole("link", { name: /^(Devam et|Başla)/ })).toHaveCount(0);
