@@ -12,7 +12,7 @@
 ## Faz durumu
 | Faz | Hedef | Durum |
 |---|---|---|
-| F0 | İskelet, DB, Mailpit, web ve CMS iskeleti, CI, belge iskeletleri | **devam ediyor** |
+| F0 | İskelet, DB, Mailpit, web ve CMS iskeleti, CI, belge iskeletleri | **tamamlandı** (23.11 ~15.40) — F1 için onay bekleniyor |
 | F1 | Kimlik, roller, TOTP, sürümleme, yayın, audit, Journey, tohum verisi | başlanmadı |
 | F2 | İlk uçtan uca akış (senaryo 1, 2, 3, 4, 5, 10) | başlanmadı |
 | F2.5 | Capacitor iskeleti ve ilk debug APK | başlanmadı |
@@ -37,7 +37,12 @@
 |---|---|---|
 | 23.11 ~15.00 | `npm run build` (web + cms) | başarılı |
 | 23.11 ~15.10 | `mvnw -DskipTests package` | başarılı (jar üretildi) |
+| 23.11 ~15.35 | `cd backend; .\mvnw.cmd -B verify` | **BUILD SUCCESS**, 2/2 test (`HealthIT`: health ve DB UP, korumalı uç nokta 401) |
+| 23.11 ~15.37 | `java -jar` ile ana `basamak` DB'sine karşı smoke test | health UP, db UP, `/api/public/ping` → ok, `/actuator/metrics` → 401 |
 
 ## Açık işler ve engeller
-- [ ] `scripts/db-init.ps1` — kullanıcının çalıştırması bekleniyor. BOM hatası düzeltildi.
+- [x] `scripts/db-init.ps1` — BOM hatası düzeltildi; kullanıcı çalıştırdı, iki DB de hazır.
+- [x] Mailpit çalışıyor (kullanıcı doğruladı, :8025).
+- [ ] CI henüz GitHub'da koşmadı (remote yok).
+- [ ] Web ve CMS dev sunucusu tarayıcıda açılarak denenmedi; yalnız derlemeleri doğrulandı (F1/F2'de UI ile birlikte doğrulanacak).
 - [ ] Kullanıcı: Docker Desktop kurulumu, Firebase projesi, GitHub'da private repo (hepsi isteğe bağlı ya da paralel).
