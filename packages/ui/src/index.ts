@@ -8,3 +8,5 @@ export { createApi, ApiError, errorMessage } from "./api";
 export { LessonBody, QuestionForm, QuizResult, QuizReview, SurveyForm, attemptsText, ITEM_TYPE_LABEL } from "./player";
 export type { PlayerItem, Question, Answers, QuizResultData, ReviewAttempt } from "./player";
 export type { Api, ApiOptions } from "./api";
+export { Wizard, ChoiceCards } from "./Wizard";
+export type { WizardStep } from "./Wizard";

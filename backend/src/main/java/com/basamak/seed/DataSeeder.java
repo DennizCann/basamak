@@ -40,6 +40,14 @@ public class DataSeeder implements ApplicationRunner {
     private final PasswordEncoder encoder;
     private final ContentService content;
     private final ObjectMapper json;
+    private final com.basamak.tool.ToolSecrets secrets;
+
+    /** Base URL of the zero-cost mock API that backs the seeded learning tools (docker: http://mock-api:8090). */
+    @Value("${MOCK_API_BASE:http://localhost:8090}")
+    private String mockApiBase;
+    /** Not a real credential: the mock API's demo key (README), stored encrypted like any tool secret. */
+    @Value("${MOCK_API_KEY:demo-mock-key}")
+    private String mockApiKey;
 
     @Value("${basamak.seed.enabled:true}")
     private boolean enabled;
@@ -72,6 +80,28 @@ public class DataSeeder implements ApplicationRunner {
             rule(author, editor, publisher, "Paylaşılanın başkasınca kullanılması (günlük)", "SHARED_ITEM_USED", "*", 3, "ONCE_PER_DAY");
             rule(author, editor, publisher, "Paylaşılanın çatallanması (yazara)", "SHARED_ITEM_FORKED", "*", 10, "ONCE_PER_OBJECT");
             log.info("Seeded point rules");
+        }
+
+        if (content.list(ContentType.TOOL).isEmpty()) {
+            // learning tools for trainings and workflows; they call the mock API (rule based, not a real language model)
+            publish(author, editor, publisher, ContentType.TOOL, "Metin özetleyici", parse("""
+                {"description":"Uzun bir metnin ilk cümlelerinden kısa bir özet, kelime sayısı ve okuma süresi çıkarır.",
+                 "inputs":[{"name":"text","label":"Metin","type":"string","required":true,"maxLength":2000},
+                           {"name":"sentences","label":"Özet kaç cümle olsun (1-5)","type":"number","required":false}],
+                 "request":{"method":"POST","url":"%s/text/summarize","headers":{},"body":{"text":"{{input.text}}","sentences":"{{input.sentences}}"}},
+                 "timeoutSeconds":10,"retries":2,"outputPath":""}""".formatted(mockApiBase)));
+            publish(author, editor, publisher, ContentType.TOOL, "Terim sözlüğü", parse("""
+                {"description":"Bir otomasyon ya da platform teriminin kısa Türkçe açıklamasını verir (API, webhook, cron, token…).",
+                 "inputs":[{"name":"term","label":"Terim","type":"string","required":true,"maxLength":60}],
+                 "request":{"method":"GET","url":"%s/glossary?term={{input.term}}","headers":{}},
+                 "timeoutSeconds":10,"retries":2,"outputPath":""}""".formatted(mockApiBase)));
+            UUID checker = publish(author, editor, publisher, ContentType.TOOL, "Metin denetleyici", parse("""
+                {"description":"Yazdığın metni denetler: uzun cümleler, tekrarlanan kelimeler, noktalama. Bir puan ve öneri listesi verir.",
+                 "inputs":[{"name":"text","label":"Metin","type":"string","required":true,"maxLength":2000}],
+                 "request":{"method":"POST","url":"%s/text/check","headers":{"X-Api-Key":"{{secret.apiKey}}"},"body":{"text":"{{input.text}}"}},
+                 "timeoutSeconds":10,"retries":2,"outputPath":""}""".formatted(mockApiBase)));
+            secrets.set(com.basamak.tool.ToolSecrets.Scope.CONTENT, checker, "apiKey", mockApiKey, admin().getId());
+            log.info("Seeded 3 learning tools (mock API at {})", mockApiBase);
         }
 
         boolean noTrainings = content.list(ContentType.TRAINING).isEmpty();

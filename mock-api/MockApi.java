@@ -14,6 +14,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Fake external API for demonstrating tools without paid services (zero cost). JDK only:
  *   java mock-api/MockApi.java            (port 8090, or MOCK_API_PORT)
  *
+ * Learning tools (used by the seeded platform tools; rule-based, NOT a real language model):
+ *   POST /text/summarize          {"text":"...","sentences":2} -> first sentences as a summary, word count, reading time
+ *   GET  /glossary?term=API       explanation of a platform / automation term (small built-in Turkish glossary)
+ *   POST /text/check              {"text":"..."} needs X-Api-Key = MOCK_API_KEY; writing feedback (long sentences, repeats...)
+ * Demo helpers:
  *   GET  /weather?city=Ankara     needs header X-Api-Key = MOCK_API_KEY (default demo-mock-key); deterministic answer
  *   GET  /slow?ms=5000            answers after the given delay (shows timeout)
  *   GET  /flaky?key=k&fail=2      the first `fail` calls for a key return 503, then 200 (shows retry)
@@ -28,6 +33,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MockApi {
     private static final Map<String, AtomicInteger> FLAKY = new ConcurrentHashMap<>();
     private static final Set<String> TOKENS = ConcurrentHashMap.newKeySet();
+    private static final Map<String, String> GLOSSARY = new LinkedHashMap<>();
+    static {
+        GLOSSARY.put("api", "Uygulamaların birbirleriyle konuşmak için kullandığı kurallı arayüz. Bir araç, bir API adresine istek gönderip cevap alır.");
+        GLOSSARY.put("webhook", "Bir olay olduğunda başka bir sistemin, önceden verilen adrese kendiliğinden istek göndermesi. İş akışlarını dışarıdan başlatmak için kullanılır.");
+        GLOSSARY.put("iş akışı", "Birbirini izleyen adımlar zinciri; bir adımın çıktısı sonraki adımın girdisi olur.");
+        GLOSSARY.put("araç", "Girdi alan, bir API'ye bağlanıp arka planda çalışan ve çıktı üreten birim.");
+        GLOSSARY.put("istem", "Yapay zekâ modeline verilen talimat metni (prompt).");
+        GLOSSARY.put("prompt", "Yapay zekâ modeline verilen talimat metni (istem).");
+        GLOSSARY.put("token", "Dil modellerinin metni böldüğü küçük parça; maliyet ve sınırlar token sayısıyla hesaplanır.");
+        GLOSSARY.put("cron", "Bir işin hangi dakika, saat ve günlerde kendiliğinden çalışacağını yazan zamanlama ifadesi.");
+        GLOSSARY.put("json", "Verileri anahtar ve değer çiftleriyle taşıyan, insanların da okuyabildiği metin biçimi.");
+        GLOSSARY.put("journey", "Basamak'ta bir seviye; tamamlanması gereken eğitimlerin toplamı (Beginner, Expert, Master).");
+        GLOSSARY.put("çatallama", "Paylaşılan bir aracı ya da iş akışını kendi hesabına kopyalayıp geliştirme (fork).");
+        GLOSSARY.put("zaman aşımı", "Bir isteğin en fazla ne kadar bekleneceği; süre dolunca istek kesilir ve hata sayılır.");
+        GLOSSARY.put("ssrf", "Sunucuyu kandırıp iç ağdaki adreslere istek attırma saldırısı. Basamak üye araçlarında bunu engeller.");
+    }
 
     public static void main(String[] args) throws IOException {
         int port = Integer.parseInt(Optional.ofNullable(System.getenv("MOCK_API_PORT")).orElse("8090"));
@@ -50,6 +71,42 @@ public class MockApi {
         Map<String, String> q = query(ex.getRequestURI().getRawQuery());
         switch (path) {
             case "/health" -> send(ex, 200, "{\"status\":\"ok\"}");
+            case "/text/summarize" -> {
+                Map<String, String> b = flatJson(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                String text = b.getOrDefault("text", q.getOrDefault("text", "")).trim();
+                if (text.isEmpty()) { send(ex, 400, "{\"error\":\"text is required\"}"); return; }
+                int n = Math.max(1, Math.min(5, parseIntOr(b.getOrDefault("sentences", q.getOrDefault("sentences", "2")), 2)));
+                String[] sentences = text.split("(?<=[.!?])\\s+");
+                String summary = String.join(" ", Arrays.copyOf(sentences, Math.min(n, sentences.length)));
+                int words = text.split("\\s+").length;
+                send(ex, 200, "{\"summary\":" + str(summary) + ",\"wordCount\":" + words + ",\"sentenceCount\":" + sentences.length
+                        + ",\"readingMinutes\":" + Math.max(1, Math.round(words / 200.0)) + ",\"method\":\"ilk cümleler (kurala dayalı, yapay zekâ değil)\"}");
+            }
+            case "/glossary" -> {
+                String term = q.getOrDefault("term", "").trim();
+                String key = term.toLowerCase(Locale.forLanguageTag("tr"));
+                String def = GLOSSARY.get(key);
+                send(ex, 200, "{\"term\":" + str(term) + ",\"found\":" + (def != null) + ",\"definition\":"
+                        + str(def != null ? def : "Bu terim sözlükte yok. Şunlardan birini deneyin: " + String.join(", ", GLOSSARY.keySet())) + "}");
+            }
+            case "/text/check" -> {
+                if (!apiKey.equals(ex.getRequestHeaders().getFirst("X-Api-Key"))) { send(ex, 401, "{\"error\":\"invalid or missing X-Api-Key\"}"); return; }
+                String text = flatJson(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)).getOrDefault("text", "").trim();
+                List<String> issues = new ArrayList<>();
+                for (String sentence : text.split("(?<=[.!?])\\s+")) {
+                    int w = sentence.isBlank() ? 0 : sentence.trim().split("\\s+").length;
+                    if (w > 25) issues.add("Uzun cümle (" + w + " kelime): bölmeyi düşünün.");
+                }
+                if (text.contains("  ")) issues.add("Art arda iki boşluk var.");
+                if (!text.isEmpty() && Character.isLowerCase(text.charAt(0))) issues.add("Metin büyük harfle başlamıyor.");
+                if (!text.isEmpty() && ".!?".indexOf(text.charAt(text.length() - 1)) < 0) issues.add("Metin noktalama işaretiyle bitmiyor.");
+                String[] ws = text.toLowerCase(Locale.forLanguageTag("tr")).split("\\s+");
+                for (int i = 1; i < ws.length; i++) if (!ws[i].isBlank() && ws[i].equals(ws[i - 1])) issues.add("Tekrarlanan kelime: \"" + ws[i] + "\"");
+                int score = Math.max(0, 100 - issues.size() * 15);
+                StringBuilder arr = new StringBuilder("[");
+                for (int i = 0; i < issues.size(); i++) arr.append(i == 0 ? "" : ",").append(str(issues.get(i)));
+                send(ex, 200, "{\"score\":" + score + ",\"issueCount\":" + issues.size() + ",\"issues\":" + arr + "]}");
+            }
             case "/weather" -> {
                 if (!apiKey.equals(ex.getRequestHeaders().getFirst("X-Api-Key"))) { send(ex, 401, "{\"error\":\"invalid or missing X-Api-Key\"}"); return; }
                 String city = q.getOrDefault("city", "İstanbul");
@@ -116,6 +173,21 @@ public class MockApi {
                 } else send(ex, 404, "{\"error\":\"not found\"}");
             }
         }
+    }
+
+    /** Tiny flat-JSON reader for the demo endpoints (string/number values of a single object). */
+    private static Map<String, String> flatJson(String body) {
+        Map<String, String> m = new HashMap<>();
+        var mt = java.util.regex.Pattern.compile("\"(\\w+)\"\\s*:\\s*(\"((?:[^\"\\\\]|\\\\.)*)\"|(-?\\d+))").matcher(body == null ? "" : body);
+        while (mt.find()) {
+            String v = mt.group(3) != null ? mt.group(3).replace("\\n", "\n").replace("\\\"", "\"").replace("\\\\", "\\") : mt.group(4);
+            m.put(mt.group(1), v);
+        }
+        return m;
+    }
+
+    private static int parseIntOr(String s, int d) {
+        try { return Integer.parseInt(s.trim()); } catch (Exception e) { return d; }
     }
 
     private static Map<String, String> query(String raw) {
