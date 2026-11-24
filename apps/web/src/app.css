@@ -246,3 +246,29 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .step-card.open { border-color: var(--color-primary); }
 .step-card-head { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 44px; flex: 1 1 14rem; overflow-wrap: anywhere; }
 .step-editor { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
+
+/* ---- Android app chrome (mobile build only; Material Design 3 proportions) ---- */
+.m-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-2); min-height: 64px; padding: 0 var(--space-2);
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.m-topbar-title { flex: 1; min-width: 0; font-size: 1.15rem; font-weight: var(--font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-primary); }
+.m-brand svg { color: var(--color-primary); }
+.m-topbar-spacer { width: 8px; }
+.m-icon-btn { position: relative; display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 0; background: transparent; color: var(--color-text); }
+.m-icon-btn:active { background: var(--color-surface-2); }
+.m-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); height: 80px;
+  padding-bottom: env(safe-area-inset-bottom); background: var(--color-surface); border-top: 1px solid var(--color-border); }
+.m-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; color: var(--color-text-muted); text-decoration: none; font-size: .75rem; font-weight: 500; }
+.m-tab-icon { display: grid; place-items: center; width: 64px; height: 32px; border-radius: 16px; transition: background .15s; }
+.m-tab.active { color: var(--color-text); font-weight: 700; }
+.m-tab.active .m-tab-icon { background: color-mix(in srgb, var(--color-primary) 22%, transparent); color: var(--color-primary); }
+.m-tab:focus-visible { outline: 3px solid var(--color-focus); outline-offset: -3px; }
+@media (prefers-reduced-motion: reduce) { .m-tab-icon { transition: none; } }
+.m-app #main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+.m-app .skip-link { display: none; }
+.m-list { display: grid; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.m-list > a, .m-list > button { display: flex; align-items: center; justify-content: space-between; min-height: 56px; padding: 0 var(--space-4); border: 0; border-bottom: 1px solid var(--color-border);
+  background: none; color: var(--color-text); text-decoration: none; font: inherit; text-align: left; }
+.m-list > :last-child { border-bottom: 0; }
+.m-list > a::after, .m-list > button::after { content: "›"; color: var(--color-text-muted); font-size: 1.3rem; }
+.m-app .crumb { display: none; }

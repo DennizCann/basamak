@@ -4,8 +4,9 @@ import { App as NativeApp } from "@capacitor/app";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { Alert } from "@basamak/ui";
 import { api, useAuth } from "../auth";
-import { PrivacyScreen, isMobile } from "../platform";
+import { PrivacyScreen, SystemBars, isMobile } from "../platform";
 import { flushOutbox, startSync, useSync } from "../offline";
+import { SplashScreen } from "@capacitor/splash-screen";
 
 // id -> link of notifications shown in this app session (the tap payload may arrive without `extra`)
 const shownLinks = new Map<number, string>();
@@ -34,7 +35,7 @@ export function safeInAppPath(raw: string): string | null {
 export function MobileBridge() {
   const nav = useNavigate();
   const { pathname } = useLocation();
-  const { user } = useAuth();
+  const { user, ready } = useAuth();
   const sync = useSync();
   const navRef = useRef(nav);
   navRef.current = nav;
@@ -56,6 +57,33 @@ export function MobileBridge() {
     ];
     const stop = startSync();
     return () => { subs.forEach((s) => s.then((h) => h.remove())); stop(); };
+  }, []);
+
+  // splash stays until the session check is done (no flash of the login screen), then fades out
+  useEffect(() => {
+    // the splash exit re-applies the window theme (status bar icons reset), so the bar is styled again afterwards
+    if (!isMobile || !ready) return;
+    SplashScreen.hide({ fadeOutDuration: 200 }).catch(() => {});
+    const timers = [500, 1500].map((ms) => setTimeout(() => window.dispatchEvent(new Event("basamak:statusbar")), ms));
+    return () => timers.forEach(clearTimeout);
+  }, [ready]);
+
+  // status bar follows the app theme (light / dark / system): same color as the top app bar, readable icons
+  useEffect(() => {
+    if (!isMobile) return;
+    // bars follow the app theme: the native side follows the system; an in-app choice (Açık / Koyu) is passed on
+    const apply = () => {
+      const t = document.documentElement.getAttribute("data-theme");
+      SystemBars.setTheme({ mode: t === "light" || t === "dark" ? t : "system" }).catch(() => {});
+    };
+    apply();
+    window.addEventListener("basamak:statusbar", apply);
+    NativeApp.addListener("resume", apply).catch(() => {});
+    const obs = new MutationObserver(apply);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class"] });
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    mq.addEventListener("change", apply);
+    return () => { obs.disconnect(); mq.removeEventListener("change", apply); window.removeEventListener("basamak:statusbar", apply); };
   }, []);
 
   // privacy screen

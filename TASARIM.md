@@ -499,6 +499,16 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Android 15 edge-to-edge:** WebView durum çubuğunun altına çiziliyordu (emülatörde görüldü). Tema `windowOptOutEdgeToEdgeEnforcement` ile düzeltildi. Kalıcı çözüm safe-area padding'idir (F6).
 - **Web değişikliği mobile nasıl yansır:** Yeniden `build:mobile`, `cap sync` ve APK gerekir. Backend ve CMS'ten yayınlanan içerik değişiklikleri ise anında yansır, çünkü aynı API kullanılır.
 
+### 8.1a Uygulama kabuğu (Material Design 3)
+Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibidir (yalnız mobil derlemede; web aynı kalır):
+- **Alt gezinme çubuğu (5 hedef):** Öğren (Journey'ler), Keşfet, Üret (araçlar ve iş akışları), Topluluk (akış, paylaşılanlar, sıralama), Profil (profil ve rozetler, Geçmişim, sertifikalar, bildirimler, hesap, tema, çıkış). 80 dp yükseklik, 48 dp dokunma alanı, etkin sekmede dolgu göstergesi. Gerekçe: Material 3 en fazla 5 hedef önerir; "öğren → üret → paylaş" ana fikri sekmelerde görünür.
+- **Üst uygulama çubuğu:** Sekme sayfalarında marka; iç sayfalarda **← geri oku** ve bölüm adı. Sağda bildirim zili (okunmamış sayısıyla).
+- **Sistem geri hareketi / düğmesi:** Bir önceki ekrana döner; ilk ekranda uygulamayı kapatır (doğrulandı, 3 düğmeli gezinmede).
+- **Durum ve gezinme çubukları:** Uygulamanın yüzey rengini alır; açık temada koyu simgeler, koyu temada açık simgeler. Sistem temasını izler; uygulama içinden "Açık / Koyu" seçilirse ona uyar (`SystemBarsPlugin`, Android 15 tam ekran düzeniyle: Capacitor `adjustMarginsForEdgeToEdge: "force"`).
+- **Açılış ekranı ve simge:** Marka rengi (#3B30C9) üzerinde Basamak işareti; Android 12+ SplashScreen API. Oturum kontrolü bitince kapanır (en geç 3 sn). Uyarlanabilir simge vektördür; Android 13 temalı simge (monochrome) desteklenir.
+- **Dokunma geri bildirimi:** Ders tamamlama ve quiz geçmede "başarılı" titreşimi, araç çalıştırmada hafif titreşim (`@capacitor/haptics`).
+- Ekran görüntüleri: `docs/mobile/android-home-bottom-nav.png`, `android-training-back-arrow.png`, `android-profile-dark.png`, `android-splash.png`.
+
 ### 8.2 Mobil özellikler (F6, senaryo 14)
 - **Çevrimdışı okuma:** Ana sayfa ve eğitim verisi her başarılı okumada cihaza yazılır (`cachedGet`). Bağlantı yokken kayıtlı kopya gösterilir; üstte "Çevrimdışısın" bandı çıkar.
 - **Çevrimdışı ilerleme ve eşitleme:**

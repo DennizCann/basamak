@@ -7,6 +7,7 @@ import { apiBase, isMobile } from "./platform";
 import { App } from "./App";
 
 applyStoredTheme();
+if (isMobile) document.documentElement.classList.add("m-app");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

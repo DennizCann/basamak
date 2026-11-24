@@ -14,6 +14,8 @@ const android = isMobile && Capacitor.getPlatform() === "android";
 
 type KV = { get(o: { key: string }): Promise<{ value: string | null }>; set(o: { key: string; value: string }): Promise<void>; remove(o: { key: string }): Promise<void> };
 const Secure = registerPlugin<KV>("SecureStorage");
+/** App plugin: status and navigation bars in app colors (light / dark / follow the system). */
+export const SystemBars = registerPlugin<{ setTheme(o: { mode: "light" | "dark" | "system" }): Promise<void> }>("SystemBars");
 export const PrivacyScreen = registerPlugin<{ enable(): Promise<void>; disable(): Promise<void> }>("PrivacyScreen");
 
 function secureStore(key: string) {
@@ -53,4 +55,14 @@ export async function askNotificationPermissionOnce(): Promise<void> {
     const ok = window.confirm("İş bitince haber verelim mi?\n\nAraç ya da iş akışı arka planda çalışır. Bittiğinde (ya da hata verdiğinde) bildirim gönderip dokununca sonucu açabiliriz. İzni istediğin zaman telefon ayarlarından kapatabilirsin.");
     if (ok) await LocalNotifications.requestPermissions();
   } catch { /* no plugin (web) */ }
+}
+
+/** Light haptic tick for a completed action (mobile only; silently ignored elsewhere or when disabled by the user). */
+export async function haptic(kind: "light" | "success" = "light") {
+  if (!isMobile) return;
+  try {
+    const { Haptics, ImpactStyle, NotificationType } = await import("@capacitor/haptics");
+    if (kind === "success") await Haptics.notification({ type: NotificationType.Success });
+    else await Haptics.impact({ style: ImpactStyle.Light });
+  } catch { /* no plugin */ }
 }

@@ -1,4 +1,4 @@
-import { askNotificationPermissionOnce } from "../platform";
+import { askNotificationPermissionOnce, haptic } from "../platform";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, TextField, errorMessage, fmt } from "@basamak/ui";
 import { api } from "../auth";
@@ -85,6 +85,7 @@ export function ToolRunner({ inputs, start, onFinished }: {
       }
       await askNotificationPermissionOnce();
       const r = await start(input, crypto.randomUUID());
+      haptic();
       setRun(r);
       follow(r.id);
     } catch (err) {

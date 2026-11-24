@@ -11,16 +11,19 @@
 
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
+        <!-- status bar matches the app bar (light / dark from the system theme; the app re-styles it on manual theme change) -->
+        <item name="android:windowBackground">@color/basamak_bar</item>
+        <item name="android:statusBarColor">@color/basamak_bar</item>
+        <item name="android:windowLightStatusBar">@bool/basamak_light_bars</item>
+        <item name="android:navigationBarColor">@color/basamak_bar</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">@bool/basamak_light_bars</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:background">@null</item>
-        <!-- Android 15 forces edge-to-edge; keep the WebView below the status bar (header was drawn under it). -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
     </style>
 
 
+    <!-- Launch (Android 12+ SplashScreen API): brand color with the Basamak mark; the app hides it when ready. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
-        <!-- Android 15 forces edge-to-edge; keep the WebView below the status bar (header was drawn under it). -->
-        <item name="android:windowOptOutEdgeToEdgeEnforcement" tools:targetApi="35">true</item>
+        <item name="windowSplashScreenBackground">@color/basamak_primary</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_basamak_foreground</item>
     </style>
 </resources>

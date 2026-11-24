@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- brand primary from packages/ui/src/tokens.css (color-primary, light theme) -->
+    <color name="basamak_primary">#3B30C9</color>
+    <!-- top app bar surface (tokens.css color-surface), so the status bar blends into it -->
+    <color name="basamak_bar">#FFFFFF</color>
+    <bool name="basamak_light_bars">true</bool>
+</resources>

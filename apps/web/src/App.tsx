@@ -2,6 +2,9 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react
 import type { ReactNode } from "react";
 import { AuthProvider, useAuth } from "./auth";
 import { Header } from "./components/Header";
+import { MobileBottomNav, MobileTopBar } from "./components/MobileShell";
+import { CreatePage, MeHubPage } from "./pages/HubPages";
+import { isMobile } from "./platform";
 import { MobileBridge } from "./components/MobileBridge";
 import { LoginPage, RegisterPage, VerifyEmailPage, ForgotPasswordPage, ResetPasswordPage } from "./pages/AuthPages";
 import { HomePage } from "./pages/HomePage";
@@ -28,7 +31,7 @@ export function App() {
       <AuthProvider>
         <NotificationsProvider>
         <a className="skip-link" href="#main">İçeriğe geç</a>
-        <Header />
+        {isMobile ? <MobileTopBar /> : <Header />}
         <MobileBridge />
         <div id="main" tabIndex={-1}>
           <Routes>
@@ -48,6 +51,8 @@ export function App() {
             <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
             <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+            <Route path="/create" element={<RequireAuth><CreatePage /></RequireAuth>} />
+            <Route path="/me" element={<RequireAuth><MeHubPage /></RequireAuth>} />
             <Route path="/community" element={<RequireAuth><CommunityPage /></RequireAuth>} />
             <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
             <Route path="/u/:id" element={<RequireAuth><ProfilePage /></RequireAuth>} />
@@ -57,6 +62,7 @@ export function App() {
             <Route path="*" element={<main className="page"><h1>Sayfa bulunamadı</h1><p><Link className="text-link" to="/">Öğrenimime dön</Link></p></main>} />
           </Routes>
         </div>
+        {isMobile && <MobileBottomNav />}
         </NotificationsProvider>
       </AuthProvider>
     </BrowserRouter>

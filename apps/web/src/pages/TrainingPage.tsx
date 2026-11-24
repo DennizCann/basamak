@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { downloadForOffline, isDownloaded } from "../offlineMedia";
-import { isMobile } from "../platform";
+import { haptic, isMobile } from "../platform";
 import { Comments } from "../components/Comments";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -170,9 +170,10 @@ export function TrainingPage() {
                 {item.type === "lesson" && <Lesson trainingId={id!} item={item} onComplete={() => act(async () => {
                   const r = await postOrQueue<Outcome>(`/api/trainings/${id}/items/${item.key}/complete`, undefined, `Ders: ${item.title}`);
                   if ((r as Outcome).queued) markDoneLocally(item.key);
+                  haptic("success");
                   return r as Outcome;
                 })} />}
-                {item.type === "quiz" && <Quiz trainingId={id!} item={item} onDone={(r) => act(async () => r)} />}
+                {item.type === "quiz" && <Quiz trainingId={id!} item={item} onDone={(r) => act(async () => { if (r.passed) haptic("success"); return r; })} />}
                 {item.type === "survey" && (item.completed
                   ? <p className="done-note">✓ Anketi doldurdun, teşekkürler.</p>
                   : <SurveyForm item={item} onSubmit={(answers) => act(async () => {
