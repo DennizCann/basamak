@@ -6,8 +6,10 @@ import { api, useAuth, type LoginChallenge } from "../auth";
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="page auth">
-      <h1>{title}</h1>
-      <div className="card stack">{children}</div>
+      <div className="card stack auth-card">
+        <h1>{title}</h1>
+        {children}
+      </div>
     </main>
   );
 }
@@ -55,11 +57,13 @@ export function LoginPage() {
       <form onSubmit={submit} className="stack" noValidate>
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         <TextField label="E-posta" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        <TextField label="Şifre" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button className="btn btn-primary" disabled={busy}>{busy ? "Kontrol ediliyor…" : "Devam"}</button>
-        <span className="hint">Yeni bir cihazdan girişte e-posta adresine 6 haneli bir kod göndeririz.</span>
+        <div>
+          <TextField label="Şifre" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <p className="auth-aside"><Link to="/forgot-password">Şifremi unuttum</Link></p>
+        </div>
+        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Kontrol ediliyor…" : "Devam"}</button>
       </form>
-      <p className="row"><Link to="/register">Hesap oluştur</Link><Link to="/forgot-password">Şifremi unuttum</Link></p>
+      <p className="auth-footer">Hesabın yok mu? <Link to="/register">Hesap oluştur</Link></p>
     </Card>
   );
 }
@@ -131,7 +135,7 @@ function CodeStep({ challenge, onChallenge, onDone, onRestart }: {
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <span>Bu cihazı 30 gün hatırla <span className="muted">(ortak kullanılan bilgisayarlarda işaretlemeyin)</span></span>
         </label>
-        <button className="btn btn-primary" disabled={busy || code.length !== 6 || expiresIn === 0}>{busy ? "Doğrulanıyor…" : "Giriş yap"}</button>
+        <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6 || expiresIn === 0}>{busy ? "Doğrulanıyor…" : "Giriş yap"}</button>
         <div className="row">
           <button type="button" className="btn" disabled={resendIn > 0} onClick={resend} aria-describedby="resend-hint">Kodu yeniden gönder</button>
           <span id="resend-hint" className="hint" aria-live="polite">{resendIn > 0 ? `${resendIn} sn sonra yeniden isteyebilirsin.` : "E-posta gelmediyse yeni kod iste."}</span>
@@ -194,7 +198,7 @@ export function RegisterPage() {
           <input type="checkbox" checked={form.consent} onChange={(e) => setForm({ ...form, consent: e.target.checked })} />
           <span>Aydınlatma metnini okudum, kişisel verilerimin işlenmesine açık rıza veriyorum.</span>
         </label>
-        <button className="btn btn-primary" disabled={busy || !form.consent} aria-describedby="consent-why">
+        <button className="btn btn-primary btn-block" disabled={busy || !form.consent} aria-describedby="consent-why">
           {busy ? "Oluşturuluyor…" : "Hesap oluştur"}
         </button>
         {!form.consent && <span id="consent-why" className="hint">Devam etmek için açık rıza kutusunu işaretleyin.</span>}
@@ -243,7 +247,7 @@ export function ForgotPasswordPage() {
         {msg && <Alert kind="success"><p>{msg}</p></Alert>}
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         <TextField label="E-posta" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        <button className="btn btn-primary">Sıfırlama bağlantısı gönder</button>
+        <button className="btn btn-primary btn-block">Sıfırlama bağlantısı gönder</button>
       </form>
     </Card>
   );
@@ -265,7 +269,7 @@ export function ResetPasswordPage() {
         {msg && <Alert kind="success"><p>{msg}</p></Alert>}
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         <TextField label="Yeni şifre" type="password" autoComplete="new-password" hint="En az 10 karakter." value={password} onChange={(e) => setPassword(e.target.value)} />
-        <button className="btn btn-primary">Şifreyi değiştir</button>
+        <button className="btn btn-primary btn-block">Şifreyi değiştir</button>
       </form>
       <Link to="/login">Giriş yap</Link>
     </Card>
