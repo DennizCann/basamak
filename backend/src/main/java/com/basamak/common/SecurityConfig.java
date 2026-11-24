@@ -47,7 +47,7 @@ public class SecurityConfig {
                         "/api/auth/refresh", "/api/auth/logout",
                         "/api/auth/forgot-password", "/api/auth/reset-password",
                         "/api/cms-auth/**", "/api/hooks/**",
-                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        "/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers("/api/cms/**").hasAuthority("AUD_cms")
                 .requestMatchers("/api/**").hasAnyAuthority("AUD_web", "AUD_mobile")
                 .anyRequest().authenticated())

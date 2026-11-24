@@ -1,0 +1,3400 @@
+# Generated from the running backend (springdoc, GET /v3/api-docs) on 24.11.2026. Regenerate: see README > API.
+openapi: "3.1.0"
+info:
+  title: "Basamak API"
+  version: "0.1.0"
+  description: "Üye uygulaması (/api/**), CMS (/api/cms/**, TOTP'li ayrı oturum) ve webhook (/api/hooks/**) uçları. Hatalar RFC 7807 problem+json: code, detail (Türkçe), requestId."
+servers:
+  -
+    url: "http://localhost:8080"
+    description: "Yerel geliştirme"
+paths:
+  "/api/workflows/{id}":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "get"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+    put:
+      tags:
+        - "workflow-controller"
+      operationId: "update"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/SaveReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+    delete:
+      tags:
+        - "workflow-controller"
+      operationId: "delete"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/workflows/{id}/rating":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "rating"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+    put:
+      tags:
+        - "community-controller"
+      operationId: "rate"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "integer"
+                format: "int32"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/workflows/{id}/event-trigger":
+    put:
+      tags:
+        - "workflow-controller"
+      operationId: "eventTrigger"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/EventReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/workflows/{id}/cron":
+    put:
+      tags:
+        - "workflow-controller"
+      operationId: "cron"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CronReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/my-tools/{id}":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "myTool"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+    put:
+      tags:
+        - "tool-controller"
+      operationId: "update_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ToolReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+    delete:
+      tags:
+        - "tool-controller"
+      operationId: "delete_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/profile-settings":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "settings"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Settings"
+    put:
+      tags:
+        - "community-controller"
+      operationId: "saveSettings"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/Settings"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Settings"
+  "/api/me/notifications/prefs":
+    get:
+      tags:
+        - "notification-controller"
+      operationId: "prefs"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    put:
+      tags:
+        - "notification-controller"
+      operationId: "savePrefs"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "array"
+              items:
+                "$ref": "#/components/schemas/PrefReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/tools/{id}/secrets/{name}":
+    put:
+      tags:
+        - "cms-tool-controller"
+      operationId: "set"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/SecretReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    delete:
+      tags:
+        - "cms-tool-controller"
+      operationId: "delete_2"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "name"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/items/{id}/draft":
+    put:
+      tags:
+        - "cms-content-controller"
+      operationId: "save"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/SaveReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/ItemDto"
+  "/api/workflows":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "mine"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/Wf"
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "create"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/SaveReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/workflows/{id}/webhook":
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "webhook"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+    delete:
+      tags:
+        - "workflow-controller"
+      operationId: "disableWebhook"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/workflows/{id}/share":
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "share"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "boolean"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/workflows/{id}/runs":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "runs"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "run"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RunReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/workflows/{id}/fork":
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "fork"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/Wf"
+  "/api/workflow-runs/{runId}/resume":
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "resume"
+      parameters:
+        -
+          name: "runId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/switch-version":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "switchVersion"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/items/{key}/view":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "view"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        -
+          name: "Idempotency-Key"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/items/{key}/survey":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "survey"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/AnswersReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/items/{key}/progress":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "progress"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ProgressReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/items/{key}/complete":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "complete"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/items/{key}/attempts":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "reviewQuiz"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "startQuiz"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "key"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}/enroll":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "enroll"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/tool-runs":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "recent"
+      parameters:
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 20
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "tool-controller"
+      operationId: "start"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RunReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/tool-runs/{id}/cancel":
+    post:
+      tags:
+        - "tool-controller"
+      operationId: "cancel"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/quiz-attempts/{attemptId}/submit":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "submitQuiz"
+      parameters:
+        -
+          name: "attemptId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/AnswersReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/quiz-attempts/{attemptId}/extend":
+    post:
+      tags:
+        - "learning-controller"
+      operationId: "extend"
+      parameters:
+        -
+          name: "attemptId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/profiles/{id}/follow":
+    post:
+      tags:
+        - "community-controller"
+      operationId: "follow"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+    delete:
+      tags:
+        - "community-controller"
+      operationId: "unfollow"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/my-tools":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "myTools"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "tool-controller"
+      operationId: "create_1"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ToolReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/my-tools/{id}/share":
+    post:
+      tags:
+        - "tool-controller"
+      operationId: "share_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "boolean"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/notifications/{id}/read":
+    post:
+      tags:
+        - "notification-controller"
+      operationId: "read"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/notifications/read-all":
+    post:
+      tags:
+        - "notification-controller"
+      operationId: "readAll"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/delete":
+    post:
+      tags:
+        - "privacy-controller"
+      operationId: "delete_3"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/DeleteReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/hooks/workflows/{token}":
+    post:
+      tags:
+        - "workflow-controller"
+      operationId: "hook"
+      parameters:
+        -
+          name: "token"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+        -
+          name: "Idempotency-Key"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/JsonNode"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/community/tools/{id}/fork":
+    post:
+      tags:
+        - "tool-controller"
+      operationId: "forkTool"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/comments":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "comments"
+      parameters:
+        -
+          name: "targetType"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+        -
+          name: "targetId"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "community-controller"
+      operationId: "add"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CommentReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/comments/{id}/report":
+    post:
+      tags:
+        - "community-controller"
+      operationId: "report"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "string"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/versions/{id}/submit":
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "submit"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/versions/{id}/request-changes":
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "requestChanges"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/NoteReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/versions/{id}/publish":
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "publish"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/PublishReq"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/versions/{id}/approve":
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "approve"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/NoteReq"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/tools/{id}/test":
+    post:
+      tags:
+        - "cms-tool-controller"
+      operationId: "test"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/TestReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/team/{id}/totp-reset":
+    post:
+      tags:
+        - "cms-team-controller"
+      operationId: "resetTotp"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/moderation/users/{id}/restrict":
+    post:
+      tags:
+        - "community-controller"
+      operationId: "restrict"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties: {}
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/moderation/comments/{id}/hide":
+    post:
+      tags:
+        - "community-controller"
+      operationId: "hide"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/moderation/comments/{id}/dismiss":
+    post:
+      tags:
+        - "community-controller"
+      operationId: "dismiss"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/media":
+    get:
+      tags:
+        - "media-controller"
+      operationId: "list"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+    post:
+      tags:
+        - "media-controller"
+      operationId: "upload"
+      requestBody:
+        content:
+          "multipart/form-data":
+            schema:
+              type: "object"
+              properties:
+                file:
+                  type: "string"
+                  format: "binary"
+              required:
+                - "file"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/media/sign":
+    post:
+      tags:
+        - "media-controller"
+      operationId: "sign"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              type: "object"
+              additionalProperties:
+                type: "array"
+                items:
+                  type: "string"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/cms/items":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "list_1"
+      parameters:
+        -
+          name: "type"
+          in: "query"
+          required: true
+          schema:
+            type: "string"
+            enum:
+              - "JOURNEY"
+              - "TRAINING"
+              - "TOOL"
+              - "WORKFLOW_TEMPLATE"
+              - "POINT_RULE"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/ItemDto"
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "create_2"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CreateReq"
+        required: true
+      responses:
+        "201":
+          description: "Created"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/ItemDto"
+  "/api/cms/items/{id}/unpublish":
+    post:
+      tags:
+        - "cms-content-controller"
+      operationId: "unpublish"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ReasonReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/ItemDto"
+  "/api/cms-auth/totp":
+    post:
+      tags:
+        - "cms-auth-controller"
+      operationId: "totp"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/TotpReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms-auth/refresh":
+    post:
+      tags:
+        - "cms-auth-controller"
+      operationId: "refresh"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms-auth/logout":
+    post:
+      tags:
+        - "cms-auth-controller"
+      operationId: "logout"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/cms-auth/login":
+    post:
+      tags:
+        - "cms-auth-controller"
+      operationId: "login"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/LoginReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/verify-email":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "verify"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/TokenReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/auth/reset-password":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "reset"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ResetReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/auth/resend-verification":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "resend"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/EmailReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/auth/register":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "register"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RegisterReq"
+        required: true
+      responses:
+        "201":
+          description: "Created"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/refresh":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "refresh_1"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RefreshReq"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/logout":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "logout_1"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/RefreshReq"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/auth/login":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "login_1"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/LoginReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/login/verify":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "verifyCode"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/CodeReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/login/resend":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "resendCode"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/ChallengeReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/auth/forgot-password":
+    post:
+      tags:
+        - "auth-controller"
+      operationId: "forgot"
+      requestBody:
+        content:
+          "application/json":
+            schema:
+              "$ref": "#/components/schemas/EmailReq"
+        required: true
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/workflow-runs/{runId}":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "runDetail"
+      parameters:
+        -
+          name: "runId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/workflow-event-triggers":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "eventTriggers"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/trainings/{trainingId}/tools/{itemKey}":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "trainingTool"
+      parameters:
+        -
+          name: "trainingId"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "itemKey"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/trainings/{id}":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "training"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/tools":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "platformTools"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/tool-runs/{id}":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "get_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/tool-runs/{id}/file":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "file"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "binary"
+  "/api/tool-runs/{id}/events":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "stream"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "Last-Event-ID"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+        -
+          name: "after"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "text/event-stream":
+              schema:
+                "$ref": "#/components/schemas/SseEmitter"
+  "/api/tool-runs/quota":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "quota"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/public/ping":
+    get:
+      tags:
+        - "ping-controller"
+      operationId: "ping"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/public/media/{id}":
+    get:
+      tags:
+        - "media-controller"
+      operationId: "read_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "exp"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int64"
+        -
+          name: "sig"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "binary"
+  "/api/public/certificates/{serial}":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "verify_1"
+      parameters:
+        -
+          name: "serial"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/profiles/{id}":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "profile"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/point-rules":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "pointRules"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/me":
+    get:
+      tags:
+        - "auth-controller"
+      operationId: "me"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/UserDto"
+  "/api/me/summary":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "summary"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/notifications":
+    get:
+      tags:
+        - "notification-controller"
+      operationId: "list_2"
+      parameters:
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 30
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/notifications/stream":
+    get:
+      tags:
+        - "notification-controller"
+      operationId: "stream_1"
+      parameters:
+        -
+          name: "Last-Event-ID"
+          in: "header"
+          required: false
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "text/event-stream":
+              schema:
+                "$ref": "#/components/schemas/SseEmitter"
+  "/api/me/journeys":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "myJourneys"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/JourneyProgress"
+  "/api/me/history":
+    get:
+      tags:
+        - "privacy-controller"
+      operationId: "history"
+      parameters:
+        -
+          name: "category"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+        -
+          name: "from"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date"
+        -
+          name: "to"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            format: "date"
+        -
+          name: "page"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 0
+        -
+          name: "size"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 20
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/export":
+    get:
+      tags:
+        - "privacy-controller"
+      operationId: "export"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/me/certificates/{serial}/pdf":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "certificatePdf"
+      parameters:
+        -
+          name: "serial"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/me/ai-budget":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "aiBudget"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/leaderboard":
+    get:
+      tags:
+        - "leaderboard-controller"
+      operationId: "board"
+      parameters:
+        -
+          name: "period"
+          in: "query"
+          required: false
+          schema:
+            type: "string"
+            default: "week"
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 20
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/leaderboard/stream":
+    get:
+      tags:
+        - "leaderboard-controller"
+      operationId: "stream_2"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "text/event-stream":
+              schema:
+                "$ref": "#/components/schemas/SseEmitter"
+  "/api/journeys":
+    get:
+      tags:
+        - "journey-controller"
+      operationId: "list_3"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/JourneyDto"
+  "/api/journeys/{id}":
+    get:
+      tags:
+        - "journey-controller"
+      operationId: "get_2"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/JourneyDto"
+  "/api/feed":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "feed"
+      parameters:
+        -
+          name: "before"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int64"
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 20
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/community/workflows":
+    get:
+      tags:
+        - "workflow-controller"
+      operationId: "community"
+      parameters:
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 30
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/Wf"
+  "/api/community/tools":
+    get:
+      tags:
+        - "tool-controller"
+      operationId: "communityTools"
+      parameters:
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 50
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/tools/{id}/secrets":
+    get:
+      tags:
+        - "cms-tool-controller"
+      operationId: "list_4"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/tools/{id}/compat":
+    get:
+      tags:
+        - "cms-tool-controller"
+      operationId: "compat"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/team":
+    get:
+      tags:
+        - "cms-team-controller"
+      operationId: "team"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/reports/versions.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "versionsCsv"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/reports/usage":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "usage"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/reports/usage.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "usageCsv"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/reports/trainings":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "trainings"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/reports/trainings/{id}":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "training_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/reports/trainings/{id}/surveys.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "surveysCsv"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/reports/trainings/{id}/questions.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "questionsCsv"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/reports/trainings.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "trainingsCsv"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/reports/journeys":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "journeys"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/reports/journeys.csv":
+    get:
+      tags:
+        - "cms-report-controller"
+      operationId: "journeysCsv"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "string"
+                format: "byte"
+  "/api/cms/moderation/reports":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "reports"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/me/sessions":
+    get:
+      tags:
+        - "auth-controller"
+      operationId: "sessions"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/me/sessions":
+    get:
+      tags:
+        - "auth-controller"
+      operationId: "sessions_1"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/cms/items/{id}":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "get_3"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/ItemDto"
+  "/api/cms/items/{id}/versions":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "history_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/items/{id}/versions/{no}":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "versionByNo"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "no"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                "$ref": "#/components/schemas/VersionDto"
+  "/api/cms/items/{id}/diff":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "diff"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+        -
+          name: "from"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+        -
+          name: "to"
+          in: "query"
+          required: true
+          schema:
+            type: "integer"
+            format: "int32"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/cms/items/{id}/audit":
+    get:
+      tags:
+        - "cms-content-controller"
+      operationId: "auditTrail"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
+  "/api/catalog/trainings":
+    get:
+      tags:
+        - "learning-controller"
+      operationId: "catalog"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  "$ref": "#/components/schemas/CatalogEntry"
+  "/api/comments/{id}":
+    delete:
+      tags:
+        - "community-controller"
+      operationId: "delete_4"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "integer"
+            format: "int64"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties: {}
+  "/api/me/sessions/{id}":
+    delete:
+      tags:
+        - "auth-controller"
+      operationId: "revoke"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+  "/api/cms/me/sessions/{id}":
+    delete:
+      tags:
+        - "auth-controller"
+      operationId: "revoke_1"
+      parameters:
+        -
+          name: "id"
+          in: "path"
+          required: true
+          schema:
+            type: "string"
+            format: "uuid"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "object"
+                additionalProperties:
+                  type: "string"
+components:
+  schemas:
+    JsonNode: {}
+    SaveReq:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+        description:
+          type: "string"
+        definition:
+          "$ref": "#/components/schemas/JsonNode"
+    Wf:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        ownerId:
+          type: "string"
+          format: "uuid"
+        ownerName:
+          type: "string"
+        name:
+          type: "string"
+        description:
+          type: "string"
+        definition:
+          "$ref": "#/components/schemas/JsonNode"
+        versionNo:
+          type: "integer"
+          format: "int32"
+        visibility:
+          type: "string"
+        forkedFrom:
+          type: "string"
+          format: "uuid"
+        forkCount:
+          type: "integer"
+          format: "int32"
+        hasWebhook:
+          type: "boolean"
+        cron:
+          type: "string"
+        cronInput:
+          "$ref": "#/components/schemas/JsonNode"
+        nextRunAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+        eventTrigger:
+          type: "string"
+    EventReq:
+      type: "object"
+      properties:
+        event:
+          type: "string"
+    CronReq:
+      type: "object"
+      properties:
+        cron:
+          type: "string"
+        input:
+          "$ref": "#/components/schemas/JsonNode"
+    ToolReq:
+      type: "object"
+      properties:
+        name:
+          type: "string"
+          minLength: 1
+        definition:
+          "$ref": "#/components/schemas/JsonNode"
+        secrets:
+          type: "object"
+          additionalProperties:
+            type: "string"
+      required:
+        - "name"
+    Settings:
+      type: "object"
+      properties:
+        isPublic:
+          type: "boolean"
+        showLevel:
+          type: "boolean"
+        showBadges:
+          type: "boolean"
+        showJourneys:
+          type: "boolean"
+        showShared:
+          type: "boolean"
+        bio:
+          type: "string"
+    PrefReq:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+        inApp:
+          type: "boolean"
+        email:
+          type: "boolean"
+        push:
+          type: "boolean"
+    SecretReq:
+      type: "object"
+      properties:
+        value:
+          type: "string"
+    ItemDto:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        type:
+          type: "string"
+        owner:
+          type: "string"
+        lockVersion:
+          type: "integer"
+          format: "int64"
+        publishedVersionNo:
+          type: "integer"
+          format: "int32"
+        latest:
+          "$ref": "#/components/schemas/VersionDto"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+    VersionDto:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        itemId:
+          type: "string"
+          format: "uuid"
+        versionNo:
+          type: "integer"
+          format: "int32"
+        status:
+          type: "string"
+        title:
+          type: "string"
+        body:
+          "$ref": "#/components/schemas/JsonNode"
+        basedOnNo:
+          type: "integer"
+          format: "int32"
+        createdBy:
+          type: "string"
+        createdAt:
+          type: "string"
+          format: "date-time"
+        reviewedBy:
+          type: "string"
+        reviewedAt:
+          type: "string"
+          format: "date-time"
+        reviewNote:
+          type: "string"
+        publishedBy:
+          type: "string"
+        publishedAt:
+          type: "string"
+          format: "date-time"
+        scheduledAt:
+          type: "string"
+          format: "date-time"
+    RunReq:
+      type: "object"
+      properties:
+        input:
+          "$ref": "#/components/schemas/JsonNode"
+        clientRequestId:
+          type: "string"
+    AnswersReq:
+      type: "object"
+      properties:
+        answers:
+          "$ref": "#/components/schemas/JsonNode"
+    ProgressReq:
+      type: "object"
+      properties:
+        positionSeconds:
+          type: "integer"
+          format: "int32"
+    DeleteReq:
+      type: "object"
+      properties:
+        password:
+          type: "string"
+        confirmation:
+          type: "string"
+    CommentReq:
+      type: "object"
+      properties:
+        targetType:
+          type: "string"
+        targetId:
+          type: "string"
+          format: "uuid"
+        parentId:
+          type: "integer"
+          format: "int64"
+        body:
+          type: "string"
+    NoteReq:
+      type: "object"
+      properties:
+        note:
+          type: "string"
+    PublishReq:
+      type: "object"
+      properties:
+        scheduledAt:
+          type: "string"
+          format: "date-time"
+    TestReq:
+      type: "object"
+      properties:
+        versionNo:
+          type: "integer"
+          format: "int32"
+        input:
+          "$ref": "#/components/schemas/JsonNode"
+    CreateReq:
+      type: "object"
+      properties:
+        type:
+          type: "string"
+          enum:
+            - "JOURNEY"
+            - "TRAINING"
+            - "TOOL"
+            - "WORKFLOW_TEMPLATE"
+            - "POINT_RULE"
+        title:
+          type: "string"
+          maxLength: 200
+          minLength: 0
+        body:
+          "$ref": "#/components/schemas/JsonNode"
+      required:
+        - "body"
+        - "title"
+        - "type"
+    ReasonReq:
+      type: "object"
+      properties:
+        reason:
+          type: "string"
+    TotpReq:
+      type: "object"
+      properties:
+        mfaToken:
+          type: "string"
+          minLength: 1
+        code:
+          type: "string"
+          minLength: 1
+      required:
+        - "code"
+        - "mfaToken"
+    LoginReq:
+      type: "object"
+      properties:
+        email:
+          type: "string"
+          minLength: 1
+        password:
+          type: "string"
+          minLength: 1
+      required:
+        - "email"
+        - "password"
+    TokenReq:
+      type: "object"
+      properties:
+        token:
+          type: "string"
+          minLength: 1
+      required:
+        - "token"
+    ResetReq:
+      type: "object"
+      properties:
+        token:
+          type: "string"
+          minLength: 1
+        password:
+          type: "string"
+          minLength: 1
+      required:
+        - "password"
+        - "token"
+    EmailReq:
+      type: "object"
+      properties:
+        email:
+          type: "string"
+          format: "email"
+          minLength: 1
+      required:
+        - "email"
+    RegisterReq:
+      type: "object"
+      properties:
+        email:
+          type: "string"
+          format: "email"
+          maxLength: 254
+          minLength: 0
+        password:
+          type: "string"
+          maxLength: 128
+          minLength: 0
+        displayName:
+          type: "string"
+          maxLength: 80
+          minLength: 2
+        consent:
+          type: "boolean"
+      required:
+        - "displayName"
+        - "email"
+        - "password"
+    RefreshReq:
+      type: "object"
+      properties:
+        refreshToken:
+          type: "string"
+    CodeReq:
+      type: "object"
+      properties:
+        challengeId:
+          type: "string"
+          format: "uuid"
+        code:
+          type: "string"
+        remember:
+          type: "boolean"
+      required:
+        - "challengeId"
+    ChallengeReq:
+      type: "object"
+      properties:
+        challengeId:
+          type: "string"
+          format: "uuid"
+      required:
+        - "challengeId"
+    SseEmitter:
+      type: "object"
+      properties:
+        timeout:
+          type: "integer"
+          format: "int64"
+    UserDto:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        email:
+          type: "string"
+        displayName:
+          type: "string"
+        roles:
+          type: "array"
+          items:
+            type: "string"
+    JourneyProgress:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        title:
+          type: "string"
+        description:
+          type: "string"
+        order:
+          type: "integer"
+          format: "int32"
+        versionNo:
+          type: "integer"
+          format: "int32"
+        trainings:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/TrainingProgress"
+        completedCount:
+          type: "integer"
+          format: "int32"
+        completed:
+          type: "boolean"
+        locked:
+          type: "boolean"
+        lockReason:
+          type: "string"
+        certificateSerial:
+          type: "string"
+        comingSoon:
+          type: "boolean"
+    TrainingProgress:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        title:
+          type: "string"
+        status:
+          type: "string"
+        summary:
+          type: "string"
+        itemCount:
+          type: "integer"
+          format: "int32"
+        completedItems:
+          type: "integer"
+          format: "int32"
+        currentKey:
+          type: "string"
+        lastActivityAt:
+          type: "string"
+          format: "date-time"
+    JourneyDto:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        title:
+          type: "string"
+        description:
+          type: "string"
+        order:
+          type: "integer"
+          format: "int32"
+        versionNo:
+          type: "integer"
+          format: "int32"
+        trainings:
+          type: "array"
+          items:
+            "$ref": "#/components/schemas/TrainingRef"
+        unlock:
+          "$ref": "#/components/schemas/JsonNode"
+    TrainingRef:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        title:
+          type: "string"
+        versionNo:
+          type: "integer"
+          format: "int32"
+    CatalogEntry:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          format: "uuid"
+        title:
+          type: "string"
+        summary:
+          type: "string"
+        itemCount:
+          type: "integer"
+          format: "int32"
+        status:
+          type: "string"
+        journeys:
+          type: "array"
+          items:
+            type: "object"
+            additionalProperties: {}
+        lockReason:
+          type: "string"
+  securitySchemes:
+    bearer:
+      type: "http"
+      scheme: "bearer"
+      bearerFormat: "JWT"
+security:
+  -
+    bearer: []

@@ -379,7 +379,15 @@ sequenceDiagram
   - Geri alma için `revoked_at` alanı vardır.
 
 ## 6. API sözleşmesi
-OpenAPI dosyası springdoc ile üretilir ve `docs/openapi.yaml` olarak depoya eklenir.
+OpenAPI 3.1 dosyası springdoc ile çalışan backend'den üretilir ve `docs/openapi.yaml` olarak depodadır (118 yol, 37 şema). Canlı arayüz: `/swagger-ui.html`.
+- **Sözleşme kuralları:**
+  - Bütün uçlar `/api` altındadır: üye `/api/**`, CMS `/api/cms/**` (ayrı audience ve TOTP), giriş `/api/auth/**` ve `/api/cms-auth/**`, dışarıdan çağrılan webhook `/api/hooks/**`.
+  - Kimlik doğrulama `Authorization: Bearer <JWT>` ile yapılır. Web'de yenileme HttpOnly cookie ve `X-Requested-With: basamak` (CSRF) ile, mobilde gövdedeki yenileme jetonuyla yapılır.
+  - Hatalar RFC 7807 `problem+json` biçimindedir: `code` (makine için sabit), `detail` (Türkçe), `requestId`. Doğrulama hatalarında alan listesi de döner.
+  - **Çift isteğe karşı (idempotency):** Araç başlatmada `clientRequestId`, webhook'ta `Idempotency-Key` başlığı ya da gövde özeti kullanılır. Ders tamamlama, anket ve quiz gönderimi doğası gereği tektir.
+  - **İyimser kilit:** CMS taslak kaydı `lockVersion` taşır; çakışmada 409 döner (§3.4).
+  - **Canlı olaylar:** SSE uçları `.../events` ve `.../stream` adlarını taşır ve `Last-Event-ID` destekler (ADR-6).
+  - **Sürümleme:** API tek sürümdür. Kırıcı bir değişiklikte yeni yol açılır (`/api/v2/...`), eski yol 6 ay korunur. Mobil eski sürümler bu sürede güncellenir.
 
 ## 7. Yetki, güvenlik ve KVKK
 
@@ -486,6 +494,20 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Sessiz saatler (Sizin kararınız):** Kodda **yok**. Tasarım: üye bir saat aralığı seçer (İstanbul); bu aralıkta push ve e-posta bekletilir ve aralık bitince tek bir özet olarak gönderilir, uygulama içi bildirim hemen yazılır. Seviye atlama gibi önemli olaylar da bekletilir; güvenlik bildirimleri (şifre, yeni cihaz) bekletilmez.
 - **FCM yok:** Uygulama kapalıyken push için Firebase projesi gerekir (§8.2).
 
+### 7.10 OWASP Top 10 (2021) eşlemesi
+| Risk | Bu projede alınan önlem | Kanıt (test / kod) | Bilinen eksik |
+|---|---|---|---|
+| **A01 Bozuk erişim denetimi** | Rol tabanlı yetkinin üstüne nesne düzeyinde yetki var: yazar yalnız kendi taslağını düzenler, üye yalnız kendi çalıştırmasını ve dosyasını görür (başkasına 404). Editör kendi sürümünü onaylayamaz. CMS ayrı audience ister ve TOTP zorunludur. Üye API'si yalnız yayınlanmış içeriği okur (`PublishedContent`) | `ContentWorkflowIT`, `ToolIT` (başkasının aracı 404), `AuthIT`, `CmsTeamIT` | — |
+| **A02 Kriptografik hatalar** | Şifreler bcrypt ile saklanır. Araç sırları ve TOTP sırları AES-256-GCM ile şifrelenir; ana anahtar `.env`'dedir ve repoda yoktur. Yenileme jetonu veritabanında yalnız özet olarak tutulur. Sertifika ve medya bağlantıları HMAC imzalıdır. Cookie'ler HttpOnly ve SameSite=Strict, üretimde Secure | `ToolIT` (sır düz metin olarak saklanmaz), `CryptoService` | Yerelde HTTP; üretimde TLS ve HSTS ters vekilde |
+| **A03 Enjeksiyon** | SQL'de her yerde parametreli sorgu kullanılır. Araç şablonlarında değer URL'ye kodlanarak, gövdeye JSON değeri olarak yerleşir. CSV dışa aktarmada formül enjeksiyonu (`=`, `+`, `-`, `@`) etkisizleştirilir. Ders Markdown'ı yalnız React ögelerine çevrilir (HTML yok) | `PrivacyReportIT` (CSV), `ToolIT` | — |
+| **A04 Güvensiz tasarım** | Kötüye kullanım baştan tasarlandı: puan için tek seferlik kısıt, ders "aç ve hemen kapat" engeli, kopya araç puansız, karşılıklı çatal puansız. Kota ve hız sınırları var. İstem enjeksiyonuna karşı yapay zekâ çıktısı veri olarak işlenir, komut olarak çalıştırılmaz (§4.5) | `AntiFarmingIT`, `GamificationIT` | — |
+| **A05 Güvenlik yapılandırma hataları** | Varsayılan kullanıcı kapalıdır. Actuator yalnız health, info ve metrics uçlarını açar. CORS yalnız web ve CMS origin'lerine izin verir. Hata cevabında yığın izi yoktur. Spring Security varsayılan başlıkları açıktır (X-Content-Type-Options, X-Frame-Options: DENY) | `SecurityConfig` | Content-Security-Policy başlığı **eklenmedi** (ters vekilde önerilir) |
+| **A06 Zafiyetli bileşenler** | Bağımlılık sürümleri sabittir (Maven sürümleri, `package-lock.json`); güncel Spring Boot 3.5 kullanılır | `pom.xml`, `package-lock.json` | Otomatik bağımlılık taraması (Dependabot ya da OWASP Dependency-Check) CI'da **yok**; ücretsiz olarak eklenebilir |
+| **A07 Kimlik doğrulama hataları** | 5 hatalı denemede 15 dakika kilit. IP başına hız sınırı. Şifre politikası. Hesabın var olup olmadığı belli edilmez ve zamanlama eşitlenir. Yeni cihazdan girişte üyeye e-posta kodu, CMS'te TOTP. Yenileme jetonu her kullanımda döndürülür. Oturum listesi ve kapatma var (§7.1–7.3) | `AuthIT`, `LoginCodeIT`, `RateLimitFilterTest` | TOTP kodu aynı 30 saniyelik pencerede tekrar kullanılabiliyor (§11) |
+| **A08 Yazılım ve veri bütünlüğü** | Puan defteri ve denetim kaydı yalnız eklemeyle büyür; veritabanı trigger'ı UPDATE ve DELETE'i reddeder. Sertifika satırı HMAC imzalıdır. Webhook'lar idempotent çalışır. Yüklenen dosyanın türü uzantıya göre değil, ilk baytlarına bakılarak doğrulanır | `GamificationIT.ledgerIsAppendOnly…`, `MediaIT` | Webhook imzası (HMAC başlığı) yok; gizli URL yaklaşımı kullanılıyor |
+| **A09 Günlükleme ve izleme hataları** | JSON günlükler ve `requestId` (§9.4). Bütün CMS işlemleri kimin, neyi, ne zaman yaptığıyla denetim kaydına yazılır. Şifre, jeton, TOTP sırrı ve araç sırları günlüğe yazılmaz | `AuditService`, `ContentWorkflowIT` (denetim kaydı) | Alarm kuralları yalnız tasarımda (§9.4) |
+| **A10 SSRF** | Kayıtta ve her istekte DNS çözülür. Özel, loopback, link-local, metadata ve IPv6 bloklarıyla ondalık ve kısa IP yazımları reddedilir. Bağlantı çözülen IP'ye sabitlenir; yönlendirmelerin her adımı yeniden denetlenir. CMS araçları için ayrı bir izin listesi vardır (yalnız sahte API) | `UrlGuardTest`, `ToolIT.scenario7_*`, `e2e/tools.spec.ts` | — |
+
 ## 8. Mobil *(F2.5 yazıldı; çevrimdışı, bildirim ve derin bağlantı F6'da)*
 
 ### 8.1 Yapı (ADR-5)
@@ -531,7 +553,50 @@ Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibid
 - **Android:** Pixel 7 emülatöründe (API 35) debug APK kuruldu ve açıldı. Şifre, Mailpit'ten e-posta kodu ve Journey listesi çalışıyor. Uygulama kapatılıp açılınca oturum geri yükleniyor. F6'da emülatörde elle doğrulananlar: Keystore'a geçiş, derin bağlantı, çevrimdışı ders tamamlama ve eşitleme, bildirim ve dokununca ekran açılması, gizlilik ekranı (`docs/mobile/*.png`). Gerçek cihazda **denenmedi**. Araç ve iş akışı ekranları mobilde açılıyor (bildirimden açılan akış ekranı), ama mobilde tam bir çalıştırma ekranı turu yapılmadı.
 - **iOS:** `@capacitor/ios` bağımlılığı ve `capacitor.config.ts` hazır. Xcode yalnız macOS'ta çalıştığı için iOS projesi üretilmedi ve **hiç test edilmedi**. macOS'ta yapılacaklar: `npm run build:mobile -w apps/web`, `cd apps/mobile`, `npx cap add ios`, `npx cap open ios`. API adresi simülatörde `http://localhost:8080` olur; bunun için Info.plist'e geliştirme amaçlı bir ATS istisnası gerekir.
 
-## 9. Ölçeklenme, izleme ve hata yönetimi *(F7'de ölçümlerle yazılacak)*
+## 9. Ölçeklenme, izleme ve hata yönetimi
+Sayılar `OLCUMLER.md`'deki gerçek ölçümlerden alınmıştır: tek geliştirici makinesi, tek uygulama düğümü, yerel PostgreSQL 18.
+
+### 9.1 Bugünkü kapasite (ölçülen)
+| Uç | p95 | Verim | Not |
+|---|---|---|---|
+| Eğitim okuma `GET /api/trainings/{id}` | 27 ms | ~1.400 istek/sn | 20 eşzamanlı kullanıcı, %0 hata |
+| Araç başlatma `POST /api/tool-runs` | 8,5 ms | 10/sn (sınırların altında) | Yalnız kuyruğa yazma; dış çağrı eşzamansız |
+| Sıralama `GET /api/leaderboard` | 8,5 ms | ~3.000 istek/sn | **Küçük veri**: birkaç yüz defter satırı |
+
+İlk yıl hedefi 50.000 üye ve 2.000 eşzamanlı kullanıcıdır (§1). 2.000 eşzamanlı kullanıcı, her biri ortalama 10 saniyede bir istek atarsa, saniyede ~200 istek eder. Bu yük ölçülen tek düğüm kapasitesinin çok altındadır. Darboğaz CPU değil, veri büyüdükçe bazı sorguların maliyetidir.
+
+### 9.2 10 kat yükte ilk darboğaz: haftalık sıralama
+- **Neden:** Haftalık sıralama her istekte bu haftanın `point_ledger` satırlarını üyeye göre toplar (`ix_point_ledger_created` indeksi kullanılır). 500.000 üyede ya da bir kampanya haftasında haftalık satır sayısı milyonlara çıkar. Sorgu süresi satır sayısıyla doğrusal büyür ve SSE ile canlı yenilenen ekranlar bu sorguyu çok sık çağırır.
+- **İkinci aday:** Puan defterine ve etkinlik olaylarına yazma. Her ders tamamlama aynı işlemde 2–3 satır yazar. Bu, 10 katta bile tek PostgreSQL için rahattır (saniyede birkaç yüz satır).
+- **Çözüm sırası (ucuzdan pahalıya):**
+  1. **Kısa önbellek:** Sıralama cevabı 5 saniye bellekte tutulur. Canlılık hissi bozulmaz, sorgu sayısı yüzlerce kat düşer.
+  2. **Artımlı toplam tablosu:** `weekly_score(week, user_id, points)` puan yazılırken aynı işlemde `+=` ile güncellenir. Sıralama indeksli bir `ORDER BY points DESC LIMIT 20` olur. Genel sıralamada bu zaten `user_score.total` ile yapılıyor.
+  3. **Çok düğümde paylaşılan sıralama:** Ancak gerçekten gerekirse Redis sorted set.
+
+### 9.3 Yatay ölçeklenme
+- **Uygulama düğümleri durumsuzdur:** Kimlik doğrulama JWT ile yapılır, oturum yenileme veritabanındadır. Yük dengeleyicinin arkasına N düğüm konur.
+- **Tek düğüme bağlı üç parça** ve yapılacak değişiklik:
+  - **Hız sınırı sayaçları bellek içi:** Postgres'te `(anahtar, dakika)` tablosuna ya da Redis'e taşınır (§11).
+  - **SSE abonelikleri düğümde:** Bir düğümde oluşan olay, öbür düğümdeki dinleyiciye PostgreSQL `LISTEN/NOTIFY` ile dağıtılır. Kaçırılan olaylar zaten `Last-Event-ID` ile veritabanından tekrar okunur (ADR-6).
+  - **Zamanlayıcı (cron) tetikleri:** Her tik tek çalıştırma üretir, çünkü tetik satırı `FOR UPDATE SKIP LOCKED` ile kilitlenir. Çok düğümde de doğru çalışır.
+- **İş kuyruğu (ADR-2):** `SKIP LOCKED` ile çok işçi ve çok düğüm doğal olarak desteklenir. Düğüm başına işçi sayısı `JOB_WORKERS` ile ayarlanır.
+- **Veritabanı:** Önce bağlantı havuzu sınırları ve PgBouncer gelir, sonra raporlar için okuma kopyası (§7.7). Bölümleme gerekirse ilk aday `activity_event` ve `point_ledger` tablolarının aylık bölümlenmesidir.
+- **Medya:** Dosyalar SHA-256 adreslidir ve değişmez (§3.5). Yerel diskten S3 uyumlu depoya ve CDN'e geçiş, yalnız `MediaService` içindeki dosya yazma ve okuma katmanının değiştirilmesiyle yapılır.
+
+### 9.4 İzleme (kodda olanlar)
+- **Günlükler:** JSON biçimindedir (Spring Boot yapılandırılmış günlük, ECS biçimi). Her satır `requestId` taşır. Kimlik, istemci `X-Request-Id` gönderirse ondan alınır, göndermezse üretilir. Cevap başlığında ve hata gövdesinde (`problem+json`) döner, **arka plan işlerine taşınır** (araç ve akış çalıştırmaları aynı kimlikle günlüğe yazılır).
+- **Metrikler:** `/actuator/metrics` ile sunulur; HTTP gecikmeleri, JVM ve bağlantı havuzu metrikleri Micrometer'dan gelir. Kuyruk ölçümleri de vardır: `basamak.jobs.queued`, `basamak.jobs.running` (gösterge) ve `basamak.jobs.finished` (sonuca göre sayaç).
+- **Sağlık:** `/actuator/health` veritabanı ve disk durumunu gösterir. Docker Compose sağlık kontrolü ve CI bunu kullanır.
+- **Önerilen alarmlar:** p95 > 300 ms (5 dk), 5xx oranı > %1, `basamak.jobs.queued` 10 dakikada artmaya devam ediyor (işçiler yetişmiyor), araç hata oranı > %20 (dış servis sorunu).
+- **OpenTelemetry (yalnız tasarımda):** Java ajanı ile HTTP, JDBC ve dış HTTP çağrıları için iz (trace) toplanır. `requestId` iz kimliğiyle ilişkilendirilir, ajan kod değiştirmeden eklenir. Ücretsiz seçenekler: Jaeger ya da Grafana Tempo. Bu işte eklenmedi (§11).
+
+### 9.5 Hata yönetimi
+- **API hataları:** Tek biçimdir: RFC 7807 `problem+json`. İçinde makinece okunur `code`, Türkçe `detail` ve `requestId` bulunur. Beklenmeyen hatada iç ayrıntı (yığın izi, SQL) dönmez; ayrıntı yalnız sunucu günlüğüne yazılır.
+- **Dış servis hataları:** Zaman aşımı, 5xx ve 429 için üstel bekleme ile yeniden deneme yapılır. 4xx için yeniden deneme yapılmaz. Üye başına eşzamanlılık sınırı ve günlük kota vardır (§4.2). Devre kesici ertelendi (§11).
+- **Yarıda kalan işler:** Kilit süresi dolan iş başka bir işçi tarafından yeniden alınır. İş akışı, hata veren adımdan devam ettirilebilir (§4.5).
+- **Kapanış:** Kapanış zarif yapılır (`timeout-per-shutdown-phase: 15s`): yeni iş alınmaz, çalışanlar biter, SSE bağlantıları kapanır ve istemci yeniden bağlanır.
+- **İstemci:** Ağ hatasında anlaşılır bir mesaj ve "Tekrar dene" düğmesi gösterilir. Mobilde ders ve quiz işlemleri çevrimdışı kuyruğa alınır ve sonra eşitlenir (§8.2).
+
 
 ## 10. Mimari karar kayıtları (ADR)
 
@@ -603,7 +668,7 @@ Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibid
   - (b) Flutter: (a)'nın sorunlarına ek olarak yeni bir dil gerekir.
   - (c) Capacitor: web kodu native bir kabukta çalışır. Native API'lere (bildirim, Keystore, dosya, derin bağlantı) eklentilerle erişilir.
 - **Karar:** (c). Tek UI kodu, tek tasarım sistemi ve tek test seti kullanılır; web'deki erişilebilirlik ve tema işi mobile kendiliğinden geçer. Capacitor bir PWA değildir; mağazaya giden gerçek bir APK ya da IPA üretir.
-- **Sonuçlar:** Çok uzun listelerde ve ağır animasyonlarda WebView, RN'nin gerisinde kalır; bu ürünün ekranları içerik ve form ağırlıklı olduğu için kabul edildi. Platforma özgü davranış `platform.ts` ve eklentilerle sınırlı tutulur. Soğuk açılış süresi F7'de ölçülecek.
+- **Sonuçlar:** Çok uzun listelerde ve ağır animasyonlarda WebView, RN'nin gerisinde kalır; bu ürünün ekranları içerik ve form ağırlıklı olduğu için kabul edildi. Platforma özgü davranış `platform.ts` ve eklentilerle sınırlı tutulur. Soğuk açılış emülatörde ilk kare için 1,11 s, içerik hazır olana kadar 1,27 s ölçüldü (OLCUMLER.md §3); hedef < 2 s.
 
 ## 11. İleriye bırakılanlar *(her fazda güncellenir)*
 - **Araçlarda devre kesici ve hedef başına hız sınırı:** Bugün işçi sayısı, süre sınırı, üye başına 5 eşzamanlı çalıştırma, seviyeye göre günlük kota ve IP başına dakikalık sınır var. Art arda hata veren bir hedefin geçici olarak atlanması ve kötü niyetli aracın otomatik askıya alınması yok.
@@ -617,6 +682,8 @@ Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibid
 - **Çok düğümlü hız sınırı:** Bellek içi sayaç tek düğüm için yeterli. Çok düğümde Postgres ya da Redis sayacına geçilir.
 - **Açık uçlu quiz cevaplarının insan değerlendirmesi ve itiraz akışı:** Cevaplar saklanıyor ve "değerlendirme bekliyor" olarak işaretleniyor. Değerlendirme ekranı ve itiraz yok.
 - **Video saklama ve HLS dağıtımı:** Kodda video, URL ile oynatılıyor ve izleme süresi sunucuda ileri sarmaya karşı ölçülüyor. HLS dönüştürme ve CDN dağıtımı yalnız tasarımda.
+- **Content-Security-Policy başlığı ve otomatik bağımlılık taraması** (OWASP A05, A06; §7.10). İkisi de ücretsizdir (ters vekil başlığı; Dependabot ya da OWASP Dependency-Check), bu işe sığmadı.
+- **Webhook imzası:** Bugün gizli belirteçli URL kullanılıyor. Gönderen destekliyorsa `X-Signature` HMAC doğrulaması eklenir.
 - **CMS'te zengin metin düzenleyici:** Ders metni Markdown olarak yazılıyor. Görüntüleyici yalnız React ögeleri üretiyor (XSS'e kapalı), görsel bir düzenleyici yok.
 
 ## 12. "Sizin kararınız" — karar listesi
@@ -671,8 +738,10 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 **3.10 Geçmişim ve KVKK**
 - ☑ Olay kaydının yapısı ve saklama süresi → §7.6 (yapı `activity_event`; saklama: kişisel bağ silinince süresiz anonim, diğerleri 2 yıl önerisi) · ☑ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri → §7.8 · ☑ Sertifika sahteciliği → §5.7
 
-**3.11 Arama ve kurumsal kullanım**
-- ☐ Arama altyapısı · ☐ Eksik çeviri · ☐ Çok kiracılı veri ayrımı ve maliyeti
+**3.11 Arama ve kurumsal kullanım** (PDF'e göre kodda seçmeli; yalnız tasarım)
+- ☑ **Arama altyapısı:** İlk aşamada PostgreSQL tam metin araması kullanılır: `tsvector` sütunu, `turkish` sözlüğü ve GIN indeksi. Yalnız yayınlanmış sürümler indekslenir; kaynak `content_version` JSONB'sinden üretilen başlık ve metindir. Bu çözüm 50.000 üye ve birkaç bin içerik için yeterlidir ve ek servis gerektirmez. Yazım hatası toleransı ve çok dilli sıralama gerekince OpenSearch'e geçilir; yayın olayı bir iş olarak kuyruğa yazılır ve indeks eşzamansız güncellenir.
+- ☑ **Eksik çeviri:** İçerik çevirisi sürümün içinde dil başına alan olarak tutulur (`title: {tr, en}`). Arayüz metinleri dil dosyalarındadır. Bir alan seçilen dilde yoksa varsayılan dile (Türkçe) düşülür ve ekranda "Bu bölüm henüz çevrilmedi" etiketi gösterilir. CMS'te yayın öncesi eksik çeviri raporu uyarı verir ama yayını engellemez.
+- ☑ **Çok kiracılı veri ayrımı ve maliyeti:** Önerilen yol, ortak veritabanında her tabloya `tenant_id` eklemek ve PostgreSQL satır düzeyi güvenliğini (RLS) kullanmaktır. Bağlantı başına `SET app.tenant` yapılır ve RLS politikası her sorguyu kiracıya göre süzer. Bu yöntemle unutulan bir `WHERE` veri sızdırmaz. Maliyet tek veritabanı kadardır. Büyük ya da düzenlemeye tabi kurumlar için ayrı şema ya da ayrı veritabanı seçeneği sunulur; bu seçenek göç ve operasyon maliyetini kiracı sayısıyla çarpar. Puan, sıralama ve raporlar kiracı içinde hesaplanır; içerik paylaşımı kiracılar arasında yapılmaz.
 
 **3.12 Raporlar**
 - ☑ Canlı veritabanı mı, analitik depo mu? · ☑ Kabul edilebilir gecikme → §7.7
@@ -682,9 +751,35 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☑ CMS ile üye uygulamasının ayrımı: ayrı origin (:5174), ayrı giriş akışı, ayrı token audience'ı, ayrı cookie → §7.1
 - ☑ Zamanlanmış yayının saat dilimi ve kaçırılan tetikleme → §3.2
 - ☑ Editör kendi sürümünü onaylayabilir mi? Hayır, dört göz ilkesi geçerli → §7.2
-- ☐ Mobil eşitlemede olay kimliğini istemci mi üretir?
+- ☑ **Mobil eşitlemede olay kimliğini istemci mi üretir?** Hayır. İstemci kuyruktaki işe yerel bir UUID verir; bu yalnız kuyruğu yönetmek içindir. Tekilliği sunucu doğal anahtardan sağlar: öge başına tek tamamlama, üye başına tek anket, deneme başına tek gönderim, puanda kural ve nesne başına kısıt. Böylece aynı işi iki kez gönderen, cihaz değiştiren ya da kuyruğu bozulan istemci çift kayıt üretemez (§8.2).
 
-## 13. Yapay zekâ kullanımı *(sürekli güncellenir)*
-- **Araç:** Claude Code (Anthropic).
-- **Kullanım alanları:** PDF analizi ve gereksinim matrisi, mimari plan taslağı, iskelet kod ve test üretimi, belge taslakları.
-- **Doğrulama:** Her faz derleme ve otomatik testlerle doğrulanır. Komutlar ve gerçek sonuçları `DURUM.md`'de kayıtlıdır. Kararların sahibi geliştiricidir; reddedilen ve değiştirilen öneriler burada listelenir.
+## 13. Yapay zekâ kullanımı
+- **Araç:** Claude Code (Anthropic, Claude Opus modeli), masaüstü uygulaması içinde, geliştiricinin bilgisayarında çalıştı. Ürün içinde gerçek bir yapay zekâ servisi **kullanılmadı**. İş akışlarındaki yapay zekâ adımı sahte (mock) sağlayıcıdır; isteğe bağlı Ollama sağlayıcısı yazıldı ama denenmedi (§4.5).
+- **Yapay zekânın yaptıkları:**
+  - PDF'in okunması ve gereksinim matrisinin çıkarılması.
+  - Mimari plan ve faz takvimi taslağı.
+  - Backend, web, CMS ve Android kodunun, testlerin ve bu belgelerin büyük kısmının yazılması.
+  - Testlerin, ölçümlerin ve emülatör denetimlerinin çalıştırılması.
+- **Geliştiricinin yaptıkları:** Kapsam ve öncelik kararları, her önemli tasarım değişikliğinden önce onay, her push için ayrı onay, emülatörde gözle doğrulama, Figma ekranları, ekran kaydı ve teslim.
+- **Çalışma kuralları:**
+  - Sıfır ek maliyet: ücretli servis ya da API kullanılmadı.
+  - Repo oluşturma, erişim izni ve push yalnız onayla yapıldı. Her indirme için de ayrı onay alındı (Mailpit, Playwright tarayıcısı, Lighthouse).
+  - Şifre, anahtar, jeton ve `.env` dosyası repoya girmedi.
+  - Testlerde giriş kodları ve TOTP sırları yalnız bellekte tutuldu, günlüğe yazılmadı.
+  - Sahte test ya da sahte ölçüm yazılmadı. Ölçülmeyen her şey "ölçülmedi" ya da "denenmedi" diye işaretlendi.
+- **Doğrulama:** Yapay zekânın yazdığı kod "çalışıyor" sayılmadan önce otomatik testlerden geçti. Testlerin sonucu `DURUM.md`'ye, ölçümler `OLCUMLER.md`'ye yazıldı.
+  - Backend: 110 entegrasyon ve birim testi, %87 satır kapsamı.
+  - Uçtan uca: Playwright, ayrı ve her seferinde sıfırdan kurulan bir test yığınında.
+  - Erişilebilirlik: axe taraması.
+- **Geliştiricinin düzelttiği ya da reddettiği öneriler** (örnekler):
+  - **PDF'te açıkça istenen özelliklerin atlanması** (görsel ve video ekleme ve benzeri). Geliştirici fark etti. PDF Bölüm 3–6 madde madde yeniden kodla karşılaştırıldı; ~50 eksik ya da yarım madde kapatıldı (DURUM F6.5).
+  - **Araç ve akış kurma ekranı:** İlk tasarım her şeyi tek ekranda gösteren, iç içe bir formdu. Geliştiricinin isteğiyle adım adım ilerleyen bir sihirbaza çevrildi (§4.4a). Örneklerin hava durumu gibi konulardan eğitim bağlamına taşınması da geliştiricinin düzeltmesidir.
+  - **Üye girişinde ikinci adım:** İlk öneri üyeler için de doğrulayıcı uygulamaydı (TOTP). Geliştiricinin "her üye ayrı bir uygulama mı indirecek?" sorusu üzerine yeniden düşünüldü. Üyede yeni cihazdan girişte e-posta kodu, CMS'te zorunlu TOTP seçildi (§7.1a). Giriş ekranının düzeni de geliştiricinin geri bildirimiyle düzeltildi.
+  - **Mobil kabuk:** Emülatörde geri tuşunun ve Android'e özgü davranışların eksik olduğunu geliştirici fark etti. Alt gezinme, geri oku, sistem çubukları ve açılış ekranı bunun üzerine eklendi (§8.1a).
+- **Yapay zekânın kendi hataları** (testle ya da gözle yakalanıp düzeltildi):
+  - **Puan kuralı joker eşleşmesi:** Joker eşleşmesi istenmeyen bir olaya puan verdi.
+  - **Eşzamanlı yazma:** Puan, öge ilerlemesi ve eğitim tamamlama ayrı işlemlerdeydi ve aynı anda gelen isteklerde çakışabiliyordu. Üçü tek işleme alındı.
+  - **Derlenmeyen APK:** Android derleme komutu yanlış klasörde çalıştığı için yeni APK üretilmedi ve değişiklikler emülatöre gitmedi. Bunu fark etmek zaman aldı; derleme betiği artık APK'nın gerçekten yenilendiğini kontrol ediyor.
+  - **CSS sınıf çakışması:** Bir renk karşıtlığı hatasına yol açtı (axe yakaladı).
+  - **Lighthouse ölçümü:** Bir ölçüm koşusu giriş sayfasında bitmişti; bu ölçüm geçersiz sayıldı ve tekrarlandı.
+- **Sınır:** Kod hızlı üretildi. Güvenlik açısından kritik parçalar (SSRF, yetki, puan defteri, kimlik doğrulama) testlerle korunuyor, ama bağımsız bir insan güvenlik incelemesinden **geçmedi**.
