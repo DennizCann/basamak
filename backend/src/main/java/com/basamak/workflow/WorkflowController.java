@@ -98,6 +98,23 @@ public class WorkflowController {
         return runView(p.userId(), runId);
     }
 
+    public record EventReq(String event) {}
+
+    @PutMapping("/api/workflows/{id}/event-trigger")
+    public WorkflowService.Wf eventTrigger(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @RequestBody EventReq r) {
+        return workflows.setEventTrigger(p.userId(), id, r.event());
+    }
+
+    @GetMapping("/api/workflow-event-triggers")
+    public Map<String, String> eventTriggers() {
+        return WorkflowService.EVENT_TRIGGERS;
+    }
+
+    @GetMapping("/api/me/ai-budget")
+    public Map<String, Object> aiBudget(@AuthenticationPrincipal AuthPrincipal p) {
+        return engine.budget(p.userId());
+    }
+
     @PutMapping("/api/workflows/{id}/cron")
     public WorkflowService.Wf cron(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @RequestBody CronReq r) {
         return workflows.setCron(p.userId(), id, r.cron(), r.input());

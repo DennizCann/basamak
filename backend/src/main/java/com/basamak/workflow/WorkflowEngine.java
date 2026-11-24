@@ -49,6 +49,11 @@ public class WorkflowEngine implements JobHandler {
     private final AiProvider ai;
     private final GamificationService gamification;
     private final com.basamak.notification.NotificationService notifications;
+    /** Per member per calendar month (TASARIM §4.5). With the mock provider the cost is simulated. */
+    @org.springframework.beans.factory.annotation.Value("${basamak.ai.monthly-budget-usd:1.00}")
+    private BigDecimal monthlyBudgetUsd;
+    @org.springframework.beans.factory.annotation.Value("${basamak.ai-provider:mock}")
+    private String providerName;
 
     // ------------------------------------------------------------------ start / resume
 
@@ -60,6 +65,10 @@ public class WorkflowEngine implements JobHandler {
                 Integer.class, userId);
         if (active != null && active >= MAX_ACTIVE_PER_USER) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "too_many_runs", "Aynı anda en fazla " + MAX_ACTIVE_PER_USER + " iş akışı çalışabilir.");
+        }
+        boolean usesAi = WorkflowDefinition.parse(w.definition()).steps().stream().anyMatch(s -> s.type().equals("ai"));
+        if (usesAi && monthlySpend(userId).compareTo(monthlyBudgetUsd) >= 0) {
+            throw new ApiException(HttpStatus.PAYMENT_REQUIRED, "ai_budget_exhausted", budgetMessage(userId));
         }
         UUID runId = UUID.randomUUID();
         UUID stored = queue.enqueue(KIND, runId, idempotencyKey == null ? "workflow-run:" + runId : idempotencyKey, 1);
@@ -128,49 +137,38 @@ public class WorkflowEngine implements JobHandler {
         }, runId);
 
         Set<String> skipped = new HashSet<>();
-        for (WorkflowDefinition.Step step : def.steps()) {
+        for (List<WorkflowDefinition.Step> group : def.groups()) {
             if (jobId != null) queue.heartbeat(jobId, Duration.ofSeconds(180));
-            if ("SUCCEEDED".equals(previous.get(step.id())) || "SKIPPED".equals(previous.get(step.id()))) {
-                if (step.type().equals("condition") && stepsCtx.has(step.id())) skipOtherBranch(step, stepsCtx.path(step.id()).path("output"), skipped);
-                continue;
+            List<WorkflowDefinition.Step> todo = new ArrayList<>();
+            for (WorkflowDefinition.Step step : group) {
+                if ("SUCCEEDED".equals(previous.get(step.id())) || "SKIPPED".equals(previous.get(step.id()))) {
+                    if (step.type().equals("condition") && stepsCtx.has(step.id())) skipOtherBranch(step, stepsCtx.path(step.id()).path("output"), skipped);
+                    continue;
+                }
+                if (skipped.contains(step.id())) {
+                    jdbc.update("INSERT INTO workflow_step_run(run_id, step_id, step_type, status, finished_at) VALUES (?, ?, ?, 'SKIPPED', now())", runId, step.id(), step.type());
+                    continue;
+                }
+                todo.add(step);
             }
-            if (skipped.contains(step.id())) {
-                jdbc.update("INSERT INTO workflow_step_run(run_id, step_id, step_type, status, finished_at) VALUES (?, ?, ?, 'SKIPPED', now())", runId, step.id(), step.type());
-                continue;
+            if (todo.isEmpty()) continue;
+            String failure;
+            if (todo.size() == 1) {
+                failure = runStep(todo.get(0), runId, userId, ctx, stepsCtx, skipped, jobId, depth);
+            } else {
+                // parallel group: each step's input is resolved from steps BEFORE the group (validated on save)
+                List<java.util.concurrent.CompletableFuture<String>> futures = new ArrayList<>();
+                for (WorkflowDefinition.Step step : todo) {
+                    futures.add(java.util.concurrent.CompletableFuture.supplyAsync(
+                            () -> runStep(step, runId, userId, ctx, stepsCtx, skipped, jobId, depth), PARALLEL));
+                }
+                failure = null;
+                for (var f : futures) {
+                    String e = f.join();
+                    if (e != null && failure == null) failure = e;
+                }
             }
-            long t0 = System.nanoTime();
-            JsonNode stepInput = stepInput(step, ctx);
-            Long stepRowId = jdbc.queryForObject("""
-                    INSERT INTO workflow_step_run(run_id, step_id, step_type, status, input) VALUES (?, ?, ?, 'RUNNING', CAST(? AS jsonb)) RETURNING id""",
-                    Long.class, runId, step.id(), step.type(), stepInput.toString());
-            try {
-                StepResult r = switch (step.type()) {
-                    case "tool" -> tool(userId, step, stepInput, jobId);
-                    case "ai" -> aiStep(step, stepInput);
-                    case "condition" -> condition(step, ctx);
-                    case "workflow" -> subflow(userId, runId, step, stepInput, depth);
-                    default -> throw new IllegalStateException("unknown step type");
-                };
-                long ms = (System.nanoTime() - t0) / 1_000_000;
-                jdbc.update("""
-                        UPDATE workflow_step_run SET status = 'SUCCEEDED', output = CAST(? AS jsonb), duration_ms = ?, tokens = ?, cost = ?, attempts = ?,
-                               child_run_id = ?, finished_at = now() WHERE id = ?""",
-                        r.output().toString(), ms, r.tokens(), r.cost(), r.attempts(), r.childRunId(), stepRowId);
-                jdbc.update("UPDATE workflow_run SET total_tokens = total_tokens + ?, total_cost = total_cost + ? WHERE id = ?", r.tokens(), r.cost(), runId);
-                stepsCtx.putObject(step.id()).set("output", r.output());
-                if (step.type().equals("condition")) skipOtherBranch(step, r.output(), skipped);
-            } catch (StepFailed | ApiException e) {
-                long ms = (System.nanoTime() - t0) / 1_000_000;
-                int attempts = e instanceof StepFailed sf ? sf.attempts : 1;
-                UUID child = e instanceof StepFailed sf ? sf.childRunId : null;
-                jdbc.update("UPDATE workflow_step_run SET status = 'FAILED', error = ?, duration_ms = ?, attempts = ?, child_run_id = ?, finished_at = now() WHERE id = ?",
-                        e.getMessage(), ms, attempts, child, stepRowId);
-                return fail(runId, step.id(), "'" + step.id() + "' adımı başarısız: " + e.getMessage());
-            } catch (RuntimeException e) {
-                log.warn("workflow step {} crashed", step.id(), e);
-                jdbc.update("UPDATE workflow_step_run SET status = 'FAILED', error = ?, finished_at = now() WHERE id = ?", "Beklenmeyen hata: " + e.getClass().getSimpleName(), stepRowId);
-                return fail(runId, step.id(), "'" + step.id() + "' adımında beklenmeyen hata.");
-            }
+            if (failure != null) return failure;
         }
         JsonNode output = def.output().isBlank()
                 ? (def.steps().isEmpty() ? json.nullNode() : lastOutput(def, stepsCtx))
@@ -185,6 +183,74 @@ public class WorkflowEngine implements JobHandler {
             }
         }
         return "SUCCEEDED";
+    }
+
+    /** Pool for parallel groups (virtual threads: steps mostly wait on HTTP or the model). */
+    private static final java.util.concurrent.ExecutorService PARALLEL = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+
+    /** Executes and records one step. Returns null on success, otherwise "FAILED" after recording the failure on the run. */
+    private String runStep(WorkflowDefinition.Step step, UUID runId, UUID userId, ObjectNode ctx, ObjectNode stepsCtx, Set<String> skipped, UUID jobId, int depth) {
+        long t0 = System.nanoTime();
+        JsonNode stepInput;
+        synchronized (stepsCtx) { stepInput = stepInput(step, ctx); }
+        Long stepRowId = jdbc.queryForObject("""
+                INSERT INTO workflow_step_run(run_id, step_id, step_type, status, input) VALUES (?, ?, ?, 'RUNNING', CAST(? AS jsonb)) RETURNING id""",
+                Long.class, runId, step.id(), step.type(), stepInput.toString());
+        try {
+            StepResult r;
+            switch (step.type()) {
+                case "tool" -> r = tool(userId, step, stepInput, jobId);
+                case "ai" -> r = aiStep(userId, step, stepInput);
+                case "condition" -> { synchronized (stepsCtx) { r = condition(step, ctx); } }
+                case "workflow" -> r = subflow(userId, runId, step, stepInput, depth);
+                default -> throw new IllegalStateException("unknown step type");
+            }
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            jdbc.update("""
+                    UPDATE workflow_step_run SET status = 'SUCCEEDED', output = CAST(? AS jsonb), duration_ms = ?, tokens = ?, cost = ?, attempts = ?,
+                           child_run_id = ?, finished_at = now() WHERE id = ?""",
+                    r.output().toString(), ms, r.tokens(), r.cost(), r.attempts(), r.childRunId(), stepRowId);
+            jdbc.update("UPDATE workflow_run SET total_tokens = total_tokens + ?, total_cost = total_cost + ? WHERE id = ?", r.tokens(), r.cost(), runId);
+            synchronized (stepsCtx) {
+                stepsCtx.putObject(step.id()).set("output", r.output());
+                if (step.type().equals("condition")) skipOtherBranch(step, r.output(), skipped);
+            }
+            return null;
+        } catch (StepFailed | ApiException e) {
+            long ms = (System.nanoTime() - t0) / 1_000_000;
+            int attempts = e instanceof StepFailed sf ? sf.attempts : 1;
+            UUID child = e instanceof StepFailed sf ? sf.childRunId : null;
+            jdbc.update("UPDATE workflow_step_run SET status = 'FAILED', error = ?, duration_ms = ?, attempts = ?, child_run_id = ?, finished_at = now() WHERE id = ?",
+                    e.getMessage(), ms, attempts, child, stepRowId);
+            return fail(runId, step.id(), "'" + step.id() + "' adımı başarısız: " + e.getMessage());
+        } catch (RuntimeException e) {
+            log.warn("workflow step {} crashed", step.id(), e);
+            jdbc.update("UPDATE workflow_step_run SET status = 'FAILED', error = ?, finished_at = now() WHERE id = ?", "Beklenmeyen hata: " + e.getClass().getSimpleName(), stepRowId);
+            return fail(runId, step.id(), "'" + step.id() + "' adımında beklenmeyen hata.");
+        }
+    }
+
+    // ------------------------------------------------------------------ AI budget
+
+    /** AI spend this calendar month (Europe/Istanbul) of the member's top-level runs (sub-flow cost is included in them). */
+    public BigDecimal monthlySpend(UUID userId) {
+        java.time.ZonedDateTime monthStart = java.time.LocalDate.now(GamificationService.ISTANBUL).withDayOfMonth(1).atStartOfDay(GamificationService.ISTANBUL);
+        BigDecimal v = jdbc.queryForObject("SELECT coalesce(sum(total_cost), 0) FROM workflow_run WHERE user_id = ? AND parent_run_id IS NULL AND created_at >= ?",
+                BigDecimal.class, userId, java.sql.Timestamp.from(monthStart.toInstant()));
+        return v == null ? BigDecimal.ZERO : v;
+    }
+
+    public Map<String, Object> budget(UUID userId) {
+        BigDecimal spent = monthlySpend(userId);
+        java.time.LocalDate next = java.time.LocalDate.now(GamificationService.ISTANBUL).withDayOfMonth(1).plusMonths(1);
+        return Map.of("limitUsd", monthlyBudgetUsd, "spentUsd", spent, "exhausted", spent.compareTo(monthlyBudgetUsd) >= 0,
+                "resetsOn", next.toString(), "simulated", "mock".equals(providerName));
+    }
+
+    private String budgetMessage(UUID userId) {
+        java.time.LocalDate next = java.time.LocalDate.now(GamificationService.ISTANBUL).withDayOfMonth(1).plusMonths(1);
+        return "Bu ayki yapay zekâ bütçen doldu (" + monthlySpend(userId).setScale(4, java.math.RoundingMode.HALF_UP) + " / " + monthlyBudgetUsd
+                + " USD). Yapay zekâ adımları " + next.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")) + " tarihinde yeniden çalışır.";
     }
 
     private JsonNode lastOutput(WorkflowDefinition def, ObjectNode stepsCtx) {
@@ -249,7 +315,9 @@ public class WorkflowEngine implements JobHandler {
         throw new StepFailed(res == null ? "araç çalışmadı" : res.error(), max, null);
     }
 
-    private StepResult aiStep(WorkflowDefinition.Step step, JsonNode input) {
+    private StepResult aiStep(UUID userId, WorkflowDefinition.Step step, JsonNode input) {
+        // stops safely BEFORE spending: the step fails with the reason, earlier results stay, "resume" works after the reset
+        if (monthlySpend(userId).compareTo(monthlyBudgetUsd) >= 0) throw new StepFailed(budgetMessage(userId), 1, null);
         try {
             AiProvider.Result r = ai.complete(input.path("prompt").asText(), input.path("model").asText());
             ObjectNode out = json.createObjectNode().put("text", r.text()).put("model", r.model());

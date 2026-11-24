@@ -1,4 +1,5 @@
 import { askNotificationPermissionOnce } from "../platform";
+import { FlowGraph } from "../components/FlowGraph";
 import { Comments, Rating } from "../components/Comments";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -168,6 +169,7 @@ function Editor({ wf, onSaved, onError }: { wf: Workflow; onSaved: (w: Workflow,
       </fieldset>
 
       <h2>Adımlar</h2>
+      <FlowGraph def={def} />
       <p className="hint-line">Bir adım yalnız önceki adımların çıktısını kullanabilir: {placeholders.join(" · ")} (alan için {"{{steps.adim.output.alan}}"}).</p>
       <ol className="card-list">
         {def.steps.map((s, i) => (
@@ -181,6 +183,10 @@ function Editor({ wf, onSaved, onError }: { wf: Workflow; onSaved: (w: Workflow,
               </div>
             </div>
             <TextField label="Adım kimliği" value={s.id} onChange={(e) => setStep(i, { ...s, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") })} />
+            {i > 0 && (s.type === "tool" || s.type === "ai") && (def.steps[i - 1].type === "tool" || def.steps[i - 1].type === "ai") && (
+              <label className="choice"><input type="checkbox" checked={Boolean(s.parallel)} onChange={(e) => setStep(i, { ...s, parallel: e.target.checked || undefined })} />
+                <span>Önceki adımla aynı anda (paralel) çalışsın. Paralel adımlar birbirinin çıktısını kullanamaz; sonraki bir adım hepsini birleştirebilir.</span></label>
+            )}
             {s.type === "ai" && <TextArea label="İstem" rows={3} value={s.prompt ?? ""} onChange={(e) => setStep(i, { ...s, prompt: e.target.value })}
               hint="Sahte model (ücretsiz): cevap ve maliyet benzetimdir. “[fail]” yazarsan adım bilerek hata verir." />}
             {s.type === "tool" && (
@@ -261,6 +267,7 @@ function RunPanel({ wf, onStarted, onError }: { wf: Workflow; onStarted: (id: st
   };
   return (
     <form className="card stack" onSubmit={run} aria-labelledby="run-title">
+      <AiBudget />
       <h2 id="run-title">Çalıştır</h2>
       <p className="hint-line">Kaydedilmiş son sürüm (s{wf.versionNo}) çalışır.</p>
       {wf.definition.inputs.map((i) => (
@@ -339,6 +346,46 @@ function RunDetail({ runId, onChanged, onError }: { runId: string; onChanged: ()
 
 // ---------------------------------------------------------------------------- triggers
 
+function EventTrigger({ wf, onChanged, onError }: { wf: Workflow; onChanged: (w: Workflow, m: string) => void; onError: (m: string) => void }) {
+  const [events, setEvents] = useState<Record<string, string>>({});
+  const [value, setValue] = useState(wf.eventTrigger ?? "");
+  useEffect(() => { api.get<Record<string, string>>("/api/workflow-event-triggers").then(setEvents).catch(() => {}); }, []);
+  return (
+    <form className="stack" onSubmit={async (e) => {
+      e.preventDefault();
+      try { const w = await api.put<Workflow>(`/api/workflows/${wf.id}/event-trigger`, { event: value || null }); onChanged(w, w.eventTrigger ? "Olay tetikleyicisi kaydedildi." : "Olay tetikleyicisi kapatıldı."); }
+      catch (err) { onError(errorMessage(err)); }
+    }}>
+      <h3 className="h-sub">Platform olayı</h3>
+      <SelectField label="Şu olduğunda çalıştır" value={value} onChange={(e) => setValue(e.target.value)}
+        hint="Yalnız kendi öğrenme olayların. Akışa şu girdiler verilir (girdi adı aynıysa): eventType, objectType, objectId, occurredAt.">
+        <option value="">Kapalı</option>
+        {Object.entries(events).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </SelectField>
+      <div><button className="btn" type="submit">Olay tetikleyicisini kaydet</button></div>
+    </form>
+  );
+}
+
+function AiBudget() {
+  const [b, setB] = useState<{ limitUsd: number; spentUsd: number; exhausted: boolean; resetsOn: string; simulated: boolean } | null>(null);
+  useEffect(() => { api.get<typeof b>("/api/me/ai-budget").then(setB).catch(() => {}); }, []);
+  if (!b) return null;
+  const pct = Math.min(100, Math.round((Number(b.spentUsd) / Math.max(Number(b.limitUsd), 0.000001)) * 100));
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <p className="hint-line" style={{ margin: 0 }}>
+        Bu ay yapay zekâ harcaman: {Number(b.spentUsd).toLocaleString("tr-TR", { maximumFractionDigits: 6 })} / {Number(b.limitUsd).toLocaleString("tr-TR")} USD
+        {b.simulated ? " (sahte model: benzetim)" : ""}. Yenilenme: {fmt.date(b.resetsOn)}.
+      </p>
+      <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Aylık yapay zekâ bütçesi kullanımı">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      {b.exhausted && <Alert kind="warning"><p>Bu ayki bütçen doldu: yapay zekâ adımı olan akışlar {fmt.date(b.resetsOn)} tarihine kadar başlamaz; çalışan akış yapay zekâ adımında güvenle durur.</p></Alert>}
+    </div>
+  );
+}
+
 function Triggers({ wf, onChanged, onError }: { wf: Workflow; onChanged: (w: Workflow, m: string) => void; onError: (m: string) => void }) {
   const [cron, setCron] = useState(wf.cron ?? "");
   const [cronInput, setCronInput] = useState<Record<string, string>>(wf.cronInput ?? {});
@@ -361,6 +408,7 @@ function Triggers({ wf, onChanged, onError }: { wf: Workflow; onChanged: (w: Wor
         {wf.nextRunAt && <p className="hint-line">Sıradaki çalıştırma: {fmt.dateTime(wf.nextRunAt)}</p>}
         <div><button className="btn" type="submit">Zamanlamayı kaydet</button></div>
       </form>
+      <EventTrigger wf={wf} onChanged={onChanged} onError={onError} />
       <div className="stack">
         <h3 className="h-sub">Webhook</h3>
         <p className="muted">{wf.hasWebhook ? "Webhook açık." : "Webhook kapalı."} Gövdedeki JSON akışın girdisi olur. Aynı <code>Idempotency-Key</code> başlığıyla (yoksa aynı gövdeyle) gelen tekrar, ikinci bir çalıştırma başlatmaz.</p>

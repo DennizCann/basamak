@@ -24,6 +24,39 @@ public class WorkflowTriggers {
     private final WorkflowEngine engine;
     private final TransactionTemplate tx;
 
+    /**
+     * Platform-event trigger: after the member's learning event is committed, start their workflows subscribed to it.
+     * Idempotent per (event, workflow): a replayed or synced-again event never starts a second run.
+     */
+    @org.springframework.transaction.event.TransactionalEventListener(fallbackExecution = true)
+    public void onActivity(com.basamak.gamification.GamificationService.ActivityRecorded e) {
+        if (!WorkflowService.EVENT_TRIGGERS.containsKey(e.action())) return;
+        jdbc.query("""
+                SELECT id FROM workflow WHERE owner_id = ? AND event_trigger = ? AND deleted_at IS NULL""", rs -> {
+            UUID id = rs.getObject("id", UUID.class);
+            var input = json.createObjectNode().put("eventType", e.action()).put("objectType", e.objectType())
+                    .put("objectId", e.objectId()).put("occurredAt", String.valueOf(e.occurredAt()));
+            try {
+                tx.executeWithoutResult(s -> engine.start(e.userId(), id, filterInputs(id, input), "EVENT", "event:" + e.eventKey() + ":" + id));
+            } catch (Exception ex) {
+                log.warn("event run of workflow {} not started: {}", id, ex.getMessage());
+            }
+        }, e.userId(), e.action());
+    }
+
+    /** Only the event fields the workflow declares as inputs are passed (unknown inputs are rejected by validation). */
+    private com.fasterxml.jackson.databind.JsonNode filterInputs(UUID workflowId, com.fasterxml.jackson.databind.node.ObjectNode all) {
+        String def = jdbc.queryForObject("SELECT definition::text FROM workflow WHERE id = ?", String.class, workflowId);
+        var out = json.createObjectNode();
+        try {
+            for (var in : json.readTree(def).path("inputs")) {
+                String n = in.path("name").asText();
+                if (all.has(n)) out.set(n, all.get(n));
+            }
+        } catch (Exception ignored) { /* invalid definition: engine reports it */ }
+        return out;
+    }
+
     @Scheduled(fixedDelayString = "${basamak.workflows.cron-poll-ms:15000}", initialDelay = 5000)
     public void fireDue() {
         tx.executeWithoutResult(s -> jdbc.query("""

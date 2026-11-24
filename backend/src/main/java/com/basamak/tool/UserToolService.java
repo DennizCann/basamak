@@ -59,7 +59,12 @@ public class UserToolService {
         }
         jdbc.update("INSERT INTO user_tool_version(tool_id, version_no, definition) VALUES (?, 1, CAST(? AS jsonb))", id, definition.toString());
         saveSecrets(owner, id, def, secretValues);
-        gamification.record(ActivityEvent.web(owner, "tool-created:" + id, "TOOL_CREATED", "TOOL", id.toString(), 1));
+        // Anti-farming: a tool without input fields, or a copy of another member's definition, is saved but earns no
+        // creation points (the event is still in "Geçmişim"; recorded under an action no point rule matches).
+        boolean trivial = def.inputs().isEmpty();
+        boolean copied = Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS(SELECT 1 FROM user_tool WHERE def_hash = ? AND owner_id <> ? AND deleted_at IS NULL)", Boolean.class, hash(definition), owner));
+        gamification.record(ActivityEvent.web(owner, "tool-created:" + id, trivial || copied ? "TOOL_CREATED_NO_POINTS" : "TOOL_CREATED", "TOOL", id.toString(), 1));
         return get(owner, id);
     }
 

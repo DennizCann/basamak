@@ -31,18 +31,23 @@ class NotificationIT extends IntegrationTest {
         JsonNode list;
         do {
             list = getJson("/api/me/notifications", m);
-            if (list.get("unread").asInt() > 0) break;
+            if (list.get("items").findValuesAsText("type").contains("WORKFLOW_RUN")) break;
             Thread.sleep(100);
         } while (System.nanoTime() < end);
-        assertThat(list.get("unread").asInt()).isEqualTo(1);
-        JsonNode n = list.get("items").get(0);
+        // (creating the first workflow also earns a badge notification; only the run notification is checked here)
+        JsonNode n = null;
+        int runNotices = 0;
+        for (JsonNode x : list.get("items")) if (x.get("type").asText().equals("WORKFLOW_RUN")) { n = x; runNotices++; }
+        assertThat(runNotices).isEqualTo(1);
         assertThat(n.get("title").asText()).isEqualTo("İş akışı tamamlandı");
         assertThat(n.get("link").asText()).isEqualTo("/workflows/" + wf + "?run=" + run);
 
         // same event again (e.g. a retried job) -> no second notification
         UUID userId = UUID.fromString(getJson("/api/me", m).get("id").asText());
         notifications.notify(userId, "WORKFLOW_RUN", "tekrar", "", null, "workflow-run:" + run + ":0");
-        assertThat(getJson("/api/me/notifications", m).get("items").size()).isEqualTo(1);
+        int after = 0;
+        for (JsonNode x : getJson("/api/me/notifications", m).get("items")) if (x.get("type").asText().equals("WORKFLOW_RUN")) after++;
+        assertThat(after).isEqualTo(1);
 
         postJson("/api/me/notifications/read-all", null, m);
         assertThat(getJson("/api/me/notifications", m).get("unread").asInt()).isZero();

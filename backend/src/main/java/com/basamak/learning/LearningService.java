@@ -44,6 +44,9 @@ public class LearningService {
     private final JourneyProgressService journeys;
     private final ObjectMapper json;
     private final com.basamak.notification.NotificationService notifications;
+    /** Anti-farming: a lesson cannot be completed within this many seconds of opening it (web; see TASARIM §5). */
+    @org.springframework.beans.factory.annotation.Value("${basamak.learning.min-lesson-seconds:5}")
+    private int minLessonSeconds;
 
     record Enrollment(UUID id, UUID trainingId, int versionNo, String status, String currentKey) {}
 
@@ -157,6 +160,16 @@ public class LearningService {
             if (watched < minSeconds) {
                 throw new ApiException(HttpStatus.CONFLICT, "video_not_watched",
                         "Dersi tamamlamak için videonun en az " + minSeconds + " saniyesini izlemelisiniz (izlenen: " + watched + " sn).");
+            }
+        }
+        if (minSeconds == 0 && minLessonSeconds > 0 && "web".equals(source) && !isDone(e, key)) {
+            java.sql.Timestamp first = jdbc.queryForObject("""
+                    SELECT min(received_at) FROM activity_event WHERE user_id = ? AND type = 'LESSON_VIEWED' AND object_id = ?""",
+                    java.sql.Timestamp.class, userId, trainingId + ":" + key);
+            long open = first == null ? 0 : java.time.Duration.between(first.toInstant(), java.time.Instant.now()).toSeconds();
+            if (open < minLessonSeconds) {
+                throw new ApiException(HttpStatus.CONFLICT, "too_fast",
+                        "Dersi tamamlamadan önce okumaya biraz zaman ayır (en az " + minLessonSeconds + " saniye). Birkaç saniye sonra tekrar dene.");
             }
         }
         markDone(e, key);
@@ -456,6 +469,11 @@ public class LearningService {
 
     private Set<String> completedKeys(UUID enrollmentId) {
         return new HashSet<>(jdbc.queryForList("SELECT item_key FROM item_progress WHERE enrollment_id = ? AND completed_at IS NOT NULL", String.class, enrollmentId));
+    }
+
+    private boolean isDone(Enrollment e, String key) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM item_progress WHERE enrollment_id = ? AND item_key = ? AND completed_at IS NOT NULL)",
+                Boolean.class, e.id(), key));
     }
 
     private void markDone(Enrollment e, String key) {

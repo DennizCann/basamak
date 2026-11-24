@@ -28,6 +28,9 @@ import java.util.regex.Pattern;
  *   "output": "{{steps.summary.output}}" }
  * </pre>
  * Mapping: a value that is exactly one placeholder keeps its JSON type; otherwise placeholders are inserted as text.
+ * A step can combine several earlier outputs (e.g. "{{steps.a.output.text}} / {{steps.b.output.text}}").
+ * <p>Parallel: a tool or AI step with {@code "parallel": true} runs at the same time as the step before it (and the
+ * other parallel steps right after that one). Steps of one parallel group may not read each other's outputs.
  */
 public record WorkflowDefinition(List<ToolDefinition.Input> inputs, List<Step> steps, String output) {
 
@@ -67,8 +70,24 @@ public record WorkflowDefinition(List<ToolDefinition.Input> inputs, List<Step> s
             position.put(id, steps.size());
             steps.add(new Step(id, type, s));
         }
+        // parallel groups: a "parallel" step joins the group of the step before it; refs must point before the group
+        Map<String, Integer> groupStart = new HashMap<>();
+        for (int i = 0; i < steps.size(); i++) {
+            Step s = steps.get(i);
+            boolean par = s.raw().path("parallel").asBoolean(false);
+            if (par) {
+                if (i == 0) throw bad("'" + s.id() + "' ilk adım olduğu için paralel olamaz; paralel adım önceki adımla birlikte çalışır.");
+                Step prev = steps.get(i - 1);
+                if (!Set.of("tool", "ai").contains(s.type()) || !Set.of("tool", "ai").contains(prev.type())) {
+                    throw bad("'" + s.id() + "': yalnız araç ve yapay zekâ adımları birlikte (paralel) çalışabilir.");
+                }
+                groupStart.put(s.id(), groupStart.getOrDefault(prev.id(), i - 1));
+            } else {
+                groupStart.put(s.id(), i);
+            }
+        }
         for (Step s : steps) {
-            int pos = position.get(s.id());
+            int pos = groupStart.get(s.id());
             List<String> texts = new ArrayList<>();
             collectText(s.raw(), texts);
             for (String t : texts) checkRefs(t, s.id(), pos, position, inputNames);
@@ -120,6 +139,34 @@ public record WorkflowDefinition(List<ToolDefinition.Input> inputs, List<Step> s
         if (text.replaceAll(REF.pattern(), "").contains("{{")) {
             throw bad("'" + stepId + "' içinde geçersiz şablon. {{input.ad}} ya da {{steps.adim.output.alan}} kullanın.");
         }
+    }
+
+    /** Steps grouped for execution: each group runs together (size 1 = sequential step). */
+    public List<List<Step>> groups() {
+        List<List<Step>> out = new ArrayList<>();
+        for (Step s : steps) {
+            if (s.raw().path("parallel").asBoolean(false) && !out.isEmpty()) out.get(out.size() - 1).add(s);
+            else out.add(new ArrayList<>(List.of(s)));
+        }
+        return out;
+    }
+
+    /**
+     * Static type of a value that is exactly one placeholder, or null when unknown: workflow inputs have declared types,
+     * an AI step's output.text is text, a condition's output.result is true/false. Tool and sub-flow outputs are unknown.
+     */
+    static String sourceType(WorkflowDefinition def, String value) {
+        Matcher m = REF.matcher(value);
+        if (!m.matches()) return value.contains("{{") ? "string" : null;
+        if (m.group(1).equals("input")) {
+            return def.inputs().stream().filter(i -> i.name().equals(m.group(2))).map(ToolDefinition.Input::type).findFirst().orElse(null);
+        }
+        Step src = def.steps().stream().filter(x -> x.id().equals(m.group(2))).findFirst().orElse(null);
+        String rest = m.group(3) == null ? "" : m.group(3);
+        if (src == null) return null;
+        if (src.type().equals("ai") && rest.equals(".output.text")) return "string";
+        if (src.type().equals("condition") && rest.equals(".output.result")) return "boolean";
+        return null;
     }
 
     public Set<UUID> subflowIds() {

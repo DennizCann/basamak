@@ -42,6 +42,9 @@ public class GamificationService {
     /** Published after points change; the leaderboard stream tells open screens to refresh. */
     public record PointsChanged(UUID userId, int points) {}
 
+    /** Published for every newly stored activity event (never for a duplicate); listeners run after commit. */
+    public record ActivityRecorded(UUID userId, String action, String objectType, String objectId, String eventKey, java.time.Instant occurredAt) {}
+
     public record Award(boolean eventRecorded, int points, PointRule rule) {
         static final Award DUPLICATE = new Award(false, 0, null);
     }
@@ -55,6 +58,7 @@ public class GamificationService {
                 Timestamp.from(e.occurredAt()), e.source(), toJson(e.payload()));
         if (stored == 0) return Award.DUPLICATE;
         badges.onEvent(e.userId(), e.action());
+        events.publishEvent(new ActivityRecorded(e.userId(), e.action(), e.objectType(), e.objectId(), e.eventKey(), e.occurredAt()));
 
         Optional<PointRule> rule = findRule(e.action(), e.objectType());
         if (rule.isEmpty() || rule.get().points() == 0) return new Award(true, 0, rule.orElse(null));

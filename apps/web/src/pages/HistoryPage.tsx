@@ -11,7 +11,8 @@ const LABEL: Record<string, string> = {
   QUIZ_PASSED: "Quiz'i geçtin", QUIZ_FAILED: "Quiz'i geçemedin", QUIZ_SUBMITTED: "Quiz'i gönderdin", SURVEY_SUBMITTED: "Anketi doldurdun",
   JOURNEY_COMPLETED: "Journey'i tamamladın", CERTIFICATE_ISSUED: "Sertifika aldın",
   TOOL_CREATED: "Araç oluşturdun", TOOL_RUN_SUCCEEDED: "Aracı çalıştırdın", WORKFLOW_CREATED: "İş akışı oluşturdun", WORKFLOW_RUN_SUCCEEDED: "İş akışını çalıştırdın",
-  ITEM_SHARED: "Paylaştın", SHARED_ITEM_FORKED: "Paylaştığın akış çatallandı", SHARED_ITEM_USED: "Paylaştığın akış kullanıldı",
+  ITEM_SHARED: "Paylaştın", SHARED_ITEM_FORKED: "Paylaştığın akış çatallandı", SHARED_ITEM_FORKED_NO_POINTS: "Paylaştığın akış çatallandı (karşılıklı çatallama: puansız)",
+  TOOL_CREATED_NO_POINTS: "Araç oluşturdun (girdisiz ya da kopya araç: puansız)", SHARED_ITEM_USED: "Paylaştığın akış kullanıldı",
 };
 const CATEGORIES: [string, string][] = [["", "Hepsi"], ["learning", "Öğrenme"], ["tools", "Araçlar"], ["workflows", "İş akışları"], ["community", "Topluluk"]];
 const SOURCE: Record<string, string> = { web: "web", mobile: "mobil", system: "sistem" };

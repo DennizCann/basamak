@@ -12,6 +12,7 @@ import java.math.RoundingMode;
  * Prompts containing "[fail]" fail on purpose, which is how the "resume from the failed step" flow is demonstrated.
  */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name = "basamak.ai-provider", havingValue = "mock", matchIfMissing = true)
 public class MockAiProvider implements AiProvider {
     private static final BigDecimal IN = new BigDecimal("0.00000015");
     private static final BigDecimal OUT = new BigDecimal("0.00000060");

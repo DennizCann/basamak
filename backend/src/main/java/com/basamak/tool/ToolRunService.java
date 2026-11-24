@@ -34,6 +34,7 @@ public class ToolRunService implements JobHandler {
     private static final int MAX_ACTIVE_PER_USER = 5;
 
     private final JdbcTemplate jdbc;
+    private final org.springframework.transaction.support.TransactionTemplate tx;
     private final ObjectMapper json;
     private final JobQueue queue;
     private final RunEvents events;
@@ -175,8 +176,11 @@ public class ToolRunService implements JobHandler {
 
     private void rewardAndComplete(UUID userId, UUID runId, Resolved r, Map<String, Object> run) {
         try {
-            gamification.record(ActivityEvent.web(userId, "tool-run:" + runId, "TOOL_RUN_SUCCEEDED", "TOOL", r.toolId().toString(), r.versionNo()));
-            if (run.get("trainingId") != null) learning.completeToolItem(userId, (UUID) run.get("trainingId"), (String) run.get("itemKey"));
+            // one transaction: points, item progress and training completion become visible together
+            tx.executeWithoutResult(s -> {
+                gamification.record(ActivityEvent.web(userId, "tool-run:" + runId, "TOOL_RUN_SUCCEEDED", "TOOL", r.toolId().toString(), r.versionNo()));
+                if (run.get("trainingId") != null) learning.completeToolItem(userId, (UUID) run.get("trainingId"), (String) run.get("itemKey"));
+            });
         } catch (Exception e) {
             log.warn("post-run bookkeeping failed for run {}", runId, e); // the run itself succeeded; do not fail it
         }

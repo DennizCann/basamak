@@ -51,6 +51,10 @@ basamak:
   encryption-key: ${ENCRYPTION_KEY}
   cert-secret: ${CERT_SECRET}
   ai-provider: ${AI_PROVIDER:mock}
+  ai:
+    monthly-budget-usd: ${AI_MONTHLY_BUDGET_USD:1.00}
+    ollama-url: ${OLLAMA_URL:http://localhost:11434}
+    ollama-model: ${OLLAMA_MODEL:llama3.2}
   # uploaded lesson media (outside the repo; gitignored data/)
   media-dir: ${MEDIA_DIR:data/media}
   tools:

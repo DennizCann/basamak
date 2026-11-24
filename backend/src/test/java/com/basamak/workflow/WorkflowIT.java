@@ -30,6 +30,7 @@ class WorkflowIT extends IntegrationTest {
     @Autowired UrlGuard guard;
     @Autowired JdbcTemplate jdbc;
     @Autowired WorkflowTriggers triggers;
+    @Autowired WorkflowEngine engine;
 
     static String weatherTool, flakyTool; // published CMS tools (shared by the tests)
 
@@ -246,6 +247,82 @@ class WorkflowIT extends IntegrationTest {
             mvc.perform(post("/api/cms/versions/" + created.at("/latest/id").asText() + "/" + step).header("Authorization", bearer(admin))).andExpect(status().isOk());
         }
         return created.get("id").asText();
+    }
+
+    @Test
+    void parallelGroup_runsTogether_andALaterStepMergesBothOutputs() throws Exception {
+        String m = newMember("wfpar");
+        Map<String, Object> d = def(List.of(), List.of(
+                Map.of("id", "a", "type", "tool", "tool", Map.of("scope", "CONTENT", "id", weatherTool), "input", Map.of("city", "Rize")),
+                Map.of("id", "b", "type", "tool", "parallel", true, "tool", Map.of("scope", "CONTENT", "id", weatherTool), "input", Map.of("city", "Antalya")),
+                Map.of("id", "c", "type", "ai", "parallel", true, "prompt", "Bağımsız özet"),
+                Map.of("id", "merge", "type", "ai", "prompt", "{{steps.a.output.temperatureC}} ve {{steps.b.output.temperatureC}}")), "{{steps.merge.output.text}}");
+        JsonNode run = runAndWait(m, create(m, "Paralel", d), Map.of());
+        assertThat(run.get("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(byStep(run).get("merge").at("/input/prompt").asText()).isEqualTo("12 ve 31");
+
+        // a step of a parallel group cannot read its sibling's output
+        Map<String, Object> bad = def(List.of(), List.of(
+                Map.of("id", "a", "type", "ai", "prompt", "x"),
+                Map.of("id", "b", "type", "ai", "parallel", true, "prompt", "{{steps.a.output.text}}")), "");
+        mvc.perform(jsonPost("/api/workflows", Map.of("name", "Hatalı", "definition", bad)).header("Authorization", bearer(m))).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void missingRequiredToolMapping_isRejectedOnSave() throws Exception {
+        String m = newMember("wfmap");
+        Map<String, Object> d = def(List.of(), List.of(Map.of("id", "w", "type", "tool", "tool", Map.of("scope", "CONTENT", "id", weatherTool), "input", Map.of())), "");
+        MvcResult r = mvc.perform(jsonPost("/api/workflows", Map.of("name", "Eşlemesiz", "definition", d)).header("Authorization", bearer(m))).andReturn();
+        assertThat(r.getResponse().getStatus()).isEqualTo(400);
+        assertThat(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("eşlenmemiş");
+    }
+
+    @Test
+    void platformEventTrigger_startsTheWorkflowOnce_whenTheMemberCompletesALesson() throws Exception {
+        String m = newMember("wfevent");
+        String wf = create(m, "Ders bitince", def(List.of(Map.of("name", "objectId", "label", "Nesne", "type", "string", "required", true)),
+                List.of(Map.of("id", "note", "type", "ai", "prompt", "Tebrik: {{input.objectId}}")), ""));
+        mvc.perform(jsonPut("/api/workflows/" + wf + "/event-trigger", Map.of("event", "WORKFLOW_RUN_SUCCEEDED")).header("Authorization", bearer(m)))
+                .andExpect(status().isBadRequest()); // only learning events: no self-triggering loops
+        mvc.perform(jsonPut("/api/workflows/" + wf + "/event-trigger", Map.of("event", "LESSON_COMPLETED")).header("Authorization", bearer(m)))
+                .andExpect(status().isOk());
+        String intro = null;
+        for (JsonNode t : getJson("/api/me/journeys", m).get(0).get("trainings")) if (t.get("title").asText().equals("Basamak'a Giriş")) intro = t.get("id").asText();
+        postJson("/api/trainings/" + intro + "/enroll", null, m);
+        postJson("/api/trainings/" + intro + "/items/hos-geldin/complete", null, m);
+        postJson("/api/trainings/" + intro + "/items/hos-geldin/complete", null, m); // duplicate event: no second run
+        long end = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+        List<Map<String, Object>> runs;
+        do {
+            runs = jdbc.queryForList("SELECT status, trigger, input::text AS input FROM workflow_run WHERE workflow_id = ?::uuid", wf);
+            if (!runs.isEmpty() && "SUCCEEDED".equals(runs.get(0).get("status"))) break;
+            Thread.sleep(100);
+        } while (System.nanoTime() < end);
+        assertThat(runs).hasSize(1);
+        assertThat(runs.get(0).get("trigger")).isEqualTo("EVENT");
+        assertThat((String) runs.get(0).get("input")).contains(intro + ":hos-geldin");
+    }
+
+    @Test
+    void monthlyAiBudget_refusesNewRuns_andStopsARunningOneSafely() throws Exception {
+        String m = newMember("wfbudget");
+        String wf = create(m, "Bütçe", def(List.of(), List.of(
+                Map.of("id", "w", "type", "tool", "tool", Map.of("scope", "CONTENT", "id", weatherTool), "input", Map.of("city", "Rize")),
+                Map.of("id", "ai", "type", "ai", "prompt", "Özet {{steps.w.output.city}}")), ""));
+        java.math.BigDecimal original = (java.math.BigDecimal) org.springframework.test.util.ReflectionTestUtils.getField(engine, "monthlyBudgetUsd");
+        try {
+            JsonNode first = runAndWait(m, wf, Map.of());
+            assertThat(first.get("status").asText()).isEqualTo("SUCCEEDED");
+            // budget now equals what was spent -> exhausted
+            org.springframework.test.util.ReflectionTestUtils.setField(engine, "monthlyBudgetUsd", engine.monthlySpend(
+                    UUID.fromString(getJson("/api/me", m).get("id").asText())));
+            assertThat(getJson("/api/me/ai-budget", m).get("exhausted").asBoolean()).isTrue();
+            MvcResult r = mvc.perform(jsonPost("/api/workflows/" + wf + "/runs", Map.of("input", Map.of())).header("Authorization", bearer(m))).andReturn();
+            assertThat(r.getResponse().getStatus()).isEqualTo(402);
+            assertThat(r.getResponse().getContentAsString(StandardCharsets.UTF_8)).contains("bütçen doldu");
+        } finally {
+            org.springframework.test.util.ReflectionTestUtils.setField(engine, "monthlyBudgetUsd", original);
+        }
     }
 
     private static Map<String, Object> def(List<?> inputs, List<?> steps, String output) {

@@ -8,13 +8,13 @@ export type Step = {
   tool?: { scope: "CONTENT" | "USER"; id: string; versionNo?: number }; input?: Record<string, string>;
   prompt?: string; model?: string;
   left?: string; op?: string; right?: string; then?: string[]; else?: string[];
-  workflowId?: string;
+  workflowId?: string; parallel?: boolean;
 };
 export type Definition = { inputs: ToolInput[]; steps: Step[]; output: string };
 export type Workflow = {
   id: string; ownerId: string; ownerName: string; name: string; description: string; definition: Definition; versionNo: number;
   visibility: "PRIVATE" | "PUBLIC"; forkedFrom: string | null; forkCount: number; hasWebhook: boolean; cron: string | null;
-  cronInput: Json; nextRunAt: string | null; updatedAt: string;
+  cronInput: Json; nextRunAt: string | null; updatedAt: string; eventTrigger: string | null;
 };
 export type StepRun = {
   id: number; stepId: string; type: string; status: string; input: Json; output: Json; error: string | null; attempts: number;

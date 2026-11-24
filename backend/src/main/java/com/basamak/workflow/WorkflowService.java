@@ -38,7 +38,18 @@ public class WorkflowService {
 
     public record Wf(UUID id, UUID ownerId, String ownerName, String name, String description, JsonNode definition, int versionNo,
                      String visibility, UUID forkedFrom, int forkCount, boolean hasWebhook, String cron, JsonNode cronInput,
-                     java.time.Instant nextRunAt, java.time.Instant updatedAt) {}
+                     java.time.Instant nextRunAt, java.time.Instant updatedAt, String eventTrigger) {}
+
+    /** Learning events a workflow can be triggered by (never workflow/tool events: no self-triggering loops). */
+    public static final Map<String, String> EVENT_TRIGGERS = new LinkedHashMap<>();
+    static {
+        EVENT_TRIGGERS.put("TRAINING_COMPLETED", "Bir eğitimi tamamladığımda");
+        EVENT_TRIGGERS.put("JOURNEY_COMPLETED", "Bir Journey'i tamamladığımda (seviye atlayınca)");
+        EVENT_TRIGGERS.put("QUIZ_PASSED", "Bir quiz'i geçtiğimde");
+        EVENT_TRIGGERS.put("LESSON_COMPLETED", "Bir dersi tamamladığımda");
+    }
+    /** Inputs the platform fills for an event-triggered run. */
+    public static final Set<String> EVENT_INPUTS = Set.of("eventType", "objectType", "objectId", "occurredAt");
 
     // ------------------------------------------------------------------ read
 
@@ -146,7 +157,13 @@ public class WorkflowService {
                 id, user, cut(src.name() + " (çatal)", 120), src.description(), src.definition().toString(), src.id());
         jdbc.update("INSERT INTO workflow_version(workflow_id, version_no, definition) VALUES (?, 1, CAST(? AS jsonb))", id, src.definition().toString());
         jdbc.update("UPDATE workflow SET fork_count = fork_count + 1 WHERE id = ?", src.id());
-        gamification.record(ActivityEvent.web(src.ownerId(), "forked:" + id, "SHARED_ITEM_FORKED", "WORKFLOW", id.toString(), src.versionNo()));
+        // Anti-farming: the author earns fork points once per (forker, workflow), and not at all when the two members
+        // fork each other's workflows (a mutual pair within 30 days looks like two accounts boosting each other).
+        boolean mutual = Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM workflow f JOIN workflow o ON o.id = f.forked_from
+                              WHERE f.owner_id = ? AND o.owner_id = ? AND f.created_at > now() - interval '30 days')""", Boolean.class, src.ownerId(), user));
+        gamification.record(ActivityEvent.web(src.ownerId(), "forked:" + src.id() + ":by:" + user, mutual ? "SHARED_ITEM_FORKED_NO_POINTS" : "SHARED_ITEM_FORKED",
+                "WORKFLOW", src.id().toString(), src.versionNo()));
         notifications.notify(src.ownerId(), "FORKED", "Akışın çatallandı", src.name() + " bir üye tarafından çatallandı; puan kazandın.", "/workflows/" + src.id(), "forked:" + id);
         return get(id);
     }
@@ -200,6 +217,47 @@ public class WorkflowService {
         return get(id);
     }
 
+    /** Platform-event trigger; null turns it off. Required inputs must be ones the platform can fill. */
+    @Transactional
+    public Wf setEventTrigger(UUID owner, UUID id, String event) {
+        Wf w = owned(owner, id);
+        if (event == null || event.isBlank()) {
+            jdbc.update("UPDATE workflow SET event_trigger = NULL WHERE id = ?", id);
+            return get(id);
+        }
+        if (!EVENT_TRIGGERS.containsKey(event)) throw ApiException.badRequest("invalid_event", "Bu olay tetikleyici olarak kullanılamaz.");
+        for (var in : WorkflowDefinition.parse(w.definition()).inputs()) {
+            if (in.required() && !EVENT_INPUTS.contains(in.name())) {
+                throw ApiException.badRequest("event_inputs", "Olayla başlayan akışın zorunlu girdisi '" + in.name()
+                        + "' doldurulamaz. Olay şu girdileri verir: eventType, objectType, objectId, occurredAt. Girdiyi isteğe bağlı yapın ya da bu adlardan birini kullanın.");
+            }
+        }
+        jdbc.update("UPDATE workflow SET event_trigger = ? WHERE id = ?", event, id);
+        return get(id);
+    }
+
+    /** Type mismatch / missing mapping for a tool step (checked on save with the pinned tool definition). */
+    static void checkToolMapping(WorkflowDefinition def, WorkflowDefinition.Step s, com.basamak.tool.ToolDefinition tool) {
+        JsonNode in = s.raw().path("input");
+        for (var ti : tool.inputs()) {
+            JsonNode v = in.path(ti.name());
+            boolean mapped = !v.isMissingNode() && !v.isNull() && !(v.isTextual() && v.asText().isBlank());
+            if (ti.required() && !mapped) {
+                throw WorkflowDefinition.bad("'" + s.id() + "' adımında aracın zorunlu girdisi '" + ti.label() + "' eşlenmemiş.");
+            }
+            if (!mapped || !v.isTextual()) continue;
+            String source = WorkflowDefinition.sourceType(def, v.asText().trim());
+            if (source != null && !source.equals(ti.type()) && !"string".equals(ti.type())) {
+                throw WorkflowDefinition.bad("'" + s.id() + "' adımında tür uyuşmazlığı: '" + ti.label() + "' " + typeTr(ti.type())
+                        + " bekliyor ama eşlenen değer " + typeTr(source) + ".");
+            }
+        }
+    }
+
+    private static String typeTr(String t) {
+        return switch (t) { case "number" -> "sayı"; case "boolean" -> "doğru/yanlış"; default -> "metin"; };
+    }
+
     public static ZonedDateTime nextCron(String cron) {
         return CronExpression.parse("0 " + cron).next(ZonedDateTime.now(GamificationService.ISTANBUL));
     }
@@ -235,11 +293,14 @@ public class WorkflowService {
                 int v = t.path("versionNo").asInt(0);
                 if (v == 0) v = published.get(toolId, com.basamak.content.ContentType.TOOL)
                         .orElseThrow(() -> WorkflowDefinition.bad("'" + s.path("id").asText() + "' adımındaki platform aracı yayında değil.")).versionNo();
-                tools.contentTool(toolId, v); // must be a published (pinned) version
+                var resolved = tools.contentTool(toolId, v); // must be a published (pinned) version
                 t.put("versionNo", v);
+                checkToolMapping(def, def.steps().get(i), resolved.def());
             } else {
                 if (isPublic) throw ApiException.badRequest("private_tools", "Paylaşılan bir akışa kendi aracınız eklenemez.");
-                t.put("versionNo", tools.currentUserToolVersion(owner, toolId)); // pin the current version of my tool
+                int uv = tools.currentUserToolVersion(owner, toolId); // pin the current version of my tool
+                t.put("versionNo", uv);
+                checkToolMapping(def, def.steps().get(i), tools.ownedUserToolVersion(owner, toolId, uv).def());
             }
         }
         for (UUID sub : def.subflowIds()) {
@@ -295,7 +356,7 @@ public class WorkflowService {
                 rs.getString("description"), read(rs.getString("definition")), rs.getInt("version_no"), rs.getString("visibility"),
                 rs.getObject("forked_from", UUID.class), rs.getInt("fork_count"), rs.getString("webhook_token_hash") != null,
                 rs.getString("cron"), cronInput == null ? null : read(cronInput), next == null ? null : next.toInstant(),
-                rs.getTimestamp("updated_at").toInstant());
+                rs.getTimestamp("updated_at").toInstant(), rs.getString("event_trigger"));
     }
 
     private JsonNode read(String s) {

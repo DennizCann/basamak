@@ -42,10 +42,10 @@ public class PrivacyService {
     // ------------------------------------------------------------------ history
 
     public static final Map<String, String> CATEGORY_SQL = Map.of(
-            "learning", "e.type NOT LIKE 'TOOL%' AND e.type NOT LIKE 'WORKFLOW%' AND e.type NOT IN ('ITEM_SHARED','SHARED_ITEM_FORKED','SHARED_ITEM_USED')",
+            "learning", "e.type NOT LIKE 'TOOL%' AND e.type NOT LIKE 'WORKFLOW%' AND e.type NOT IN ('ITEM_SHARED','SHARED_ITEM_FORKED','SHARED_ITEM_FORKED_NO_POINTS','SHARED_ITEM_USED')",
             "tools", "e.type LIKE 'TOOL%'",
             "workflows", "e.type LIKE 'WORKFLOW%'",
-            "community", "e.type IN ('ITEM_SHARED','SHARED_ITEM_FORKED','SHARED_ITEM_USED')");
+            "community", "e.type IN ('ITEM_SHARED','SHARED_ITEM_FORKED','SHARED_ITEM_FORKED_NO_POINTS','SHARED_ITEM_USED')");
 
     public Map<String, Object> history(UUID userId, String category, LocalDate from, LocalDate to, int page, int size) {
         int s = Math.min(Math.max(size, 1), 50), p = Math.max(page, 0);
