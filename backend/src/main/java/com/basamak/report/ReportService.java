@@ -23,6 +23,10 @@ import java.util.*;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ReportService {
+    /** A started, unfinished enrollment with no activity for this long counts as "dropped" (TASARIM §7.7). */
+    public static final int DROP_DAYS = 14;
+    /** Anonymous surveys: distributions with fewer answers than this are hidden (no re-identification). */
+    public static final int MIN_ANONYMOUS_ANSWERS = 5;
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
     private final PublishedContent published;
@@ -35,6 +39,12 @@ public class ReportService {
                            avg(extract(epoch FROM completed_at - started_at)) FILTER (WHERE status = 'COMPLETED') AS avg_seconds
                       FROM enrollment WHERE training_id = ?""", t.itemId());
             int enrolled = (Integer) r.get("enrolled"), completed = (Integer) r.get("completed");
+            Integer dropped = jdbc.queryForObject("SELECT count(*)::int FROM enrollment WHERE training_id = ? AND status = 'IN_PROGRESS' AND updated_at < now() - make_interval(days => ?)",
+                    Integer.class, t.itemId(), DROP_DAYS);
+            List<Map<String, Object>> stuck = jdbc.queryForList("""
+                    SELECT current_item_key AS key, count(*)::int AS n FROM enrollment
+                     WHERE training_id = ? AND status = 'IN_PROGRESS' AND updated_at < now() - make_interval(days => ?) AND current_item_key IS NOT NULL
+                     GROUP BY current_item_key ORDER BY n DESC LIMIT 1""", t.itemId(), DROP_DAYS);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("trainingId", t.itemId());
             m.put("title", t.title());
@@ -43,10 +53,68 @@ public class ReportService {
             m.put("completed", completed);
             m.put("completionRate", rate(completed, enrolled));
             m.put("avgCompletionMinutes", r.get("avg_seconds") == null ? null : Math.round(((Number) r.get("avg_seconds")).doubleValue() / 60.0));
+            m.put("dropped", dropped == null ? 0 : dropped);
+            if (!stuck.isEmpty()) {
+                String key = (String) stuck.get(0).get("key");
+                String title = key;
+                for (JsonNode it : t.body().path("items")) if (key.equals(it.path("key").asText())) title = it.path("title").asText();
+                m.put("mostDroppedItem", Map.of("key", key, "title", title, "members", stuck.get(0).get("n")));
+            } else m.put("mostDroppedItem", null);
+            // version comparison: the same numbers per training version (members finish the version they started)
+            m.put("versions", jdbc.queryForList("""
+                    SELECT training_version_no AS "versionNo", count(*)::int AS enrolled, count(*) FILTER (WHERE status = 'COMPLETED')::int AS completed,
+                           round(100.0 * count(*) FILTER (WHERE status = 'COMPLETED') / nullif(count(*), 0), 1) AS "completionRate"
+                      FROM enrollment WHERE training_id = ? GROUP BY training_version_no ORDER BY training_version_no""", t.itemId()));
             out.add(m);
         }
-        out.sort(Comparator.comparing(m -> (String) m.get("title")));
+        out.sort(Comparator.comparing(m -> (String) m.get("title"), TR));
         return out;
+    }
+
+    static final java.text.Collator TR = java.text.Collator.getInstance(Locale.forLanguageTag("tr-TR"));
+
+    /** Per journey: members who started any of its trainings, finished it (certificate), and dropped (inactive). */
+    public List<Map<String, Object>> journeys() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (var j : published.list(ContentType.JOURNEY)) {
+            List<UUID> ids = new ArrayList<>();
+            j.body().path("trainingIds").forEach(x -> { try { ids.add(UUID.fromString(x.asText())); } catch (IllegalArgumentException ignored) { } });
+            Map<String, Object> r = jdbc.queryForMap("""
+                    WITH started AS (SELECT user_id, max(updated_at) AS last FROM enrollment WHERE training_id = ANY(CAST(? AS uuid[])) GROUP BY user_id),
+                         done AS (SELECT DISTINCT user_id FROM certificate WHERE journey_id = ?)
+                    SELECT (SELECT count(*) FROM started)::int AS started, (SELECT count(*) FROM done)::int AS completed,
+                           (SELECT count(*) FROM started s WHERE s.user_id NOT IN (SELECT user_id FROM done) AND s.last < now() - make_interval(days => ?))::int AS dropped""",
+                    "{" + String.join(",", ids.stream().map(UUID::toString).toList()) + "}", j.itemId(), DROP_DAYS);
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("journeyId", j.itemId());
+            m.put("title", j.title());
+            m.put("trainings", ids.size());
+            m.put("started", r.get("started"));
+            m.put("completed", r.get("completed"));
+            m.put("dropped", r.get("dropped"));
+            m.put("completionRate", rate((Integer) r.get("completed"), (Integer) r.get("started")));
+            out.add(m);
+        }
+        return out;
+    }
+
+    /** Tool and workflow usage (all members): runs, error rate, average duration, AI cost. */
+    public Map<String, Object> usage() {
+        List<Map<String, Object>> tools = jdbc.queryForList("""
+                SELECT tool_name AS name, scope, count(*)::int AS runs,
+                       count(*) FILTER (WHERE status IN ('FAILED','TIMED_OUT'))::int AS errors,
+                       round(100.0 * count(*) FILTER (WHERE status IN ('FAILED','TIMED_OUT')) / nullif(count(*) FILTER (WHERE status NOT IN ('QUEUED','RUNNING','RETRYING','CANCELLED')), 0), 1) AS "errorRate",
+                       round(avg(duration_ms))::bigint AS "avgMs"
+                  FROM tool_run GROUP BY tool_name, scope ORDER BY runs DESC LIMIT 100""");
+        List<Map<String, Object>> workflows = jdbc.queryForList("""
+                SELECT w.name, w.visibility, count(r.*)::int AS runs,
+                       count(*) FILTER (WHERE r.status = 'FAILED')::int AS errors,
+                       round(100.0 * count(*) FILTER (WHERE r.status = 'FAILED') / nullif(count(*) FILTER (WHERE r.status IN ('SUCCEEDED','FAILED')), 0), 1) AS "errorRate",
+                       round(avg(extract(epoch FROM r.finished_at - r.started_at) * 1000))::bigint AS "avgMs",
+                       coalesce(sum(r.total_cost), 0) AS "aiCostUsd", coalesce(sum(r.total_tokens), 0)::bigint AS tokens
+                  FROM workflow_run r JOIN workflow w ON w.id = r.workflow_id
+                 WHERE r.parent_run_id IS NULL GROUP BY w.id, w.name, w.visibility ORDER BY runs DESC LIMIT 100""");
+        return Map.of("tools", tools, "workflows", workflows);
     }
 
     /** Per quiz: attempts, pass rate, average score; per question: how often it was answered correctly. */
@@ -55,7 +123,8 @@ public class ReportService {
         Map<String, Map<String, Object>> quizzes = new LinkedHashMap<>();
         Map<String, JsonNode> versionBodies = new HashMap<>();
         jdbc.query("""
-                SELECT training_version_no, item_key, answers::text AS answers, questions::text AS questions, score, max_score, passed
+                SELECT training_version_no, item_key, answers::text AS answers, questions::text AS questions, score, max_score, passed,
+                       extract(epoch FROM submitted_at - started_at) AS secs
                   FROM quiz_attempt WHERE training_id = ? AND submitted_at IS NOT NULL ORDER BY item_key""", rs -> {
             int v = rs.getInt("training_version_no");
             String key = rs.getString("item_key");
@@ -70,7 +139,9 @@ public class ReportService {
             q.put("scoreSum", (Double) q.get("scoreSum") + (max == 0 ? 0 : 100.0 * rs.getInt("score") / max));
             JsonNode answers = read(rs.getString("answers"));
             @SuppressWarnings("unchecked") Map<String, Map<String, Object>> questions = (Map<String, Map<String, Object>>) q.get("questionStats");
-            for (JsonNode asked : read(rs.getString("questions"))) {
+            JsonNode askedList = read(rs.getString("questions"));
+            double perQuestion = askedList.size() == 0 ? 0 : rs.getDouble("secs") / askedList.size();
+            for (JsonNode asked : askedList) {
                 String qid = asked.path("id").asText(asked.asText());
                 JsonNode def = null;
                 if (quiz != null) for (JsonNode d : quiz.path("questions")) if (qid.equals(d.path("id").asText())) def = d;
@@ -78,6 +149,7 @@ public class ReportService {
                 Map<String, Object> st = questions.computeIfAbsent(qid, x -> new LinkedHashMap<>(Map.of("questionId", x, "asked", 0, "correct", 0, "text", "")));
                 st.put("text", def.path("text").asText());
                 st.put("asked", (Integer) st.get("asked") + 1);
+                st.merge("secondsSum", perQuestion, (x, y) -> (Double) x + (Double) y);
                 Set<String> correct = new TreeSet<>(), given = new TreeSet<>();
                 def.path("options").forEach(o -> { if (o.path("correct").asBoolean()) correct.add(o.path("id").asText()); });
                 JsonNode a = answers.path(qid);
@@ -93,7 +165,12 @@ public class ReportService {
             q.put("avgScore", attempts == 0 ? null : BigDecimal.valueOf((Double) q.remove("scoreSum") / attempts).setScale(1, RoundingMode.HALF_UP));
             q.remove("scoreSum");
             List<Map<String, Object>> qs = new ArrayList<>(questions.values());
-            qs.forEach(st -> st.put("correctRate", rate((Integer) st.get("correct"), (Integer) st.get("asked"))));
+            qs.forEach(st -> {
+                st.put("correctRate", rate((Integer) st.get("correct"), (Integer) st.get("asked")));
+                // time per question is not recorded separately: attempt duration / questions in that attempt (approximation)
+                Object sum = st.remove("secondsSum");
+                st.put("avgSeconds", sum == null ? null : Math.round((Double) sum / (Integer) st.get("asked")));
+            });
             q.put("questions", qs);
             out.add(q);
         }
@@ -129,7 +206,11 @@ public class ReportService {
                     if (a.isArray()) a.forEach(x -> counts.merge(x.asText(), 1, Integer::sum)); else counts.merge(a.asText(), 1, Integer::sum);
                 }
                 st.put("answered", answered);
-                if (!type.equals("open")) {
+                boolean anonymous = item.path("anonymous").asBoolean(false);
+                if (anonymous && answered < MIN_ANONYMOUS_ANSWERS) {
+                    st.put("hidden", true); // too few answers: a distribution could reveal who answered what
+                    st.put("hiddenReason", "Anonim ankette " + MIN_ANONYMOUS_ANSWERS + "'ten az cevap var; dağılım kimliği ele vermemek için gizlendi.");
+                } else if (!type.equals("open")) {
                     List<Map<String, Object>> dist = new ArrayList<>();
                     for (var e : counts.entrySet()) {
                         String label = e.getKey();

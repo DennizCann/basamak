@@ -93,6 +93,7 @@ class PrivacyReportIT extends IntegrationTest {
 
     // ------------------------------------------------------------------ scenario 13
 
+
     @Test
     void scenario13_reportsAndCsv() throws Exception {
         String admin = cmsToken("admin@basamak.local");
@@ -137,13 +138,49 @@ class PrivacyReportIT extends IntegrationTest {
 
     /** lesson + 2-question quiz + survey (scale + open) */
     private String training(String admin, String title) throws Exception {
+        return training(admin, title, false, false);
+    }
+
+    @Test
+    void section312_dropoutVersionsJourneysUsageAndAnonymityThreshold() throws Exception {
+        String admin = cmsToken("admin@basamak.local");
+        String training = training(admin, "Anonim rapor", true, true);
+        for (int i = 0; i < 3; i++) {
+            String m = newMember("anon" + i);
+            postJson("/api/trainings/" + training + "/enroll", null, m);
+            postJson("/api/trainings/" + training + "/items/anket/survey", Map.of("answers", Map.of("puan", 4, "fikir", "iyi")), m);
+        }
+        // one member stopped 20 days ago on the lesson -> dropped, and that lesson is the most dropped item
+        jdbc.update("UPDATE enrollment SET updated_at = now() - interval '20 days', current_item_key = 'ders' WHERE training_id = ?::uuid AND user_id = "
+                + "(SELECT user_id FROM enrollment WHERE training_id = ?::uuid ORDER BY started_at LIMIT 1)", training, training);
+        JsonNode row = training(admin, training, true);
+        assertThat(row.get("dropped").asInt()).isEqualTo(1);
+        assertThat(row.at("/mostDroppedItem/title").asText()).isEqualTo("Ders bir");
+        assertThat(row.get("versions").get(0).get("enrolled").asInt()).isEqualTo(3);
+
+        // anonymous survey with 3 (< 5) answers: distribution hidden, open answers too
+        JsonNode q = getJson("/api/cms/reports/trainings/" + training, admin).get("surveys").get(0).get("questions").get(0);
+        assertThat(q.get("hidden").asBoolean()).isTrue();
+        assertThat(q.has("distribution")).isFalse();
+
+        JsonNode journeys = getJson("/api/cms/reports/journeys", admin);
+        assertThat(journeys.findValuesAsText("title")).contains("Beginner");
+        JsonNode usage = getJson("/api/cms/reports/usage", admin);
+        assertThat(usage.has("tools")).isTrue();
+        assertThat(usage.has("workflows")).isTrue();
+        for (String csv : List.of("journeys.csv", "usage.csv", "versions.csv")) {
+            mvc.perform(get("/api/cms/reports/" + csv).header("Authorization", bearer(admin))).andExpect(status().isOk());
+        }
+    }
+
+    private String training(String admin, String title, boolean anonymousSurvey, boolean unused) throws Exception {
         Map<String, Object> quiz = new LinkedHashMap<>();
         quiz.put("key", "sinav"); quiz.put("type", "quiz"); quiz.put("title", "Sınav"); quiz.put("passingScore", 50); quiz.put("attemptsAllowed", 3);
         quiz.put("questionsPerAttempt", 2); quiz.put("showCorrectAnswers", false);
         quiz.put("questions", List.of(
                 Map.of("id", "q1", "type", "single", "text", "Bir", "points", 1, "options", List.of(Map.of("id", "a", "text", "A", "correct", true), Map.of("id", "b", "text", "B"))),
                 Map.of("id", "q2", "type", "single", "text", "İki", "points", 1, "options", List.of(Map.of("id", "a", "text", "A", "correct", true), Map.of("id", "b", "text", "B")))));
-        Map<String, Object> survey = Map.of("key", "anket", "type", "survey", "title", "Anket", "anonymous", false, "questions", List.of(
+        Map<String, Object> survey = Map.of("key", "anket", "type", "survey", "title", "Anket", "anonymous", anonymousSurvey, "questions", List.of(
                 Map.of("id", "puan", "type", "scale", "text", "Puanın?"), Map.of("id", "fikir", "type", "open", "text", "Fikrin?"),
                 Map.of("id", "bos", "type", "single", "text", "Kimse cevaplamadı", "options", List.of(Map.of("id", "x", "text", "X"), Map.of("id", "y", "text", "Y")))));
         Map<String, Object> body = Map.of("summary", "Rapor", "items", List.of(
