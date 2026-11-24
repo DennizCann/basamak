@@ -50,7 +50,7 @@ Gereksinimler: Java 21, Node 20+, PostgreSQL 16+ (yerelde çalışıyor olmalı)
 `docker-compose.yml` dosyası Postgres ve Mailpit'i ayağa kaldırır (backend, web ve sahte API yerelde çalışır). **Durum: test edilmedi.** Geliştirme makinesinde Docker kurulu değil. Doğrulanmış yol, yukarıdaki Docker'sız kurulumdur.
 
 ## Testler
-Backend birim ve entegrasyon testleri (`basamak_test` DB'sini kullanır; Mailpit çalışıyor olmalı):
+Backend birim ve entegrasyon testleri (`basamak_test` DB'sini kullanır; Mailpit çalışıyor olmalı). Kurulumdaki 1. ve 2. adımlar gerekir: `.env` olmadan testler veritabanına bağlanamaz (`password authentication failed`). Testler bittiğinde satır kapsamı %80'in altındaysa derleme kırılır (JaCoCo).
 ```powershell
 cd backend; .\mvnw.cmd verify
 ```
