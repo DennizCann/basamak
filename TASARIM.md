@@ -531,7 +531,7 @@ Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibid
 - **Üst uygulama çubuğu:** Sekme sayfalarında marka; iç sayfalarda **← geri oku** ve bölüm adı. Sağda bildirim zili (okunmamış sayısıyla).
 - **Sistem geri hareketi / düğmesi:** Bir önceki ekrana döner; ilk ekranda uygulamayı kapatır (doğrulandı, 3 düğmeli gezinmede).
 - **Durum ve gezinme çubukları:** Uygulamanın yüzey rengini alır; açık temada koyu simgeler, koyu temada açık simgeler. Sistem temasını izler; uygulama içinden "Açık / Koyu" seçilirse ona uyar (`SystemBarsPlugin`, Android 15 tam ekran düzeniyle: Capacitor `adjustMarginsForEdgeToEdge: "force"`).
-- **Açılış ekranı ve simge:** Marka rengi (#3B30C9) üzerinde Basamak işareti; Android 12+ SplashScreen API. Oturum kontrolü bitince kapanır (en geç 3 sn). Uyarlanabilir simge vektördür; Android 13 temalı simge (monochrome) desteklenir.
+- **Açılış ekranı ve simge:** Marka rengi (#4030CB) üzerinde Basamak işareti; Android 12+ SplashScreen API. Oturum kontrolü bitince kapanır (en geç 3 sn). Uyarlanabilir simge vektördür; Android 13 temalı simge (monochrome) desteklenir.
 - **Dokunma geri bildirimi:** Ders tamamlama ve quiz geçmede "başarılı" titreşimi, araç çalıştırmada hafif titreşim (`@capacitor/haptics`).
 - Ekran görüntüleri: `docs/mobile/android-home-bottom-nav.png`, `android-training-back-arrow.png`, `android-profile-dark.png`, `android-splash.png`.
 

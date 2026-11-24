@@ -82,7 +82,7 @@ test("320px layout, dark theme and keyboard navigation on the login page", async
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  expect(bg).toBe("rgb(15, 17, 23)"); // --color-bg (dark)
+  expect(bg).toBe("rgb(21, 21, 37)"); // --color-bg (dark, #151525)
 
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "İçeriğe geç" })).toBeFocused();

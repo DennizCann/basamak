@@ -57,13 +57,13 @@ Geliştiricinin Figma'da hazırladığı pano: [`docs/tasarim/basamak-tasarim-pa
   - **CMS:** İçerik ve onay, Araç tanımı ve deneme.
   - **Durum kartları:** Boş, yükleniyor, hata, çevrimdışı.
 - **Uygulamayla uyum:** Ekran düzeni ve bileşenler uygulamayla aynıdır: alt gezinme (Öğren / Keşfet / Üret / Topluluk / Profil), ders sayfası (Önceki / Sonraki içerik), akış kurucu sekmeleri ve şeması, CMS yayın durumu ve deneme konsolu.
-- **Renk farkları:** Panodaki renkler token'lara yakındır ama birebir aynı değildir. Kodda geçerli olan `tokens.json` değerleridir.
+- **Renkler panoya uyduruldu (24.11):** Panodaki 6 renk `tokens.json`a işlendi; açık temada üzerine binen tonlar da (ana eylemin üzerine gelme rengi, metin rengi ve odak rengi) aynı yöne kaydırıldı. Panoda görünmeyen koyu tema tonları değişmedi; yalnız koyu zemin panoya uyduruldu. Android simgesi ve açılış ekranı ile favicon da yeni ana eylem rengini kullanır.
 
-| Renk | Panoda | `tokens.json` |
-|---|---|---|
-| Ana eylem | `#4030CB` | `#3B30C9` |
-| Açık zemin | `#F4F5FA` | `#F6F6F8` |
-| Koyu zemin | `#151525` | `#0F1117` |
-| Başarı | `#137048` | `#126B34` |
-| Uyarı | `#855500` | `#8A5300` |
-| Hata | `#9A334E` | `#B3261E` (en belirgin fark) |
+| Renk | Önceki `tokens.json` | Şimdi (panodaki) | Kontrast (WCAG AA ≥ 4,5) |
+|---|---|---|---|
+| Ana eylem | `#3B30C9` | `#4030CB` | Beyaz yazıyla 8,39 |
+| Açık zemin | `#F6F6F8` | `#F4F5FA` | Soluk metin 7,20 |
+| Koyu zemin | `#0F1117` | `#151525` | Metin 15,80, soluk metin 9,15 |
+| Başarı | `#126B34` | `#137048` | Zeminde 5,61 |
+| Uyarı | `#8A5300` | `#855500` | Zeminde 5,85 |
+| Hata | `#B3261E` | `#9A334E` | Zeminde 6,52 |

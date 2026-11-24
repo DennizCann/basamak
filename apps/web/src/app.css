@@ -213,7 +213,7 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .comment { overflow-wrap: anywhere; }
 .stars { border: 0; padding: 0; margin: 0; display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
 .stars legend { float: left; margin-right: var(--space-2); }
-.star { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 1.6rem; cursor: pointer; color: var(--color-warning, #8a5300); }
+.star { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; font-size: 1.6rem; cursor: pointer; color: var(--color-warning, #855500); }
 .star input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .star:focus-within { outline: 3px solid var(--color-focus); outline-offset: 2px; border-radius: 8px; }
 .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-2); list-style: none; padding: 0; margin: 0; }

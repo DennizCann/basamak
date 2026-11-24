@@ -13,12 +13,12 @@ const config: CapacitorConfig = {
   server: { androidScheme: "http" },
   // Android 15 edge-to-edge: the WebView gets margins for the system bars; the bars show the window color behind
   // them (SystemBarsPlugin keeps it equal to the app bar, light or dark) instead of opting out of edge-to-edge
-  android: { backgroundColor: "#0f1117", adjustMarginsForEdgeToEdge: "force" },
-  ios: { backgroundColor: "#0f1117" },
+  android: { backgroundColor: "#151525", adjustMarginsForEdgeToEdge: "force" },
+  ios: { backgroundColor: "#151525" },
   plugins: {
     // brand splash (Android 12+ SplashScreen API); the app hides it as soon as the session check is done,
     // at most after 3 s so a failed start never leaves the user on the splash
-    SplashScreen: { launchShowDuration: 3000, launchAutoHide: true, backgroundColor: "#3B30C9", showSpinner: false },
+    SplashScreen: { launchShowDuration: 3000, launchAutoHide: true, backgroundColor: "#4030CB", showSpinner: false },
   },
 };
 
