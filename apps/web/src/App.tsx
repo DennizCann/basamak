@@ -16,6 +16,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
 import { VerifyCertificatePage } from "./pages/VerifyCertificatePage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { CatalogPage } from "./pages/CatalogPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { CommunityPage } from "./pages/CommunityPage";
 import { NotificationsProvider } from "./notifications";
@@ -36,6 +37,7 @@ export function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/ui" element={<CatalogPage />} />
             <Route path="/verify/:serial" element={<VerifyCertificatePage />} />
             <Route path="/" element={<RequireAuth><HomePage /></RequireAuth>} />
             <Route path="/certificates" element={<RequireAuth><CertificatesPage /></RequireAuth>} />
