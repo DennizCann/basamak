@@ -9,7 +9,7 @@
 
 | Ölçüm | Hedef (PDF) | Sonuç | Durum |
 |---|---|---|---|
-| Lighthouse mobil: ana sayfa, eğitim oynatıcı, Geçmişim | Perf ≥ 80, A11y ≥ 95, BP ≥ 95 | — | **ölçülmedi** (aşağıya bakın) |
+| Lighthouse mobil: ana sayfa, eğitim oynatıcı, Geçmişim | Perf ≥ 80, A11y ≥ 95, BP ≥ 95 | **100 / 100 / 100** (üç sayfada da) | karşılandı |
 | axe-core: 21 ekran (üye, oturumsuz, CMS düzenleyici dahil), açık ve koyu tema | 0 kritik, 0 ciddi | **0 kritik, 0 ciddi, 0 diğer** | karşılandı |
 | 320 px genişlik: yatay kaydırma | yok | **16 ekranda yok** | karşılandı |
 | Klavye: Tab ile gezinmede odak görünür mü | her zaman | **25 Tab adımının hepsinde görünür** | karşılandı |
@@ -69,10 +69,23 @@
 - **Kalite kapısı:** `pom.xml` dosyasına JaCoCo `check` eklendi. Toplam satır kapsamı %80'in altına düşerse `mvnw verify` ve dolayısıyla CI kırılır.
 - **Not:** Dal kapsamı (%64) satır kapsamından düşüktür. En zayıf alanlar hata ve yeniden deneme dalları (tool, workflow, media) ile iki paket: jobs (%76,8) ve notification (%73,4).
 
-## 5. Lighthouse (ölçülmedi)
-Lighthouse CLI bu makinede kurulu değil. `npx lighthouse` npm'den paket indirir ve bu projede her indirme önce onay gerektirir. Bu yüzden ölçüm henüz yapılmadı. Onay verilirse planlanan komut şudur: mobil profil, eğitim oynatıcı ve Geçmişim için oturum çerezi verilerek, ana sayfa, eğitim oynatıcı ve Geçmişim üzerinde, `vite build` ile üretilmiş derlemede (`vite preview`).
+## 5. Lighthouse (`loadtest/lighthouse.mjs`)
+- **Araç:** Lighthouse 13.6.0 (`npx lighthouse@13.6.0`, onayla indirildi), Playwright Chromium 1148, headless. Profil: varsayılan **mobil** (Moto G Power öykünmesi, yavaş 4G ve 4 kat CPU yavaşlatma).
+- **Ortam:** Üretim derlemesi kullanıldı (`npm run build -w apps/web`, `vite preview --port 5183`). `/api` ayrı e2e backend'ine (:8081) gider.
+- **Oturum:** Her sayfa için yeni bir üye oturumu açılır. Yenileme çerezi `--extra-headers` ile verilir, rapordan silinir ve hiçbir yere yazılmaz. Betik, sayfa giriş ekranına yönlenirse ölçümü geçersiz sayıp durur.
+- **İlk geçerli koşu:** Puanlar 100 / 100 / 96 çıktı. Lighthouse iki sorun buldu ve ikisi düzeltildi:
+  - **Eksik favicon (404):** Web ve CMS'e `favicon.svg` eklendi.
+  - **Görünen metin ile erişilebilir ad uyumsuzluğu:** Dar ekranda "Sertifikalar" görünürken bağlantının adı "Sertifikalarım" idi. Bağlantı artık her genişlikte "Sertifikalar".
+- **Son koşu sonuçları:**
 
-Dolaylı kanıtlar:
-- **Erişilebilirlik:** axe ile 0 ihlal; Lighthouse'un a11y puanı da axe kurallarını kullanır.
-- **Yük:** Web derlemesi tek JS paketidir; boyutu `npm run build` çıktısında görülür.
-- **Not:** Bunlar Lighthouse puanının **yerine geçmez**.
+| Sayfa | Performans | Erişilebilirlik | En iyi uygulamalar | FCP | LCP | TBT | CLS |
+|---|---|---|---|---|---|---|---|
+| Ana sayfa (Öğrenimim) | **100** | **100** | **100** | 0,8 s | 1,8 s | 0 ms | 0 |
+| Eğitim oynatıcı | **100** | **100** | **100** | 0,8 s | 1,8 s | 0 ms | 0 |
+| Geçmişim | **100** | **100** | **100** | 0,8 s | 1,8 s | 0 ms | 0 |
+
+- **Ham raporlar:** `loadtest/results/lighthouse-*.json`; özet `lighthouse-summary.json`.
+- **Sınırlar:**
+  - Sunucu yerel makinedeydi, ağ gecikmesini yalnız Lighthouse'un öykünmesi ekledi.
+  - SEO ve PWA kategorileri ölçülmedi (PDF istemiyor).
+  - Betiğin bir koşusu ayrıntı vermeden yarıda kaldı; tekrar çalıştırınca sorunsuz tamamlandı. Yukarıdaki sonuçlar bu tam koşudandır.

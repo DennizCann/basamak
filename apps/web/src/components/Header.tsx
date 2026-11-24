@@ -32,7 +32,7 @@ export function Header() {
               {/* trainings belong to "Öğrenimim", so it stays the active section inside a training */}
               <Link to="/" aria-current={pathname === "/" || pathname.startsWith("/trainings/") ? "page" : undefined}>Öğrenimim</Link>
               <NavLink to="/explore">Keşfet</NavLink>
-              <NavLink to="/certificates" aria-label="Sertifikalarım"><span className="nav-long">Sertifikalarım</span><span className="nav-short" aria-hidden="true">Sertifikalar</span></NavLink>
+              <NavLink to="/certificates">Sertifikalar</NavLink>
               {/* wide screens only; on narrow screens the same links live in the account menu (compact header) */}
               <NavLink className="nav-extra" to="/tools">Araçlar</NavLink>
               <NavLink className="nav-extra" to="/workflows">Akışlar</NavLink>

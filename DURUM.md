@@ -21,7 +21,7 @@
 | F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 00.36, commit 8958c2f) |
 | F6 | Mobil özellikler (14) | **tamamlandı** (24.11 ~01.00): Android emülatöründe elle doğrulandı; iOS test edilmedi |
 | F6.5 | PDF madde denetimi ve eksik özellikler | **tamamlandı** (24.11 02.10–03.35): PDF Bölüm 3–6 madde madde kodla karşılaştırıldı; ~50 eksik ya da yarım madde kapatıldı (ayrıntı aşağıda) |
-| F7 | Kalite ve ölçümler (15) | **büyük ölçüde tamamlandı** (24.11 05.30–06.15): axe 21 ekran × 2 tema 0 ihlal, 320 px ve klavye testi, yük testi (p95 27 / 8,5 / 8,5 ms), soğuk açılış 1,11 s (emülatör), kapsam %87,3 ve %80 eşiği. **Lighthouse ölçülmedi** (indirme onayı bekleniyor). Ayrıntı: OLCUMLER.md |
+| F7 | Kalite ve ölçümler (15) | **tamamlandı** (24.11 05.30–06.45): axe 21 ekran × 2 tema 0 ihlal, 320 px ve klavye testi, yük testi (p95 27 / 8,5 / 8,5 ms), soğuk açılış 1,11 s (emülatör), kapsam %87,3 ve %80 eşiği. Lighthouse mobil ana sayfa, oynatıcı ve Geçmişim: 100/100/100 (favicon ve bağlantı adı düzeltildi). Ayrıntı: OLCUMLER.md |
 | F8 | Teslim belgeleri | başlanmadı |
 
 ## Senaryolar (yalnız gerçek test sonucuyla güncellenir)
