@@ -46,16 +46,16 @@ export function LoginPage() {
   }
 
   return (
-    <main className="container" style={{ maxWidth: "30rem" }}>
-      <h1>CMS girişi</h1>
-      <div className="card stack">
+    <main className="container" style={{ maxWidth: "30rem", marginTop: "var(--space-6)" }}>
+      <div className="card stack auth-card">
+        <h1>CMS girişi</h1>
         {error && <Alert kind="error"><p>{error}</p></Alert>}
         {!step ? (
           <form onSubmit={passwordStep} className="stack">
             <p className="muted">Yalnız içerik ekibi (yazar, editör, yayıncı, yönetici) giriş yapabilir.</p>
             <TextField label="E-posta" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
             <TextField label="Şifre" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button className="btn btn-primary" disabled={busy}>Devam</button>
+            <button className="btn btn-primary btn-block" disabled={busy}>{busy ? "Kontrol ediliyor…" : "Devam"}</button>
           </form>
         ) : (
           <form onSubmit={totpStep} className="stack">
@@ -63,7 +63,7 @@ export function LoginPage() {
               <div className="stack">
                 <h2 style={{ margin: 0, fontSize: "var(--font-size-lg)" }}>İki aşamalı doğrulamayı kur (bir kerelik)</h2>
                 <ol className="stack" style={{ paddingLeft: "1.25rem", margin: 0 }}>
-                  <li>Telefonuna ücretsiz bir doğrulayıcı uygulama kur: <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong> ya da <strong>Aegis</strong>.</li>
+                  <li>Ücretsiz bir doğrulayıcı uygulama kur: telefonda <strong>Google Authenticator</strong> ya da <strong>Microsoft Authenticator</strong> (iPhone ve Android), bilgisayarda Chrome/Edge için <strong>Authenticator</strong> eklentisi. Aynı uygulama başka hesapların kodlarını da tutar.</li>
                   <li>Uygulamada <strong>“+” → “QR kodu tara”</strong> seçeneğini aç ve bu kodu okut. Uygulamada <strong>“Basamak CMS”</strong> kaydı oluşur.
                     {qr && <div style={{ marginTop: "var(--space-3)", background: "#fff", padding: 8, borderRadius: 8, width: "fit-content" }}>
                       <img src={qr} alt="Doğrulayıcı uygulamada okutulacak QR kod" width={240} height={240} />
@@ -90,9 +90,14 @@ export function LoginPage() {
             <TextField label="6 haneli doğrulama kodu" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" maxLength={6}
                        required value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} autoFocus
                        hint="Kod reddedilirse uygulamada yenisinin çıkmasını bekleyip tekrar dene." />
-            <button className="btn btn-primary" disabled={busy || code.length !== 6}>Doğrula ve giriş yap</button>
-            {code.length !== 6 && <span className="hint">6 haneyi girince düğme etkinleşir.</span>}
-            <button type="button" className="btn btn-ghost btn-sm" style={{ justifySelf: "start" }} onClick={() => { setStep(null); setCode(""); }}>Geri dön</button>
+            <div>
+              <button className="btn btn-primary btn-block" disabled={busy || code.length !== 6} aria-describedby="code-why">{busy ? "Doğrulanıyor…" : "Doğrula ve giriş yap"}</button>
+              {code.length !== 6 && <span id="code-why" className="hint" style={{ marginTop: "var(--space-2)" }}>6 haneyi girince düğme etkinleşir.</span>}
+            </div>
+            <div className="auth-footer stack" style={{ gap: 0 }}>
+              {!step.setupRequired && <p style={{ margin: 0 }}>Doğrulayıcı uygulamana erişemiyor musun? Bir yöneticiden CMS'teki <strong>Ekip</strong> sayfasından sıfırlamasını iste.</p>}
+              <button type="button" className="link-btn" onClick={() => { setStep(null); setCode(""); }}>← Başka bir hesapla giriş yap</button>
+            </div>
           </form>
         )}
       </div>

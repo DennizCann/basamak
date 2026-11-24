@@ -160,3 +160,11 @@ label.btn:focus-within { outline: 3px solid var(--color-focus, currentColor); ou
 .modal-card { max-width: 420px; width: 100%; background: var(--color-surface); }
 .catalog-row { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
 .catalog-state { display: grid; gap: 4px; min-width: 0; }
+
+/* auth screens (web + CMS): title inside the card, full-width primary action, quiet secondary links */
+.auth-card > h1 { margin: 0; font-size: var(--font-size-2xl); }
+.btn-block { width: 100%; justify-content: center; }
+.auth-card .hint { display: block; font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.auth-aside { margin: var(--space-2) 0 0; text-align: right; font-size: var(--font-size-sm); }
+.auth-footer { margin-bottom: 0; padding-top: var(--space-4); border-top: 1px solid var(--color-border); text-align: center; font-size: var(--font-size-sm); }
+.link-btn { background: none; border: 0; padding: 0; color: var(--color-primary); text-decoration: underline; cursor: pointer; font: inherit; min-height: 44px; }

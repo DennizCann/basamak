@@ -91,6 +91,9 @@ Kod 10 dakika geçerlidir ve tek kullanımlıktır. 60 saniye sonra "Kodu yenide
 **CMS (içerik ekibi): şifre + TOTP doğrulayıcı uygulaması (ödev gereği zorunlu)**
 1. İlk girişte CMS adım adım bir kurulum ekranı gösterir. Telefona ücretsiz bir doğrulayıcı uygulama kurun (Google Authenticator, Microsoft Authenticator, Aegis…) ve ekrandaki QR kodu okutun. QR okutulamıyorsa "Anahtarı elle gir" bölümündeki anahtar kopyalanıp uygulamaya yazılabilir.
 2. Sonraki girişlerde uygulamanın gösterdiği "Basamak CMS" kodunu girin.
+3. Telefon yoksa bilgisayarda da olur: Chrome/Edge için ücretsiz "Authenticator" eklentisine kurulum ekranındaki anahtar elle girilir.
+4. Doğrulayıcıya erişimi kaybeden ekip üyesinin ayarını bir **yönetici** CMS'teki **Ekip** sayfasından sıfırlar; bir sonraki girişte kurulum ekranı yeniden açılır. Yönetici kendi ayarını sıfırlayamaz (başka bir yönetici gerekir). Yerel geliştirmede tek yönetici kilitlenirse: `UPDATE users SET totp_enabled = false, totp_secret_enc = NULL WHERE email = '...'`.
+5. Üyeler (web ve mobil) doğrulayıcı uygulama kullanmaz: yeni cihazdan girişte e-postaya kod gelir.
 
 ## API
 - OpenAPI arayüzü: http://localhost:8080/swagger-ui.html (JSON: `/v3/api-docs`).
