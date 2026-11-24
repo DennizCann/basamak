@@ -159,4 +159,4 @@ Hazırlık: backend, web, CMS, Mailpit, sahte API ve Android emülatörü açık
 - **iOS:** Yalnız simülatörde derlenip açıldı (giriş ekranı); giriş yapılmış tam tur ve gerçek iPhone denenmedi, oturum jetonu Keychain'de değil. **FCM push:** Yok, yalnız yerel bildirim var. **Gerçek Android cihaz:** Denenmedi, yalnız emülatör.
 - **Docker Compose:** Test edilmedi. **Maestro akışı:** Yazıldı, çalıştırılmadı. **Ollama yapay zekâ sağlayıcısı:** Yazıldı, denenmedi.
 - **Kodda olmayanlar (yalnız tasarımda):** Sessiz saatler, OpenTelemetry, sürükle bırak akış kurucusu, HLS video, arama ve çok dillilik (3.11), Content-Security-Policy başlığı, otomatik bağımlılık taraması. Ayrıntı: TASARIM §11.
-- **Figma:** Ekranlar geliştirici tarafından ayrıca hazırlanır; bağlantı teslim e-postasındadır.
+- **Figma:** Tasarım panosu `docs/tasarim/basamak-tasarim-panosu.png` dosyasında; ayrıntı ve token farkları `docs/tasarim-sistemi.md` içinde. Figma bağlantısı teslim e-postasındadır.

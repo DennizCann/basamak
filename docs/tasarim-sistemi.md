@@ -48,3 +48,22 @@ Her ekranda şu durumlar bulunur:
 ## Temel kullanıcı akışları
 1. **Üye:** kayıt → e-posta doğrulama → giriş → Journey haritası → eğitim → ders, quiz, anket → puan → Journey sonu → sertifika (PDF ve QR).
 2. **İçerik ekibi:** yazar taslak oluşturur ve kaydeder (her kayıt yeni sürüm) → incelemeye gönderir → editör onaylar ya da gerekçeyle geri gönderir → yayıncı yayınlar ya da zamanlar → geçmiş, fark ve geri alma.
+
+## Figma tasarım panosu
+Geliştiricinin Figma'da hazırladığı pano: [`docs/tasarim/basamak-tasarim-panosu.png`](tasarim/basamak-tasarim-panosu.png).
+- **Kapsam:** Masaüstü 1440 × 900 ve telefon 390 × 844, açık ve koyu tema.
+  - **Web:** Giriş, Öğrenimim ve Journey, Ders, İş akışı kurucu.
+  - **Telefon:** Giriş, Öğrenimim, Ders (çevrimdışı rozetiyle), Üret.
+  - **CMS:** İçerik ve onay, Araç tanımı ve deneme.
+  - **Durum kartları:** Boş, yükleniyor, hata, çevrimdışı.
+- **Uygulamayla uyum:** Ekran düzeni ve bileşenler uygulamayla aynıdır: alt gezinme (Öğren / Keşfet / Üret / Topluluk / Profil), ders sayfası (Önceki / Sonraki içerik), akış kurucu sekmeleri ve şeması, CMS yayın durumu ve deneme konsolu.
+- **Renk farkları:** Panodaki renkler token'lara yakındır ama birebir aynı değildir. Kodda geçerli olan `tokens.json` değerleridir.
+
+| Renk | Panoda | `tokens.json` |
+|---|---|---|
+| Ana eylem | `#4030CB` | `#3B30C9` |
+| Açık zemin | `#F4F5FA` | `#F6F6F8` |
+| Koyu zemin | `#151525` | `#0F1117` |
+| Başarı | `#137048` | `#126B34` |
+| Uyarı | `#855500` | `#8A5300` |
+| Hata | `#9A334E` | `#B3261E` (en belirgin fark) |
