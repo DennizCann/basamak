@@ -12,7 +12,7 @@ h3 { font-size: var(--font-size-lg); margin: 0; line-height: 1.35; }
 .text-link { color: var(--color-primary-text); font-weight: var(--font-weight-medium); }
 
 /* ---------- header ---------- */
-.topbar { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--color-border); }
+.topbar { position: sticky; top: 0; z-index: 20; padding-top: env(safe-area-inset-top); /* iOS: below the status bar and Dynamic Island (0 on web and Android) */ background: color-mix(in srgb, var(--color-bg) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--color-border); }
 /* one row normally; with very large text it wraps instead of forcing horizontal scrolling */
 .topbar-inner { max-width: 64rem; margin: 0 auto; min-height: var(--size-header); padding: var(--space-1) var(--space-4); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); }
 .mainnav { flex-wrap: wrap; min-width: 0; }
@@ -245,7 +245,7 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .step-editor { border-top: 1px solid var(--color-border); padding-top: var(--space-3); }
 
 /* ---- Android app chrome (mobile build only; Material Design 3 proportions) ---- */
-.m-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-2); min-height: 64px; padding: 0 var(--space-2);
+.m-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-2); min-height: calc(64px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) var(--space-2) 0; /* iOS status bar */
   background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
 .m-topbar-title { flex: 1; min-width: 0; font-size: 1.15rem; font-weight: var(--font-weight-semibold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-brand { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-primary); }
@@ -253,7 +253,7 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .m-topbar-spacer { width: 8px; }
 .m-icon-btn { position: relative; display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; border: 0; background: transparent; color: var(--color-text); }
 .m-icon-btn:active { background: var(--color-surface-2); }
-.m-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); height: 80px;
+.m-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr); height: calc(80px + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom); background: var(--color-surface); border-top: 1px solid var(--color-border); }
 .m-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; color: var(--color-text-muted); text-decoration: none; font-size: .75rem; font-weight: 500; }
 .m-tab-icon { display: grid; place-items: center; width: 64px; height: 32px; border-radius: 16px; transition: background .15s; }
