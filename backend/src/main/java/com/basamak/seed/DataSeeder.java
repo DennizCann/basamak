@@ -32,6 +32,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Component
+@org.springframework.core.annotation.Order(1) // before CommunitySeeder
 @RequiredArgsConstructor
 public class DataSeeder implements ApplicationRunner {
     public static final String DEMO_PASSWORD = "Basamak!2026";

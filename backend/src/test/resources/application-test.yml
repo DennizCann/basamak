@@ -8,6 +8,8 @@ basamak:
     auth-per-minute: 10000   # integration tests log in many times from one IP; the limiter has its own unit test
     runs-per-minute: 100000
   publish-scheduler-ms: 3600000
+  seed:
+    community: false   # tests start from a clean community; CommunitySeederIT runs the demo community seed on purpose
   learning:
     min-lesson-seconds: 0   # tests complete lessons instantly; the dwell rule has its own test (LessonDwellIT)
 logging:

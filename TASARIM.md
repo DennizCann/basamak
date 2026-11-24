@@ -379,7 +379,7 @@ sequenceDiagram
   - Geri alma için `revoked_at` alanı vardır.
 
 ## 6. API sözleşmesi
-OpenAPI 3.1 dosyası springdoc ile çalışan backend'den üretilir ve `docs/openapi.yaml` olarak depodadır (118 yol, 37 şema). Canlı arayüz: `/swagger-ui.html`.
+OpenAPI 3.1 dosyası springdoc ile çalışan backend'den üretilir ve `docs/openapi.yaml` olarak depodadır (119 yol). Canlı arayüz: `/swagger-ui.html`.
 - **Sözleşme kuralları:**
   - Bütün uçlar `/api` altındadır: üye `/api/**`, CMS `/api/cms/**` (ayrı audience ve TOTP), giriş `/api/auth/**` ve `/api/cms-auth/**`, dışarıdan çağrılan webhook `/api/hooks/**`.
   - Kimlik doğrulama `Authorization: Bearer <JWT>` ile yapılır. Web'de yenileme HttpOnly cookie ve `X-Requested-With: basamak` (CSRF) ile, mobilde gövdedeki yenileme jetonuyla yapılır.
@@ -484,6 +484,10 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Tartışma:** Eğitim başına ve paylaşılan iş akışı başına yorum ve tek seviye cevap. Cevap, yorum sahibine; akışa yazılan yorum akış sahibine bildirim olarak gider.
 - **Kişisel veri ve küfür (Sizin kararınız):** Kayıttan önce e-posta adresleri ve telefon numaraları "[gizlendi]" ile değiştirilir. Kısa bir küfür listesi yorumu nedenini söyleyerek reddeder (Türkçe küçük harf dönüşümüyle). Liste bilerek kısadır; prod'da bakımı yapılan bir sözlük ve bir sınıflandırıcı kullanılır. Üye başına 10 dakikada en çok 10 yorum (spam).
 - **Moderasyon:** Üye yorumu nedeniyle bildirir; CMS "Moderasyon" ekranında editör, yayıncı ya da yönetici gizler ya da kapatır. Gizlenen yorum "topluluk kuralları nedeniyle gizlendi" olarak görünür. Son 30 günde 3 yorumu gizlenen üye **7 gün** yorum yazamaz (otomatik); elle kısıtlama da vardır. Her işlem denetim kaydına yazılır.
+- **Boş topluluk sorunu ve takip önerileri:** Yeni bir kurulumda kimse bir şey paylaşmadığı için Topluluk sayfası çıkmaza dönüyordu: tıklanacak tek şey "Profilim" idi. İki çözüm uygulandı:
+  - **"Kimi takip edebilirsin?":** Akış sayfasında, profili açık ve henüz takip edilmeyen üyeler puana göre önerilir (`GET /api/community/people`). Yalnız üyenin göstermeyi seçtiği bilgiler (puan, paylaşım sayısı) görünür; gizli profiller hiç listelenmez.
+  - **Demo topluluk tohum verisi** (`CommunitySeeder`): 3 kurgusal üye, gerçek servisler üzerinden (doğrulama, olay kaydı, puan ve bildirimle) platform araçlarından iş akışı kurup paylaşır, birbirine puan verir ve yorum yazar. Demo üye ikisini takip eder.
+  - Paylaşılan üye aracı tohum verisine konmadı: üye araçları güvenlik gereği (SSRF) yerel sahte servise bağlanamıyor ve tohum verisi gerçek internete bağımlı olmamalı. Backend testlerinde demo topluluk kapalıdır (`basamak.seed.community=false`); `CommunitySeederIT` onu bilerek çalıştırır.
 - **Puan verme:** Paylaşılan iş akışına 1–5 yıldız; üye başına bir puan (değiştirilebilir), kendi akışına verilemez.
 - **Silinen hesabın topluluk izi (Sizin kararınız):** Profili ve takipleri silinir. Yorumların metni silinir, yer tutucu "Bu yorum silindi" olarak kalır, böylece cevap zincirleri bozulmaz. Puanları anonim toplamda kalır. Paylaştığı akış ve araçlar paylaşımdan kalkar; başkalarının çatalları bağımsız kopya olarak yaşar. Sıralamadan çıkar (`user_score` silinir).
 

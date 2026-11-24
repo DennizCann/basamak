@@ -127,6 +127,27 @@ public class CommunityService {
         jdbc.update("DELETE FROM follow WHERE follower_id = ? AND followee_id = ?", follower, followee);
     }
 
+    /**
+     * Who to follow: active members with a public profile whose owner the viewer does not follow yet, most points
+     * first (a short, useful list; it never reveals private profiles). Only the parts the member chose to show.
+     */
+    public List<Map<String, Object>> suggestions(UUID viewer, int limit) {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT u.id, u.display_name AS "displayName", ps.bio, ps.show_level AS "showLevel",
+                       coalesce(s.total, 0) AS score,
+                       (SELECT count(*) FROM workflow w WHERE w.owner_id = u.id AND w.visibility = 'PUBLIC' AND w.deleted_at IS NULL) AS shared
+                FROM profile_settings ps JOIN users u ON u.id = ps.user_id AND u.status = 'ACTIVE'
+                LEFT JOIN user_score s ON s.user_id = u.id
+                WHERE ps.is_public AND u.id <> ?
+                  AND NOT EXISTS (SELECT 1 FROM follow f WHERE f.follower_id = ? AND f.followee_id = u.id)
+                ORDER BY coalesce(s.total, 0) DESC, u.display_name LIMIT ?""", viewer, viewer, Math.min(Math.max(limit, 1), 20));
+        for (Map<String, Object> r : rows) {
+            if (!Boolean.TRUE.equals(r.remove("showLevel"))) r.remove("score");
+            if (!Boolean.TRUE.equals(settings((UUID) r.get("id")).showShared())) r.remove("shared");
+        }
+        return rows;
+    }
+
     /** Followed members' notable actions (only members whose profile is public). Newest first, keyset paging by id. */
     public List<Map<String, Object>> feed(UUID viewer, Long beforeId, int limit) {
         List<Map<String, Object>> rows = jdbc.queryForList("""

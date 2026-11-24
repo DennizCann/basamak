@@ -82,6 +82,7 @@ Bütün demo hesaplarının şifresi: **`Basamak!2026`** (yalnız yerel ve demo 
 | Editör | `editor@basamak.local`, `editor2@basamak.local` | CMS (iki editör: senaryo 4 için) |
 | Yayıncı | `publisher@basamak.local` | CMS |
 | Yönetici | `admin@basamak.local` | CMS ve web |
+| Demo topluluk | `gizem@basamak.local`, `mert@basamak.local`, `zeynep@basamak.local` | Web, mobil. Profilleri açık; iş akışı paylaşmış, puan vermiş, yorum yazmış üyeler. `member@basamak.local` Gizem ve Mert'i takip eder, Zeynep "Kimi takip edebilirsin?" önerisinde çıkar |
 
 ### Giriş akışları
 **Üye (web ve mobil): şifre; yeni cihazda ek olarak e-postayla gelen kod**
@@ -115,7 +116,7 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 - **Push:** FCM kurulmadı. Bildirimler uygulama açıkken ya da arka plandayken yerel bildirim olarak gelir. Uygulama tamamen kapalıyken bildirim yoktur.
 
 ## API
-- OpenAPI arayüzü: http://localhost:8080/swagger-ui.html. Dosya olarak: [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1, 118 yol). Yeniden üretmek için backend çalışırken `curl http://localhost:8080/v3/api-docs.yaml -o docs/openapi.yaml`.
+- OpenAPI arayüzü: http://localhost:8080/swagger-ui.html. Dosya olarak: [`docs/openapi.yaml`](docs/openapi.yaml) (OpenAPI 3.1, 119 yol). Yeniden üretmek için backend çalışırken `curl http://localhost:8080/v3/api-docs.yaml -o docs/openapi.yaml`.
 - Hatalar RFC 7807 `problem+json` biçimindedir: `code`, Türkçe `detail` ve `requestId` alanlarını içerir.
 
 ## Zorunlu senaryolar: durum ve demo adımları

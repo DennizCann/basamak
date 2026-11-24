@@ -6,6 +6,7 @@ import { api } from "../auth";
 type FeedItem = { id: number; type: string; objectType: string; objectId: string; objectTitle: string | null; at: string; userId: string; userName: string };
 type SharedTool = { id: string; name: string; ownerId: string; ownerName: string; forkCount: number; description?: string; method?: string; host?: string; needsSecrets?: boolean };
 type Shared = { id: string; name: string; description: string; ownerId: string; ownerName: string; forkCount: number };
+type Person = { id: string; displayName: string; bio: string | null; score?: number; shared?: number };
 
 const VERB: Record<string, string> = {
   TRAINING_COMPLETED: "bir eğitimi tamamladı", JOURNEY_COMPLETED: "bir Journey'i tamamladı ve seviye atladı", ITEM_SHARED: "bir iş akışı paylaştı",
@@ -24,6 +25,8 @@ export function CommunityPage() {
   const [more, setMore] = useState(true);
   const [shared, setShared] = useState<Shared[]>([]);
   const [tools, setTools] = useState<SharedTool[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [following, setFollowing] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +41,19 @@ export function CommunityPage() {
     load();
     api.get<Shared[]>("/api/community/workflows").then(setShared).catch(() => {});
     api.get<SharedTool[]>("/api/community/tools").then(setTools).catch(() => {});
+    api.get<Person[]>("/api/community/people?limit=5").then(setPeople).catch(() => {});
   }, [load]);
+
+  async function follow(p: Person) {
+    setFollowing(p.id);
+    try {
+      await api.post(`/api/profiles/${p.id}/follow`);
+      setPeople((list) => list.filter((x) => x.id !== p.id));
+      setNotice(`${p.displayName} takip ediliyor. Paylaşımları akışında görünecek.`);
+      await load();
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setFollowing(null); }
+  }
 
   return (
     <main className="page stack">
@@ -46,10 +61,12 @@ export function CommunityPage() {
         <h1>Topluluk</h1>
         <Link className="btn" to="/profile">Profilim</Link>
       </div>
+      {notice && <p role="status" className="alert alert-success">{notice}</p>}
       <section className="card stack" aria-labelledby="feed-h">
         <h2 id="feed-h">Takip ettiklerin</h2>
         <StateView loading={!feed && !error} error={error} onRetry={() => load()} empty={feed?.length === 0}
-                   emptyText="Akışın boş. Aşağıdaki paylaşımların sahiplerinin profiline girip takip edebilirsin; yalnız profilini herkese açan üyeler takip edilebilir.">
+                   emptyText={people.length > 0 ? "Akışın boş. Aşağıdan birkaç üyeyi takip et; paylaştıkları ve bitirdikleri burada görünür."
+                     : "Akışın boş. Profilini herkese açan üyeleri takip edebilirsin; paylaşılan iş akışlarındaki isimlere tıklayarak profillerine gidebilirsin."}>
           <ol className="card-list" aria-label="Etkinlik akışı">
             {feed?.map((i) => {
               const href = linkFor(i);
@@ -65,10 +82,28 @@ export function CommunityPage() {
           {feed && feed.length > 0 && more && <button className="btn" onClick={() => load(feed[feed.length - 1].id)}>Daha eski etkinlikler</button>}
         </StateView>
       </section>
+      {people.length > 0 && (
+        <section className="card stack" aria-labelledby="people-h">
+          <h2 id="people-h">Kimi takip edebilirsin?</h2>
+          <ul className="card-list">
+            {people.map((p) => (
+              <li key={p.id} className="row space-between">
+                <span>
+                  <Link className="text-link" to={`/u/${p.id}`}><strong>{p.displayName}</strong></Link>
+                  {(p.score !== undefined || p.shared !== undefined) && <span className="muted"> · {[p.score !== undefined ? `${fmt.num(p.score)} puan` : null, p.shared ? `${fmt.num(p.shared)} paylaşım` : null].filter(Boolean).join(" · ")}</span>}
+                  {p.bio && <div className="hint-line">{p.bio}</div>}
+                </span>
+                <button className="btn btn-sm" disabled={following === p.id} onClick={() => follow(p)}
+                        aria-label={`Takip et: ${p.displayName}`}>{following === p.id ? "Takip ediliyor…" : "Takip et"}</button>
+              </li>
+            ))}
+          </ul>
+          <p className="hint-line">En çok puan toplayanları <Link className="text-link" to="/leaderboard">Sıralama</Link> sayfasında da görebilirsin.</p>
+        </section>
+      )}
       <section className="card stack" aria-labelledby="tools-h">
         <h2 id="tools-h">Paylaşılan araçlar</h2>
-        {notice && <p role="status" className="hint-line">{notice}</p>}
-        {tools.length === 0 ? <p className="muted">Henüz paylaşılan araç yok.</p> : (
+        {tools.length === 0 ? <p className="muted">Henüz paylaşılan araç yok. <Link className="text-link" to="/tools">Araçlarım</Link> sayfasından kendi aracını kurup toplulukla paylaşabilirsin.</p> : (
           <ul className="card-list">
             {tools.slice(0, 20).map((t) => (
               <li key={t.id} className="row space-between">
@@ -84,7 +119,8 @@ export function CommunityPage() {
       </section>
       <section className="card stack" aria-labelledby="disc-h">
         <h2 id="disc-h">Paylaşılan iş akışları</h2>
-        {shared.length === 0 ? <p className="muted">Henüz paylaşılan iş akışı yok.</p> : (
+        <p className="hint-line">Bir akışı açıp çalıştırabilir, puan verebilir, yorum yazabilir ya da kendi listene çatallayabilirsin. Eğitimlerle ilgili yorumlar her eğitim sayfasının altındaki <strong>Tartışma</strong> bölümündedir.</p>
+        {shared.length === 0 ? <p className="muted">Henüz paylaşılan iş akışı yok. <Link className="text-link" to="/workflows">İş akışları</Link> sayfasından kendi akışını kurup paylaşabilirsin.</p> : (
           <ul className="card-list">
             {[...shared].sort((a, b) => b.forkCount - a.forkCount || trCompare(a.name, b.name)).slice(0, 20).map((w) => (
               <li key={w.id} className="row space-between">

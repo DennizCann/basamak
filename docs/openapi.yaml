@@ -2,12 +2,15 @@
 openapi: "3.1.0"
 info:
   title: "Basamak API"
-  version: "0.1.0"
   description: "Üye uygulaması (/api/**), CMS (/api/cms/**, TOTP'li ayrı oturum) ve webhook (/api/hooks/**) uçları. Hatalar RFC 7807 problem+json: code, detail (Türkçe), requestId."
+  version: "0.1.0"
 servers:
   -
     url: "http://localhost:8080"
-    description: "Yerel geliştirme"
+    description: "Generated server url"
+security:
+  -
+    bearer: []
 paths:
   "/api/workflows/{id}":
     get:
@@ -2435,6 +2438,30 @@ paths:
                 items:
                   type: "object"
                   additionalProperties: {}
+  "/api/community/people":
+    get:
+      tags:
+        - "community-controller"
+      operationId: "people"
+      parameters:
+        -
+          name: "limit"
+          in: "query"
+          required: false
+          schema:
+            type: "integer"
+            format: "int32"
+            default: 5
+      responses:
+        "200":
+          description: "OK"
+          content:
+            "*/*":
+              schema:
+                type: "array"
+                items:
+                  type: "object"
+                  additionalProperties: {}
   "/api/cms/tools/{id}/secrets":
     get:
       tags:
@@ -3395,6 +3422,3 @@ components:
       type: "http"
       scheme: "bearer"
       bearerFormat: "JWT"
-security:
-  -
-    bearer: []

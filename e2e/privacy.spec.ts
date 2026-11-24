@@ -43,7 +43,7 @@ test("CMS reports show completion and question correctness", async ({ page }) =>
   await expect(page.getByRole("heading", { name: "Raporlar" })).toBeVisible();
   const row = page.getByRole("row", { name: /Basamak'a Giriş/ });
   await expect(row).toBeVisible();
-  await row.getByRole("button", { name: /ayrıntıları/ }).click();
+  await row.getByRole("button", { name: /^Ayrıntı/ }).click();
   await expect(page.getByText(/deneme · geçme oranı/).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Sorular (CSV)" })).toBeVisible();
 });

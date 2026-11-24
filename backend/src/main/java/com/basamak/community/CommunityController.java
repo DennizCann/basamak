@@ -42,6 +42,12 @@ public class CommunityController {
         return Map.of("ok", true);
     }
 
+    /** Members to follow: public profiles the viewer does not follow yet (most points first). */
+    @GetMapping("/api/community/people")
+    public List<Map<String, Object>> people(@AuthenticationPrincipal AuthPrincipal p, @RequestParam(defaultValue = "5") int limit) {
+        return community.suggestions(p.userId(), limit);
+    }
+
     @GetMapping("/api/feed")
     public List<Map<String, Object>> feed(@AuthenticationPrincipal AuthPrincipal p, @RequestParam(required = false) Long before,
                                           @RequestParam(defaultValue = "20") int limit) {
