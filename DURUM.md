@@ -21,7 +21,7 @@
 | F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 00.36, commit 8958c2f) |
 | F6 | Mobil özellikler (14) | **tamamlandı** (24.11 ~01.00): Android emülatöründe elle doğrulandı; iOS test edilmedi |
 | F6.5 | PDF madde denetimi ve eksik özellikler | **tamamlandı** (24.11 02.10–03.35): PDF Bölüm 3–6 madde madde kodla karşılaştırıldı; ~50 eksik ya da yarım madde kapatıldı (ayrıntı aşağıda) |
-| F7 | Kalite ve ölçümler (15) | başlanmadı |
+| F7 | Kalite ve ölçümler (15) | **büyük ölçüde tamamlandı** (24.11 05.30–06.15): axe 21 ekran × 2 tema 0 ihlal, 320 px ve klavye testi, yük testi (p95 27 / 8,5 / 8,5 ms), soğuk açılış 1,11 s (emülatör), kapsam %87,3 ve %80 eşiği. **Lighthouse ölçülmedi** (indirme onayı bekleniyor). Ayrıntı: OLCUMLER.md |
 | F8 | Teslim belgeleri | başlanmadı |
 
 ## Senaryolar (yalnız gerçek test sonucuyla güncellenir)
@@ -163,7 +163,7 @@ Kullanıcı PDF'te açıkça yazan özelliklerin (ör. derse görsel ve video ek
 - **Araçlar** (…, ca05808, 61c51be): seviyeye göre günlük kota, şemayı bozan sürüm işareti (üye ve CMS), araç paylaşma ve çatallama (sır kopyalanmaz), OAuth 2.0 client credentials, 50 MB'a kadar dosya çıktısı (7 gün saklama). ToolRulesIT, ToolIT +1.
 - **Raporlar** (715d78a): Journey raporu, bırakan üye ve en çok bırakılan öge, sürüm karşılaştırması, soru başına ortalama süre (yaklaşık), anonim ankette 5'ten az cevapta gizleme, araç ve akış kullanımı (hata oranı, süre, yapay zekâ maliyeti), yeni CSV'ler.
 - **Diğer** (dd96aab ve sonrası): quiz süre uzatma isteği, çalıştırma başlatmada hız sınırı, istek kimliğinin arka plan işlerine taşınması, kuyruk ölçümleri, Türkçe sıralama, mobilde "çevrimdışı için indir" ve görsel önbelleği, bileşen kataloğu (`/ui`), Maestro akış dosyası (**çalıştırılmadı**: Maestro kurulu değil).
-- **Hâlâ yapılmayan:** FCM push, iOS testi, OpenTelemetry (yalnız tasarımda), %80 kapsam eşiğinin CI'da zorlanması (F7'de ölçülecek).
+- **Hâlâ yapılmayan:** FCM push, iOS testi, OpenTelemetry (yalnız tasarımda). %80 kapsam eşiği F7'de eklendi (`mvnw verify` içinde JaCoCo check).
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

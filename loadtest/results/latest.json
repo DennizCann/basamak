@@ -1,0 +1,65 @@
+{
+  "date": "2026-11-24T02:49:16.021Z",
+  "api": "http://localhost:8081",
+  "seconds": 30,
+  "virtualUsers": 20,
+  "phases": [
+    {
+      "name": "GET /api/trainings/{id} (eğitim okuma)",
+      "ratePerSec": "max",
+      "requests": 42550,
+      "rps": 1418.3,
+      "p50": 11.5,
+      "p95": 27.3,
+      "p99": 36.4,
+      "max": 97.8,
+      "errorRate": 0,
+      "status": {
+        "200": 42550
+      }
+    },
+    {
+      "name": "POST /api/tool-runs (araç başlatma, aşırı yük)",
+      "ratePerSec": "max",
+      "requests": 87000,
+      "rps": 2900,
+      "p50": 5.8,
+      "p95": 12.6,
+      "p99": 23.3,
+      "max": 104,
+      "errorRate": 99.74,
+      "status": {
+        "200": 224,
+        "429": 86776
+      }
+    },
+    {
+      "name": "POST /api/tool-runs (araç başlatma, 10/sn)",
+      "ratePerSec": 10,
+      "requests": 300,
+      "rps": 10,
+      "p50": 6.1,
+      "p95": 8.5,
+      "p99": 14.2,
+      "max": 19.1,
+      "errorRate": 0,
+      "status": {
+        "200": 300
+      }
+    },
+    {
+      "name": "GET /api/leaderboard (sıralama)",
+      "ratePerSec": "max",
+      "requests": 92069,
+      "rps": 3069,
+      "p50": 6.2,
+      "p95": 8.5,
+      "p99": 14.3,
+      "max": 51.2,
+      "errorRate": 0,
+      "status": {
+        "200": 92069
+      }
+    }
+  ]
+}
