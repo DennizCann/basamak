@@ -1,0 +1,42 @@
+# Android APK for reviewers: pushing a v* tag builds the debug APK from that exact commit on GitHub's free Linux
+# runner and attaches it to a GitHub Release, so the download link always matches the tagged code.
+# The APK talks to http://10.0.2.2:8080 (the host machine as seen from the Android emulator), see README.
+name: Android release APK
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      - run: npm ci
+      - name: Bundle the member web app for mobile
+        run: npm run build:mobile -w apps/web
+      - name: Copy the bundle into the Android project
+        working-directory: apps/mobile
+        run: npx cap sync android
+      - name: Build the debug APK
+        working-directory: apps/mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/basamak-${GITHUB_REF_NAME}.apk"
+      - name: Attach the APK to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: basamak-${{ github.ref_name }}.apk
+          body: |
+            Basamak Android uygulaması (debug APK), bu etiketin commit'inden GitHub Actions'ta derlendi.
+            Uygulama API'ye `http://10.0.2.2:8080` üzerinden bağlanır: Android emülatöründe, aynı bilgisayarda backend çalışırken kullanılır. Kurulum ve demo adımları README'de.
