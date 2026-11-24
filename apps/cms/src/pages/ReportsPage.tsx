@@ -85,7 +85,7 @@ export function ReportsPage() {
                   <td><Bar value={r.completionRate} label={pct(r.completionRate)} /></td>
                   <td>{r.avgCompletionMinutes === null ? "—" : `${fmt.num(r.avgCompletionMinutes)} dk`}</td>
                   <td>{r.mostDroppedItem ? `${r.mostDroppedItem.title} (${fmt.num(r.mostDroppedItem.members)})` : "—"}</td>
-                  <td><button className="btn btn-sm" onClick={() => setSelected(r.trainingId)} aria-label={`${r.title} ayrıntıları`}>Ayrıntı</button></td>
+                  <td><button className="btn btn-sm" onClick={() => setSelected(r.trainingId)} aria-label={`Ayrıntı: ${r.title}`}>Ayrıntı</button></td>
                 </tr>
               ))}
             </tbody>

@@ -288,7 +288,7 @@ function AiBudget() {
         Bu ay yapay zekâ harcaman: {Number(b.spentUsd).toLocaleString("tr-TR", { maximumFractionDigits: 6 })} / {Number(b.limitUsd).toLocaleString("tr-TR")} USD
         {b.simulated ? " (sahte model: benzetim)" : ""}. Yenilenme: {fmt.date(b.resetsOn)}.
       </p>
-      <div className="meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Aylık yapay zekâ bütçesi kullanımı">
+      <div className="budget-meter" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct} aria-label="Aylık yapay zekâ bütçesi kullanımı">
         <span style={{ width: `${pct}%` }} />
       </div>
       {b.exhausted && <Alert kind="warning"><p>Bu ayki bütçen doldu: yapay zekâ adımı olan akışlar {fmt.date(b.resetsOn)} tarihine kadar başlamaz; çalışan akış yapay zekâ adımında güvenle durur.</p></Alert>}

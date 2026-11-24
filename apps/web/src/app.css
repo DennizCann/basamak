@@ -237,8 +237,8 @@ dialog.sheet::backdrop { background: rgba(0,0,0,.45); }
 .fg-ai rect { stroke: var(--color-primary); }
 .fg-condition rect { stroke: var(--color-warning); stroke-dasharray: 4 3; }
 .fg-workflow rect { stroke: var(--color-success, #1b7f3b); }
-.meter { height: 8px; border-radius: 4px; background: var(--color-surface-2); overflow: hidden; border: 1px solid var(--color-border); }
-.meter > span { display: block; height: 100%; background: var(--color-primary); }
+.budget-meter { height: 8px; border-radius: 4px; background: var(--color-surface-2); overflow: hidden; border: 1px solid var(--color-border); }
+.budget-meter > span { display: block; height: 100%; background: var(--color-primary); }
 
 /* workflow tabs + step cards */
 .tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); border-bottom: 1px solid var(--color-border); padding-bottom: var(--space-2); }
