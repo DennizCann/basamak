@@ -1,4 +1,5 @@
-import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField, trCompare } from "@basamak/ui";
+import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField, Wizard, trCompare } from "@basamak/ui";
+import { useState } from "react";
 import type { Item, Json } from "./content";
 import { LessonMedia } from "./LessonMedia";
 
@@ -226,7 +227,12 @@ function ToolPin({ item, tools, onChange }: { item: Json; tools: Item[]; onChang
 }
 
 /** CMS tool definition (versioned content). Secrets are NOT part of it: they are set on the "Sırlar ve deneme" tab. */
-export function ToolForm({ body, onChange, disabled }: FormProps) {
+/**
+ * CMS tool definition, step by step (same 4 steps as the member tool wizard): what it does, what members are asked,
+ * where it connects (+ API key / OAuth), result and limits. Secrets and the test console are on the next tab.
+ */
+export function ToolForm({ body, onChange, disabled, onSave, saving }: FormProps & { onSave?: () => void; saving?: boolean }) {
+  const [step, setStep] = useState(0);
   const set = (k: string, v: unknown) => onChange({ ...body, [k]: v });
   const req = body.request ?? { method: "GET", url: "", headers: {} };
   const setReq = (k: string, v: unknown) => set("request", { ...req, [k]: v });
@@ -234,64 +240,119 @@ export function ToolForm({ body, onChange, disabled }: FormProps) {
   const setHeaders = (h: [string, string][]) => setReq("headers", Object.fromEntries(h));
   const inputs: Json[] = body.inputs ?? [];
   const setInput = (i: number, v: Json) => set("inputs", inputs.map((x, j) => (j === i ? v : x)));
+  const keyHeader = headers.find(([, v]) => String(v).includes("{{secret.apiKey}}"))?.[0];
+  const auth: "none" | "key" | "oauth" = body.auth ? "oauth" : keyHeader ? "key" : "none";
+  const setAuth = (a: "none" | "key" | "oauth") => {
+    const others = headers.filter(([, v]) => !String(v).includes("{{secret.apiKey}}"));
+    onChange({
+      ...body,
+      auth: a === "oauth" ? { type: "oauth2_client_credentials", tokenUrl: body.auth?.tokenUrl ?? "", scope: body.auth?.scope ?? "" } : undefined,
+      request: { ...req, headers: Object.fromEntries(a === "key" ? [...others, [keyHeader ?? "X-Api-Key", "{{secret.apiKey}}"]] : others) },
+    });
+  };
+  const validate = (i: number): string | null => {
+    if (i === 1 && inputs.some((x) => !x.name || !String(x.label ?? "").trim())) return "Her girdinin teknik adı ve üyeye görünen etiketi olmalı.";
+    if (i === 2 && !/^https?:\/\/[^/{]+/.test(String(req.url ?? "").trim())) return "Adres http:// ya da https:// ile başlamalı ve sunucu adı içermeli.";
+    if (i === 2 && auth === "oauth" && !/^https?:\/\//.test(body.auth?.tokenUrl ?? "")) return "OAuth için jeton adresini (tokenUrl) yaz.";
+    return null;
+  };
+  const steps = [
+    { title: "Ne yapacak?", hint: "Üyenin göreceği kısa açıklama. Başlık yukarıdaki alandadır." },
+    { title: "Üyeden ne istenecek?", hint: "Çalıştırma formundaki alanlar. Teknik ad adreste {{input.ad}} olarak kullanılır." },
+    { title: "Nereye bağlanacak?", hint: "Servis adresi ve kimlik doğrulama. Yerel sahte servis (localhost:8090) yalnız CMS araçlarına açıktır." },
+    { title: "Sonuç ve sınırlar", hint: "Cevabın hangi kısmı gösterilsin, ne kadar beklensin. Kaydettikten sonra \"Sırlar ve deneme\" sekmesinde anahtarı gir ve aracı dene." },
+  ];
   return (
-    <fieldset disabled={disabled} className="stack">
+    <fieldset className="stack">
       <legend>Araç</legend>
-      <TextArea label="Açıklama (üyeye gösterilir)" rows={2} value={body.description ?? ""} onChange={(e) => set("description", e.target.value)} />
-      <div className="row">
-        <SelectField label="Yöntem" value={req.method} onChange={(e) => setReq("method", e.target.value)}>
-          <option value="GET">GET</option><option value="POST">POST</option>
-        </SelectField>
-        <div style={{ flex: "1 1 20rem" }}>
-          <TextField label="Adres (URL)" value={req.url ?? ""} onChange={(e) => setReq("url", e.target.value)}
-                     hint="Girdi: {{input.ad}} (yalnız yol/sorguda). Sır: {{secret.ad}}. İç ağ adresleri reddedilir; yerel sahte servis (localhost:8090) yalnız CMS araçlarına açıktır." />
-        </div>
-      </div>
-      <h3>Başlıklar</h3>
-      {headers.map(([k, v], i) => (
-        <div key={i} className="row">
-          <TextField label="Ad" value={k} onChange={(e) => setHeaders(headers.map((h, j) => (j === i ? [e.target.value, h[1]] : h)))} />
-          <TextField label="Değer" value={v} hint="Anahtar için {{secret.apiKey}} kullanın; değeri buraya yazmayın."
-                     onChange={(e) => setHeaders(headers.map((h, j) => (j === i ? [h[0], e.target.value] : h)))} />
-          <button type="button" className="btn btn-danger" onClick={() => setHeaders(headers.filter((_, j) => j !== i))}>Sil</button>
-        </div>
-      ))}
-      <div><button type="button" className="btn" onClick={() => setHeaders([...headers, ["X-Api-Key", "{{secret.apiKey}}"]])}>+ Başlık</button></div>
-      {req.method === "POST" && (
-        <TextArea label="İstek gövdesi (JSON şablonu)" rows={4} value={JSON.stringify(req.body ?? {}, null, 2)}
-                  onChange={(e) => { try { setReq("body", JSON.parse(e.target.value)); } catch { /* keep typing */ } }} />
-      )}
-      <h3>Girdiler</h3>
-      {inputs.map((inp, i) => (
-        <div key={i} className="row">
-          <TextField label="Ad" value={inp.name} onChange={(e) => setInput(i, { ...inp, name: e.target.value })} />
-          <TextField label="Etiket" value={inp.label ?? ""} onChange={(e) => setInput(i, { ...inp, label: e.target.value })} />
-          <SelectField label="Tür" value={inp.type ?? "string"} onChange={(e) => setInput(i, { ...inp, type: e.target.value })}>
-            <option value="string">Metin</option><option value="number">Sayı</option><option value="boolean">Evet/Hayır</option>
-          </SelectField>
-          <label className="choice"><input type="checkbox" checked={!!inp.required} onChange={(e) => setInput(i, { ...inp, required: e.target.checked })} /> Zorunlu</label>
-          <button type="button" className="btn btn-danger" onClick={() => set("inputs", inputs.filter((_, j) => j !== i))}>Sil</button>
-        </div>
-      ))}
-      <div><button type="button" className="btn" onClick={() => set("inputs", [...inputs, { name: `girdi${inputs.length + 1}`, label: "", type: "string", required: false }])}>+ Girdi</button></div>
-      <div className="row">
-        <TextField label="Zaman aşımı (sn, 1-30)" type="number" min={1} max={30} value={body.timeoutSeconds ?? 10} onChange={(e) => set("timeoutSeconds", Number(e.target.value))} />
-        <TextField label="Yeniden deneme (0-3)" type="number" min={0} max={3} value={body.retries ?? 2} onChange={(e) => set("retries", Number(e.target.value))} />
-        <TextField label="Sonuç alanı (isteğe bağlı)" placeholder="data.result" value={body.outputPath ?? ""} onChange={(e) => set("outputPath", e.target.value)} />
-      </div>
-      <fieldset className="stack">
-        <legend>Kimlik doğrulama</legend>
-        <label className="choice"><input type="checkbox" checked={!!body.auth} onChange={(e) => set("auth", e.target.checked ? { type: "oauth2_client_credentials", tokenUrl: "", scope: "" } : undefined)} />
-          <span>OAuth 2.0 istemci kimliği (client credentials)</span></label>
-        {body.auth && (
-          <>
-            <TextField label="Jeton adresi (tokenUrl)" placeholder="https://auth.example.com/oauth/token" value={body.auth.tokenUrl ?? ""} onChange={(e) => set("auth", { ...body.auth, tokenUrl: e.target.value })} />
-            <TextField label="Kapsam (scope, isteğe bağlı)" value={body.auth.scope ?? ""} onChange={(e) => set("auth", { ...body.auth, scope: e.target.value })} />
-            <p className="hint">İstemci kimliği ve sırrı "Sırlar ve deneme" sekmesinde <code>clientId</code> ve <code>clientSecret</code> adıyla şifreli saklanır. Jeton her çağrıda otomatik alınır, süresi bitene kadar bellekte tutulur ve hiçbir yerde gösterilmez.</p>
-          </>
+      <Wizard steps={steps} current={step} onChange={setStep} validate={validate} finishLabel={saving ? "Kaydediliyor…" : "Yeni sürüm olarak kaydet"}
+              onFinish={() => onSave?.()} busy={saving} finishDisabledReason={disabled ? "Düzenlemek için yazar ya da editör rolü gerekir." : !onSave ? "Değişiklik yok; kaydetmek için bir alanı değiştir." : null}>
+        <fieldset disabled={disabled} className="stack" style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        {step === 0 && (
+          <TextArea label="Açıklama (üyeye gösterilir)" rows={3} value={body.description ?? ""} onChange={(e) => set("description", e.target.value)} />
         )}
-      </fieldset>
-      <p className="hint">JSON ya da metin dışındaki cevaplar (PDF, görsel, ZIP…) 50 MB'a kadar dosya çıktısı olarak saklanır (7 gün) ve üye çalıştırma ekranından indirir.</p>
+        {step === 1 && (
+          <div className="stack">
+            {inputs.length === 0 && <p className="muted">Bu araç üyeden bilgi istemiyor.</p>}
+            {inputs.map((inp, i) => (
+              <div key={i} className="card stack">
+                <div className="row space-between"><strong>{i + 1}. girdi</strong>
+                  <button type="button" className="btn btn-sm btn-danger" onClick={() => set("inputs", inputs.filter((_, j) => j !== i))}>Kaldır</button></div>
+                <div className="row">
+                  <TextField label="Etiket (üyeye görünen)" value={inp.label ?? ""} onChange={(e) => setInput(i, { ...inp, label: e.target.value })} />
+                  <TextField label="Teknik ad" value={inp.name} onChange={(e) => setInput(i, { ...inp, name: e.target.value.replace(/[^A-Za-z0-9_]/g, "") })} />
+                </div>
+                <div className="row">
+                  <SelectField label="Tür" value={inp.type ?? "string"} onChange={(e) => setInput(i, { ...inp, type: e.target.value })}>
+                    <option value="string">Metin</option><option value="number">Sayı</option><option value="boolean">Evet/Hayır</option>
+                  </SelectField>
+                  <label className="choice"><input type="checkbox" checked={!!inp.required} onChange={(e) => setInput(i, { ...inp, required: e.target.checked })} /> <span>Zorunlu</span></label>
+                </div>
+              </div>
+            ))}
+            <div><button type="button" className="btn" onClick={() => set("inputs", [...inputs, { name: `girdi${inputs.length + 1}`, label: "", type: "string", required: false }])}>+ Girdi ekle</button></div>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="stack">
+            <SelectField label="İstek türü" value={req.method} onChange={(e) => setReq("method", e.target.value)}>
+              <option value="GET">GET (bilgi al)</option><option value="POST">POST (bilgi gönder)</option>
+            </SelectField>
+            <TextField label="Servis adresi (URL)" value={req.url ?? ""} onChange={(e) => setReq("url", e.target.value)}
+                       hint="Girdiler yalnız yol ve sorguda ({{input.ad}}); sunucu adı sabit. İç ağ adresleri reddedilir." />
+            {inputs.length > 0 && (
+              <div className="chip-row" aria-label="Adrese girdi ekle">
+                {inputs.map((x) => <button key={x.name} type="button" className="btn btn-sm" onClick={() => setReq("url", (req.url ?? "") + `{{input.${x.name}}}`)}>+ {x.label || x.name}</button>)}
+              </div>
+            )}
+            <fieldset className="stack">
+              <legend>Kimlik doğrulama</legend>
+              <label className="choice"><input type="radio" name="cms-auth" checked={auth === "none"} onChange={() => setAuth("none")} /> <span>Gerekmiyor</span></label>
+              <label className="choice"><input type="radio" name="cms-auth" checked={auth === "key"} onChange={() => setAuth("key")} /> <span>API anahtarı (başlıkta, sır adı <code>apiKey</code>)</span></label>
+              <label className="choice"><input type="radio" name="cms-auth" checked={auth === "oauth"} onChange={() => setAuth("oauth")} /> <span>OAuth 2.0 istemci kimliği (client credentials)</span></label>
+              {auth === "key" && (
+                <TextField label="Anahtarın gönderileceği başlık" value={keyHeader ?? "X-Api-Key"}
+                           onChange={(e) => setHeaders(headers.map(([k, v]) => (String(v).includes("{{secret.apiKey}}") ? [e.target.value, v] : [k, v])))} />
+              )}
+              {auth === "oauth" && (
+                <>
+                  <TextField label="Jeton adresi (tokenUrl)" placeholder="https://auth.example.com/oauth/token" value={body.auth?.tokenUrl ?? ""} onChange={(e) => set("auth", { ...body.auth, tokenUrl: e.target.value })} />
+                  <TextField label="Kapsam (scope, isteğe bağlı)" value={body.auth?.scope ?? ""} onChange={(e) => set("auth", { ...body.auth, scope: e.target.value })} />
+                  <p className="hint">İstemci kimliği ve sırrı "Sırlar ve deneme" sekmesinde <code>clientId</code> ve <code>clientSecret</code> adıyla şifreli saklanır; jeton otomatik alınır ve hiçbir yerde gösterilmez.</p>
+                </>
+              )}
+            </fieldset>
+            <details>
+              <summary>Gelişmiş: diğer başlıklar{req.method === "POST" ? " ve istek gövdesi" : ""}</summary>
+              <div className="stack" style={{ marginTop: "var(--space-3)" }}>
+                {headers.filter(([, v]) => !String(v).includes("{{secret.apiKey}}")).map(([k, v]) => (
+                  <div key={k} className="row">
+                    <TextField label="Başlık adı" value={k} onChange={(e) => setHeaders(headers.map((h) => (h[0] === k ? [e.target.value, h[1]] : h)))} />
+                    <TextField label="Değer" value={v} onChange={(e) => setHeaders(headers.map((h) => (h[0] === k ? [h[0], e.target.value] : h)))} />
+                    <button type="button" className="btn btn-danger" onClick={() => setHeaders(headers.filter((h) => h[0] !== k))}>Sil</button>
+                  </div>
+                ))}
+                <div><button type="button" className="btn btn-sm" onClick={() => setHeaders([...headers, [`X-Baslik-${headers.length + 1}`, ""]])}>+ Başlık</button></div>
+                {req.method === "POST" && (
+                  <TextArea label="İstek gövdesi (JSON şablonu)" rows={4} value={JSON.stringify(req.body ?? {}, null, 2)}
+                            onChange={(e) => { try { setReq("body", JSON.parse(e.target.value)); } catch { /* keep typing */ } }} />
+                )}
+              </div>
+            </details>
+          </div>
+        )}
+        {step === 3 && (
+          <div className="stack">
+            <TextField label="Sonuç alanı (isteğe bağlı)" placeholder="ör. summary ya da data.result" value={body.outputPath ?? ""} onChange={(e) => set("outputPath", e.target.value)}
+                       hint="Boşsa cevabın tamamı gösterilir. JSON dışı cevaplar (PDF, görsel…) 50 MB'a kadar dosya olarak saklanır (7 gün)." />
+            <div className="row">
+              <TextField label="Zaman aşımı (sn, 1-30)" type="number" min={1} max={30} value={body.timeoutSeconds ?? 10} onChange={(e) => set("timeoutSeconds", Number(e.target.value))} />
+              <TextField label="Yeniden deneme (0-3)" type="number" min={0} max={3} value={body.retries ?? 2} onChange={(e) => set("retries", Number(e.target.value))} />
+            </div>
+          </div>
+        )}
+        </fieldset>
+      </Wizard>
     </fieldset>
   );
 }

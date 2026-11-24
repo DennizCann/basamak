@@ -226,7 +226,12 @@ sequenceDiagram
 
 ### 4.4 Sahte dış API (`mock-api/MockApi.java`)
 Yalnız JDK ile çalışan tek bir dosyadır (`java mock-api/MockApi.java`, :8090). Sağladıkları:
-- `/weather`: `X-Api-Key` başlığı ister.
+- **Öğrenme araçları** (tohum verisindeki üç platform aracının arkası; kurala dayalıdır, gerçek bir dil modeli değildir):
+  - `POST /text/summarize`: Metnin ilk cümlelerinden özet, kelime sayısı ve okuma süresi ("Metin özetleyici").
+  - `GET /glossary?term=`: Otomasyon ve platform terimleri için kısa Türkçe açıklama ("Terim sözlüğü").
+  - `POST /text/check`: `X-Api-Key` ister; uzun cümle, tekrar ve noktalama önerileri ve bir puan döner ("Metin denetleyici"; sır akışını gösterir).
+- **Gösterim yardımcıları:**
+- `/weather`: `X-Api-Key` başlığı ister (eski örnek).
 - `/slow?ms=`: Zaman aşımını göstermek için gecikmeli cevap verir.
 - `/flaky?key=&fail=`: İlk N çağrıda 503 döner, sonra başarılı olur (yeniden denemeyi gösterir).
 - `/status/{code}`: İstenen HTTP kodunu döner.
@@ -234,6 +239,16 @@ Yalnız JDK ile çalışan tek bir dosyadır (`java mock-api/MockApi.java`, :809
 - `/echo`: Gönderilen gövdeyi geri döner.
 
 Ücretli hiçbir servise gidilmez.
+
+### 4.4a Araç ve akış kurma deneyimi (adım adım)
+Araç ve iş akışı oluşturmak yeni başlayan üye için karmaşıktır; her şey tek ekranda olunca kaybolur. Bu yüzden ikisi de **adım adım sihirbazdır** (ortak `Wizard` bileşeni; web ve CMS):
+- **Araç (4 adım):** Ne yapacak? (hazır şablon: Vikipedi konu özeti, İngilizce sözlük ya da boş) → Kullanıcıdan ne istenecek? (etiketten teknik ad otomatik) → Nereye bağlanacak? (alanları adrese tek tıkla ekleme, kimlik doğrulama: yok / API anahtarı / CMS'te OAuth) → Özet ve kaydet. Zaman aşımı, yeniden deneme, başlıklar ve gövde "Gelişmiş" altında katlıdır. Kaydedince araç hemen denenebilir hâlde açılır. Üye şablonları herkese açık ücretsiz servisleri kullanır, çünkü üye araçları güvenlik gereği yerel sahte servise erişemez.
+- **İş akışı (4 adım):** Ad ve amaç (şablon: "Ders notundan tekrar soruları", "Haftalık çalışma planı", "Terimi açıkla" ya da boş) → Girdiler → Adımlar → Sonuç ve kaydet.
+  - Adımlar listesinde **aynı anda tek adım düzenlenir**; diğerleri tek satırlık özet kartıdır. "Adım ekle" önce açıklamalı tür seçimi gösterir.
+  - Değer bağlamak için `{{…}}` yazmak gerekmez: açılır listeden "Girdi: Konu" ya da "ozet (Metin özetleyici) → özet" seçilir. Birkaç değeri birleştiren ileri kullanıcı için "elle yaz" seçeneği kalır.
+  - Paralel çalışma ve adım kimliği "Gelişmiş" altındadır. Canlı akış şeması adımlar sayfasının üstündedir.
+- **Akış sayfası sekmelere ayrılır:** Kurgu, Çalıştır, Geçmiş, Ayarlar (zamanlama, webhook, olay, paylaşım, silme) ve paylaşılan akışlarda Tartışma. Yeni akış kaydedilince doğrudan "Çalıştır" sekmesi açılır.
+- **Erişilebilirlik:** Adım değişince odak adım başlığına taşınır; adım listesi `aria-current="step"` taşır; seçim kartları gerçek radyo düğmeleridir (ok tuşları ve ekran okuyucu çalışır); dar ekranda yalnız şimdiki adımın adı görünür, diğerlerininki ekran okuyucuya okunur.
 
 ### 4.5 İş akışları (senaryo 8) — kendi motorumuz
 - **Neden kendi motorumuz:** Temporal ya da Airflow ayrı bir altyapı ister; sıfır maliyet ve tek gün kısıtına uymaz. Akışlar kısa ve doğrusaldır (en fazla 20 adım), bu yüzden ADR-2'deki kuyrukta tek bir iş (`WORKFLOW_RUN`) olarak çalışır. İşçi her adımda kirasını uzatır (`heartbeat`).

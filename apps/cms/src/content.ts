@@ -40,8 +40,10 @@ export function defaultBody(type: string, order: number): Json {
   switch (type) {
     case "JOURNEY": return { description: "", order, trainingIds: [], unlock: { requiresPreviousJourney: true, minPoints: 0 } };
     case "TRAINING": return { summary: "", prerequisites: [], items: [{ key: "ders-1", type: "lesson", title: "İlk ders", content: "Ders metni" }] };
-    case "TOOL": return { description: "Şehrin hava durumunu getirir (yerel sahte servis).", inputs: [{ name: "city", label: "Şehir", type: "string", required: true, maxLength: 100 }],
-      request: { method: "GET", url: "http://localhost:8090/weather?city={{input.city}}", headers: { "X-Api-Key": "{{secret.apiKey}}" } }, timeoutSeconds: 10, retries: 2, outputPath: "" };
+    case "TOOL": return { description: "Üyenin yazdığı metni denetler ve öneri verir (yerel sahte servis, kurala dayalı).",
+      inputs: [{ name: "text", label: "Metin", type: "string", required: true, maxLength: 2000 }],
+      request: { method: "POST", url: "http://localhost:8090/text/check", headers: { "X-Api-Key": "{{secret.apiKey}}" }, body: { text: "{{input.text}}" } },
+      timeoutSeconds: 10, retries: 2, outputPath: "" };
     case "POINT_RULE": return { action: "LESSON_VIEWED", objectType: "LESSON", points: 1, policy: "ONCE_PER_OBJECT" };
     default: return {};
   }

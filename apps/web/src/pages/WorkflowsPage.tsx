@@ -23,16 +23,7 @@ export function WorkflowsPage() {
   }, [user?.id]);
   useEffect(() => { load(); }, [load]);
 
-  const create = async () => {
-    try {
-      const w = await api.post<Workflow>("/api/workflows", {
-        name: "Yeni iş akışı", description: "",
-        definition: { inputs: [{ name: "konu", label: "Konu", type: "string", required: true, maxLength: 200 }],
-          steps: [{ id: "yz1", type: "ai", prompt: "{{input.konu}} hakkında kısa bir özet yaz." }], output: "" },
-      });
-      nav(`/workflows/${w.id}`);
-    } catch (e) { setError(errorMessage(e)); }
-  };
+  const create = () => nav("/workflows/new");
 
   const fork = async (w: Workflow) => {
     try {

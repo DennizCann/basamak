@@ -1,17 +1,36 @@
 import { askNotificationPermissionOnce } from "../platform";
 import { FlowGraph } from "../components/FlowGraph";
+import { WorkflowBuilder } from "../components/WorkflowBuilder";
 import { Comments, Rating } from "../components/Comments";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Alert, SelectField, StateView, TextArea, TextField, errorMessage, fmt } from "@basamak/ui";
+import { Alert, SelectField, StateView, TextField, errorMessage, fmt } from "@basamak/ui";
 import { api, useAuth } from "../auth";
-import type { ToolInput } from "../components/ToolRunner";
 import {
-  OPS, RUN_STATUS, STEP_LABEL, TRIGGER_LABEL, fmtCost, newStepId,
-  type Definition, type PlatformTool, type Step, type Workflow, type WorkflowRun,
+  RUN_STATUS, STEP_LABEL, TRIGGER_LABEL, fmtCost,
+  type Workflow, type WorkflowRun,
 } from "../workflows";
 
-type MyTool = { id: string; name: string; versionNo: number; definition: { inputs: ToolInput[] } };
+
+type Tab = "build" | "run" | "history" | "settings" | "talk";
+const TABS: [Tab, string][] = [["build", "Kurgu"], ["run", "Çalıştır"], ["history", "Geçmiş"], ["settings", "Ayarlar"]];
+
+/** New workflow: the step-by-step builder; after saving, the workflow opens on its "Çalıştır" tab. */
+export function NewWorkflowPage() {
+  const nav = useNavigate();
+  return (
+    <main className="page stack">
+      <p><Link className="text-link" to="/workflows">← İş akışları</Link></p>
+      <h1>Yeni iş akışı</h1>
+      <WorkflowBuilder isNew initial={{ name: "", description: "", definition: { inputs: [], steps: [], output: "" } }}
+        onCancel={() => nav("/workflows")}
+        onSave={async (d) => {
+          const w = await api.post<Workflow>("/api/workflows", { name: d.name, description: d.description, definition: d.definition });
+          nav(`/workflows/${w.id}?tab=run`, { replace: true });
+        }} />
+    </main>
+  );
+}
 
 export function WorkflowPage() {
   const { id } = useParams();
@@ -21,9 +40,11 @@ export function WorkflowPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [runs, setRuns] = useState<WorkflowRun[]>([]);
-  const [params] = useSearchParams();
-  const [openRun, setOpenRun] = useState<string | null>(params.get("run")); // deep link / notification
+  const [params, setParams] = useSearchParams();
   const runParam = params.get("run");
+  const tab: Tab = (params.get("tab") as Tab) ?? (runParam ? "history" : "build");
+  const setTab = (t: Tab) => { const n = new URLSearchParams(params); n.set("tab", t); if (t !== "history" && t !== "run") n.delete("run"); setParams(n, { replace: true }); setNotice(null); };
+  const [openRun, setOpenRun] = useState<string | null>(runParam); // deep link / notification
   useEffect(() => { if (runParam) setOpenRun(runParam); }, [runParam]);
 
   const load = useCallback(async () => {
@@ -38,215 +59,104 @@ export function WorkflowPage() {
   if (!wf) return <main className="page"><StateView loading={!error} error={error} onRetry={load} /></main>;
   const owner = wf.ownerId === user?.id;
 
+  if (!owner) {
+    return (
+      <main className="page stack">
+        <p><Link className="text-link" to="/workflows">← İş akışları</Link></p>
+        {error && <Alert kind="error"><p>{error}</p></Alert>}
+        <section className="card stack">
+          <h1>{wf.name}</h1>
+          {wf.description && <p style={{ margin: 0 }}>{wf.description}</p>}
+          <p className="muted"><Link className="text-link" to={`/u/${wf.ownerId}`}>{wf.ownerName}</Link> paylaştı · {wf.definition.steps.length} adım · {wf.forkCount} çatal</p>
+          <FlowGraph def={wf.definition} />
+          <Rating workflowId={wf.id} canRate />
+          <div><button className="btn btn-primary" onClick={async () => {
+            try { const f = await api.post<Workflow>(`/api/workflows/${wf.id}/fork`); nav(`/workflows/${f.id}`); } catch (e) { setError(errorMessage(e)); }
+          }}>Çatalla ve düzenle</button></div>
+        </section>
+        <Comments targetType="WORKFLOW" targetId={wf.id} />
+      </main>
+    );
+  }
+
   return (
     <main className="page stack">
       <p><Link className="text-link" to="/workflows">← İş akışları</Link></p>
+      <div>
+        <h1 style={{ marginBottom: 0 }}>{wf.name}</h1>
+        <p className="hint-line">sürüm {wf.versionNo}{wf.forkedFrom ? " · çatal" : ""} · {wf.visibility === "PUBLIC" ? "toplulukla paylaşıldı" : "yalnız sen"}</p>
+      </div>
+      <div role="tablist" aria-label="Akış bölümleri" className="tabs">
+        {[...TABS, ...(wf.visibility === "PUBLIC" ? [["talk", "Tartışma"] as [Tab, string]] : [])].map(([k, l]) => (
+          <button key={k} role="tab" id={`tab-${k}`} aria-selected={tab === k} aria-controls={`panel-${k}`} className={`btn ${tab === k ? "btn-primary" : ""}`} onClick={() => setTab(k)}>{l}</button>
+        ))}
+      </div>
       {error && <Alert kind="error"><p>{error}</p></Alert>}
       {notice && <Alert kind="success"><p>{notice}</p></Alert>}
-      {!owner ? (
-        <section className="card stack">
-          <h1>{wf.name}</h1>
-          <p className="muted"><Link className="text-link" to={`/u/${wf.ownerId}`}>{wf.ownerName}</Link> paylaştı · {wf.definition.steps.length} adım · {wf.forkCount} çatal</p>
-          <Rating workflowId={wf.id} canRate />
-          <button className="btn btn-primary" onClick={async () => {
-            try { const f = await api.post<Workflow>(`/api/workflows/${wf.id}/fork`); nav(`/workflows/${f.id}`); } catch (e) { setError(errorMessage(e)); }
-          }}>Çatalla ve düzenle</button>
-        </section>
-      ) : null}
-      {!owner && <Comments targetType="WORKFLOW" targetId={wf.id} />}
-      {!owner ? null : (
-        <>
-          <Editor wf={wf} onSaved={(w, m) => { setWf(w); setNotice(m); setError(null); }} onError={setError} />
-          <RunPanel wf={wf} onStarted={(runId) => { setOpenRun(runId); load(); }} onError={setError} />
-          {openRun && <RunDetail runId={openRun} onChanged={load} onError={setError} />}
-          <section className="card stack" aria-labelledby="runs-title">
-            <h2 id="runs-title">Son çalıştırmalar</h2>
-            {runs.length === 0 ? <p className="muted">Henüz çalıştırılmadı.</p> : (
-              <ul className="card-list">
-                {runs.map((r) => (
-                  <li key={r.id} className="row space-between">
-                    <span>{fmt.dateTime(r.createdAt)} · {TRIGGER_LABEL[r.trigger] ?? r.trigger} · <span className={`run-state run-${r.status.toLowerCase()}`}>{RUN_STATUS[r.status] ?? r.status}</span>
-                      {r.failedStepId && ` (adım: ${r.failedStepId})`} · {fmtCost(r.totalCost)}</span>
-                    <button className="btn btn-sm" onClick={() => setOpenRun(r.id)}>Ayrıntı</button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <Triggers wf={wf} onChanged={(w, m) => { setWf(w); setNotice(m); }} onError={setError} />
-          <section className="card stack" aria-labelledby="share-title">
-            <h2 id="share-title">Paylaşım</h2>
-            <p className="muted">{wf.visibility === "PUBLIC"
-              ? `Toplulukla paylaşıldı. ${wf.forkCount} kez çatallandı; her çatal sana puan kazandırır.`
-              : "Yalnız sen görüyorsun. Paylaşılan akış yalnız platform araçlarını kullanabilir; kendi anahtarın başkasınca harcanmaz."}</p>
-            <div className="row">
-              <button className="btn" onClick={async () => {
-                try { const w = await api.post<Workflow>(`/api/workflows/${wf.id}/share`, { shared: wf.visibility !== "PUBLIC" }); setWf(w); setNotice(w.visibility === "PUBLIC" ? "Paylaşıldı." : "Paylaşım kaldırıldı."); }
-                catch (e) { setError(errorMessage(e)); }
-              }}>{wf.visibility === "PUBLIC" ? "Paylaşımı kaldır" : "Toplulukla paylaş"}</button>
-              <button className="btn btn-danger" onClick={async () => {
-                if (!window.confirm(`“${wf.name}” silinsin mi? Zamanlama ve webhook da kapanır.`)) return;
-                try { await api.del(`/api/workflows/${wf.id}`); nav("/workflows"); } catch (e) { setError(errorMessage(e)); }
-              }}>Sil</button>
-            </div>
-            {wf.visibility === "PUBLIC" && <Rating workflowId={wf.id} canRate={false} />}
-          </section>
-          {wf.visibility === "PUBLIC" && <Comments targetType="WORKFLOW" targetId={wf.id} />}
-        </>
-      )}
-    </main>
-  );
-}
 
-// ---------------------------------------------------------------------------- editor
-
-function Editor({ wf, onSaved, onError }: { wf: Workflow; onSaved: (w: Workflow, m: string) => void; onError: (m: string) => void }) {
-  const [name, setName] = useState(wf.name);
-  const [description, setDescription] = useState(wf.description);
-  const [def, setDef] = useState<Definition>(structuredClone(wf.definition));
-  const [platform, setPlatform] = useState<PlatformTool[]>([]);
-  const [mine, setMine] = useState<MyTool[]>([]);
-  const [flows, setFlows] = useState<Workflow[]>([]);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    Promise.all([api.get<PlatformTool[]>("/api/tools"), api.get<MyTool[]>("/api/my-tools"), api.get<Workflow[]>("/api/workflows"), api.get<Workflow[]>("/api/community/workflows")])
-      .then(([p, m, own, shared]) => { setPlatform(p); setMine(m); setFlows([...own, ...shared.filter((s) => !own.some((o) => o.id === s.id))].filter((f) => f.id !== wf.id)); })
-      .catch((e) => onError(errorMessage(e)));
-  }, [wf.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const setStep = (i: number, s: Step) => setDef({ ...def, steps: def.steps.map((x, j) => (j === i ? s : x)) });
-  const addStep = (type: Step["type"]) => {
-    const sid = newStepId(def.steps, type);
-    const base: Step = type === "ai" ? { id: sid, type, prompt: "" }
-      : type === "condition" ? { id: sid, type, left: "", op: "gt", right: "", then: [], else: [] }
-      : type === "tool" ? { id: sid, type, tool: platform[0] ? { scope: "CONTENT", id: platform[0].id } : undefined, input: {} }
-      : { id: sid, type, workflowId: flows[0]?.id, input: {} };
-    setDef({ ...def, steps: [...def.steps, base] });
-  };
-  const move = (i: number, d: number) => {
-    const s = [...def.steps];
-    const j = i + d;
-    if (j < 0 || j >= s.length) return;
-    [s[i], s[j]] = [s[j], s[i]];
-    setDef({ ...def, steps: s });
-  };
-  const inputsOf = (s: Step): ToolInput[] => {
-    if (s.type === "tool") return (s.tool?.scope === "USER" ? mine.find((t) => t.id === s.tool?.id)?.definition.inputs : platform.find((t) => t.id === s.tool?.id)?.inputs) ?? [];
-    if (s.type === "workflow") return flows.find((f) => f.id === s.workflowId)?.definition.inputs ?? [];
-    return [];
-  };
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const w = await api.put<Workflow>(`/api/workflows/${wf.id}`, { name, description, definition: def });
-      setDef(structuredClone(w.definition));
-      onSaved(w, `Kaydedildi: sürüm ${w.versionNo}.`);
-    } catch (err) { onError(errorMessage(err)); }
-    finally { setSaving(false); }
-  };
-
-  const placeholders = ["{{input.<ad>}}", ...def.steps.map((s) => `{{steps.${s.id}.output}}`)];
-  return (
-    <form className="card stack" onSubmit={save} aria-labelledby="wf-title">
-      <h1 id="wf-title">{wf.name} <span className="hint-line">sürüm {wf.versionNo}{wf.forkedFrom ? " · çatal" : ""}</span></h1>
-      <TextField label="Ad" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} />
-      <TextField label="Açıklama (isteğe bağlı)" maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
-
-      <fieldset className="stack">
-        <legend>Girdiler</legend>
-        {def.inputs.map((inp, i) => (
-          <div key={i} className="grid-4">
-            <TextField label="Ad" value={inp.name} onChange={(e) => setDef({ ...def, inputs: def.inputs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
-            <TextField label="Etiket" value={inp.label} onChange={(e) => setDef({ ...def, inputs: def.inputs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
-            <label className="choice"><input type="checkbox" checked={inp.required} onChange={(e) => setDef({ ...def, inputs: def.inputs.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)) })} /> Zorunlu</label>
-            <button type="button" className="btn btn-danger" onClick={() => setDef({ ...def, inputs: def.inputs.filter((_, j) => j !== i) })}>Sil</button>
-          </div>
-        ))}
-        <div><button type="button" className="btn" onClick={() => setDef({ ...def, inputs: [...def.inputs, { name: `girdi${def.inputs.length + 1}`, label: "", type: "string", required: false, maxLength: 500 }] })}>+ Girdi</button></div>
-      </fieldset>
-
-      <h2>Adımlar</h2>
-      <FlowGraph def={def} />
-      <p className="hint-line">Bir adım yalnız önceki adımların çıktısını kullanabilir: {placeholders.join(" · ")} (alan için {"{{steps.adim.output.alan}}"}).</p>
-      <ol className="card-list">
-        {def.steps.map((s, i) => (
-          <li key={i} className="card stack" aria-label={`${i + 1}. adım: ${STEP_LABEL[s.type]}`}>
-            <div className="row space-between">
-              <strong>{i + 1}. {STEP_LABEL[s.type]} · <code>{s.id}</code></strong>
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="stack">
+        {tab === "build" && (
+          <WorkflowBuilder key={wf.versionNo} isNew={false} selfId={wf.id}
+            initial={{ name: wf.name, description: wf.description, definition: wf.definition }}
+            onSave={async (d) => {
+              const w = await api.put<Workflow>(`/api/workflows/${wf.id}`, { name: d.name, description: d.description, definition: d.definition });
+              setWf(w); setError(null); setNotice(`Kaydedildi: sürüm ${w.versionNo}. “Çalıştır” sekmesinden deneyebilirsin.`);
+            }} />
+        )}
+        {tab === "run" && (
+          <>
+            <RunPanel wf={wf} onStarted={(runId) => { setOpenRun(runId); load(); }} onError={setError} />
+            {openRun && <RunDetail runId={openRun} onChanged={load} onError={setError} />}
+          </>
+        )}
+        {tab === "history" && (
+          <>
+            {openRun && <RunDetail runId={openRun} onChanged={load} onError={setError} />}
+            <section className="card stack" aria-labelledby="runs-title">
+              <h2 id="runs-title">Çalıştırmalar</h2>
+              {runs.length === 0 ? <p className="muted">Henüz çalıştırılmadı. “Çalıştır” sekmesinden dene.</p> : (
+                <ul className="card-list">
+                  {runs.map((r) => (
+                    <li key={r.id} className="row space-between">
+                      <span>{fmt.dateTime(r.createdAt)} · {TRIGGER_LABEL[r.trigger] ?? r.trigger} · <span className={`run-state run-${r.status.toLowerCase()}`}>{RUN_STATUS[r.status] ?? r.status}</span>
+                        {r.failedStepId && ` (adım: ${r.failedStepId})`} · {fmtCost(r.totalCost)}</span>
+                      <button className="btn btn-sm" aria-pressed={openRun === r.id} onClick={() => setOpenRun(r.id)}>Ayrıntı</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+        {tab === "settings" && (
+          <>
+            <Triggers wf={wf} onChanged={(w, m) => { setWf(w); setNotice(m); }} onError={setError} />
+            <section className="card stack" aria-labelledby="share-title">
+              <h2 id="share-title">Paylaşım</h2>
+              <p className="muted">{wf.visibility === "PUBLIC"
+                ? `Toplulukla paylaşıldı. ${wf.forkCount} kez çatallandı; her çatal sana puan kazandırır.`
+                : "Yalnız sen görüyorsun. Paylaşılan akış yalnız platform araçlarını kullanabilir; kendi anahtarın başkasınca harcanmaz."}</p>
               <div className="row">
-                <button type="button" className="btn btn-sm" aria-label="Yukarı taşı" onClick={() => move(i, -1)}>↑</button>
-                <button type="button" className="btn btn-sm" aria-label="Aşağı taşı" onClick={() => move(i, 1)}>↓</button>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => setDef({ ...def, steps: def.steps.filter((_, j) => j !== i) })}>Sil</button>
+                <button className="btn" onClick={async () => {
+                  try { const w = await api.post<Workflow>(`/api/workflows/${wf.id}/share`, { shared: wf.visibility !== "PUBLIC" }); setWf(w); setNotice(w.visibility === "PUBLIC" ? "Paylaşıldı." : "Paylaşım kaldırıldı."); }
+                  catch (e) { setError(errorMessage(e)); }
+                }}>{wf.visibility === "PUBLIC" ? "Paylaşımı kaldır" : "Toplulukla paylaş"}</button>
+                <button className="btn btn-danger" onClick={async () => {
+                  if (!window.confirm(`“${wf.name}” silinsin mi? Zamanlama ve webhook da kapanır.`)) return;
+                  try { await api.del(`/api/workflows/${wf.id}`); nav("/workflows"); } catch (e) { setError(errorMessage(e)); }
+                }}>Sil</button>
               </div>
-            </div>
-            <TextField label="Adım kimliği" value={s.id} onChange={(e) => setStep(i, { ...s, id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "") })} />
-            {i > 0 && (s.type === "tool" || s.type === "ai") && (def.steps[i - 1].type === "tool" || def.steps[i - 1].type === "ai") && (
-              <label className="choice"><input type="checkbox" checked={Boolean(s.parallel)} onChange={(e) => setStep(i, { ...s, parallel: e.target.checked || undefined })} />
-                <span>Önceki adımla aynı anda (paralel) çalışsın. Paralel adımlar birbirinin çıktısını kullanamaz; sonraki bir adım hepsini birleştirebilir.</span></label>
-            )}
-            {s.type === "ai" && <TextArea label="İstem" rows={3} value={s.prompt ?? ""} onChange={(e) => setStep(i, { ...s, prompt: e.target.value })}
-              hint="Sahte model (ücretsiz): cevap ve maliyet benzetimdir. “[fail]” yazarsan adım bilerek hata verir." />}
-            {s.type === "tool" && (
-              <SelectField label="Araç" value={s.tool ? `${s.tool.scope}:${s.tool.id}` : ""} onChange={(e) => {
-                const [scope, tid] = e.target.value.split(":");
-                setStep(i, { ...s, tool: { scope: scope as "CONTENT" | "USER", id: tid }, input: {} });
-              }}>
-                <option value="">Seçin…</option>
-                <optgroup label="Platform araçları">{platform.map((t) => <option key={t.id} value={`CONTENT:${t.id}`}>{t.name} (s{t.versionNo})</option>)}</optgroup>
-                <optgroup label="Araçlarım (paylaşılan akışta kullanılamaz)">{mine.map((t) => <option key={t.id} value={`USER:${t.id}`}>{t.name}</option>)}</optgroup>
-              </SelectField>
-            )}
-            {s.type === "workflow" && (
-              <SelectField label="Alt akış" value={s.workflowId ?? ""} onChange={(e) => setStep(i, { ...s, workflowId: e.target.value, input: {} })}>
-                <option value="">Seçin…</option>
-                {flows.map((f) => <option key={f.id} value={f.id}>{f.name}{f.ownerId !== wf.ownerId ? ` (${f.ownerName})` : ""}</option>)}
-              </SelectField>
-            )}
-            {(s.type === "tool" || s.type === "workflow") && inputsOf(s).map((inp) => (
-              <TextField key={inp.name} label={`${inp.label || inp.name} ←`} value={s.input?.[inp.name] ?? ""} placeholder="{{input.konu}} ya da sabit değer"
-                onChange={(e) => setStep(i, { ...s, input: { ...s.input, [inp.name]: e.target.value } })} />
-            ))}
-            {s.type === "condition" && (
-              <>
-                <div className="grid-2">
-                  <TextField label="Değer" value={s.left ?? ""} placeholder="{{steps.arac1.output.temperatureC}}" onChange={(e) => setStep(i, { ...s, left: e.target.value })} />
-                  <SelectField label="Karşılaştırma" value={s.op} onChange={(e) => setStep(i, { ...s, op: e.target.value })}>
-                    {OPS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-                  </SelectField>
-                  <TextField label="Karşı değer" value={s.right ?? ""} onChange={(e) => setStep(i, { ...s, right: e.target.value })} />
-                </div>
-                <BranchPicker label="Doğruysa çalışacak adımlar" steps={def.steps.slice(i + 1)} value={s.then ?? []} onChange={(v) => setStep(i, { ...s, then: v })} />
-                <BranchPicker label="Yanlışsa çalışacak adımlar" steps={def.steps.slice(i + 1)} value={s.else ?? []} onChange={(v) => setStep(i, { ...s, else: v })} />
-              </>
-            )}
-          </li>
-        ))}
-      </ol>
-      <div className="row">
-        {(["tool", "ai", "condition", "workflow"] as const).map((t) => <button key={t} type="button" className="btn" onClick={() => addStep(t)}>+ {STEP_LABEL[t]}</button>)}
+            </section>
+          </>
+        )}
+        {tab === "talk" && wf.visibility === "PUBLIC" && (
+          <>
+            <section className="card stack"><h2 style={{ margin: 0 }}>Topluluk puanı</h2><Rating workflowId={wf.id} canRate={false} /></section>
+            <Comments targetType="WORKFLOW" targetId={wf.id} />
+          </>
+        )}
       </div>
-      <TextField label="Akışın sonucu (isteğe bağlı)" value={def.output} placeholder="Boşsa son adımın çıktısı" onChange={(e) => setDef({ ...def, output: e.target.value })} />
-      <div><button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Kaydediliyor…" : "Kaydet (yeni sürüm)"}</button></div>
-    </form>
-  );
-}
-
-function BranchPicker({ label, steps, value, onChange }: { label: string; steps: Step[]; value: string[]; onChange: (v: string[]) => void }) {
-  return (
-    <fieldset>
-      <legend>{label}</legend>
-      {steps.length === 0 ? <p className="hint-line">Bu koşuldan sonra adım yok.</p> : (
-        <div className="row">
-          {steps.map((s) => (
-            <label key={s.id} className="choice"><input type="checkbox" checked={value.includes(s.id)}
-              onChange={(e) => onChange(e.target.checked ? [...value, s.id] : value.filter((x) => x !== s.id))} /> {s.id}</label>
-          ))}
-        </div>
-      )}
-    </fieldset>
+    </main>
   );
 }
 

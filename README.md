@@ -40,7 +40,7 @@ Gereksinimler: Java 21, Node 20+, PostgreSQL 16+ (yerelde çalışıyor olmalı)
 | CMS | http://localhost:5174 |
 | API | http://localhost:8080 (sağlık: `/actuator/health`) |
 | Mailpit | http://localhost:8025 |
-| Sahte dış API (araçlar için) | http://localhost:8090 — `java mock-api\MockApi.java` (yalnız JDK; `scripts\dev.ps1` de başlatır) |
+| Sahte dış API (araçlar için) | http://localhost:8090 — `java mock-api\MockApi.java` (yalnız JDK; `scripts\dev.ps1` de başlatır). Tohum verisindeki üç öğrenme aracı (Metin özetleyici, Terim sözlüğü, Metin denetleyici) bunu kullanır; kurala dayalıdır, gerçek yapay zekâ değildir |
 
 ## Docker Compose
 `docker-compose.yml` Postgres ve Mailpit'i ayağa kaldırır. **Durum: henüz doğrulanmadı.** Geliştirme makinesinde Docker kurulu değil; doğrulanınca bu satır güncellenecek.

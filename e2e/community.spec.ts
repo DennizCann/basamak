@@ -44,7 +44,7 @@ test("profile, follow + feed, comments, rating and moderation", async ({ page, b
   await pb.goto(`${WEB}/workflows/${wf.id}`);
   await pb.getByLabel("Yorum yaz").fill("Bu yorum gizlenecek");
   await pb.getByRole("button", { name: "Gönder" }).click();
-  await page.goto(`${WEB}/workflows/${wf.id}`);
+  await page.goto(`${WEB}/workflows/${wf.id}?tab=talk`);
   const target = page.locator("article.comment").filter({ hasText: "Bu yorum gizlenecek" });
   await target.getByRole("button", { name: "Bildir" }).click();
   await target.getByLabel("Bildirme nedeni").selectOption("Spam ya da reklam");

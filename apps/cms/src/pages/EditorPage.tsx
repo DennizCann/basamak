@@ -122,13 +122,13 @@ export function EditorPage() {
           <label className="choice"><input type="checkbox" checked={jsonMode} onChange={(e) => setJsonMode(e.target.checked)} /> Gelişmiş: JSON olarak düzenle</label>
           {jsonMode ? <JsonEditor value={body} onChange={change} disabled={!editable} />
             : item.type === "JOURNEY" ? <JourneyForm body={body} onChange={change} trainings={trainings} disabled={!editable} />
-            : item.type === "TOOL" ? <ToolForm body={body} onChange={change} disabled={!editable} />
+            : item.type === "TOOL" ? <ToolForm body={body} onChange={change} disabled={!editable} onSave={dirty ? save : undefined} />
             : item.type === "TRAINING" ? <TrainingForm body={body} onChange={change} trainings={trainings.filter((t) => t.id !== item.id)} tools={tools} disabled={!editable}
                                                        lockedKeys={lockedKeys} onConfirmRemove={(k) => setConfirmRemoved((c) => [...new Set([...c, k])])} />
             : item.type === "POINT_RULE" ? <RuleForm body={body} onChange={change} disabled={!editable} />
             : <JsonEditor value={body} onChange={change} disabled={!editable} />}
           <div className="row">
-            <button className="btn btn-primary" disabled={!editable || !dirty} onClick={save}>Yeni sürüm olarak kaydet</button>
+            {!(item.type === "TOOL" && !jsonMode) && <button className="btn btn-primary" disabled={!editable || !dirty} onClick={save}>Yeni sürüm olarak kaydet</button>}
             {!editable && <span className="hint">Düzenlemek için yazar ya da editör rolü gerekir.</span>}
             {editable && !dirty && <span className="hint">Değişiklik yapınca kaydedebilirsiniz.</span>}
           </div>

@@ -10,7 +10,7 @@ import { CertificatesPage } from "./pages/CertificatesPage";
 import { ExplorePage } from "./pages/ExplorePage";
 import { ToolsPage } from "./pages/ToolsPage";
 import { WorkflowsPage } from "./pages/WorkflowsPage";
-import { WorkflowPage } from "./pages/WorkflowPage";
+import { NewWorkflowPage, WorkflowPage } from "./pages/WorkflowPage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -44,6 +44,7 @@ export function App() {
             <Route path="/explore" element={<RequireAuth><ExplorePage /></RequireAuth>} />
             <Route path="/tools" element={<RequireAuth><ToolsPage /></RequireAuth>} />
             <Route path="/workflows" element={<RequireAuth><WorkflowsPage /></RequireAuth>} />
+            <Route path="/workflows/new" element={<RequireAuth><NewWorkflowPage /></RequireAuth>} />
             <Route path="/workflows/:id" element={<RequireAuth><WorkflowPage /></RequireAuth>} />
             <Route path="/leaderboard" element={<RequireAuth><LeaderboardPage /></RequireAuth>} />
             <Route path="/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
