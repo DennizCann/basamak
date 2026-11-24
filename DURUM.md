@@ -20,6 +20,7 @@
 | F4 | İş akışı motoru, cron ve webhook, fork, sıralama (8, 9, 11) | **tamamlandı** (24.11 00.23, commit 450096f): web; mobilde denenmedi |
 | F5 | Geçmişim, KVKK, raporlar (12, 13) | **tamamlandı** (24.11 00.36, commit 8958c2f) |
 | F6 | Mobil özellikler (14) | **tamamlandı** (24.11 ~01.00): Android emülatöründe elle doğrulandı; iOS test edilmedi |
+| F6.5 | PDF madde denetimi ve eksik özellikler | **tamamlandı** (24.11 02.10–03.35): PDF Bölüm 3–6 madde madde kodla karşılaştırıldı; ~50 eksik ya da yarım madde kapatıldı (ayrıntı aşağıda) |
 | F7 | Kalite ve ölçümler (15) | başlanmadı |
 | F8 | Teslim belgeleri | başlanmadı |
 
@@ -89,6 +90,8 @@
 | 24.11 ~00.34 | F5: typecheck, izole e2e | **26 geçti**, 1 atlandı. e2e gerçek bir hata buldu: cevapsız anket sorusunda rapor 500 veriyordu (`Map.of` null kabul etmiyor); düzeltildi ve entegrasyon testine eklendi |
 | 24.11 ~00.55 | F6: `mvnw -B -o verify` | **91/91** (yeni: NotificationIT) |
 | 24.11 ~00.58 | F6: izole e2e | **26 geçti**, 1 atlandı |
+| 24.11 ~03.40 | F6.5: `mvnw -B -o verify` | **109/109** |
+| 24.11 ~03.45 | F6.5: izole e2e (tamamı) | **28 geçti**, 1 atlandı (isteğe bağlı ekran görüntüsü) |
 | 24.11 ~00.50 | F6: APK, Pixel 7 emülatörü | Keystore'a geçiş (düz depoda token yok), derin bağlantı, uçak modunda ders tamamlama → bağlantı gelince eşitlendi (sunucuda doğrulandı), bildirim → dokununca akış ekranı (2 hata bulundu ve düzeltildi), FLAG_SECURE (hesap ekranı siyah, diğer ekranlar normal) |
 
 ## QA düzeltme fazı (23.11, commit edilmedi — onay bekleniyor)
@@ -149,6 +152,18 @@ Testlerin ortaya çıkardığı ek gerçek hatalar: e-posta doğrulamada StrictM
 - **Web (mobil kipi):** `offline.ts` (önbellek ve giden kutusu), `MobileBridge.tsx` (derin bağlantı, geri tuşu, gizlilik ekranı, eşitleme, bildirimler), `share.ts` (PDF paylaşımı).
 - **Backend:** Migration `0008` (`notification`), `NotificationService` ve `NotificationController` (liste, okundu, SSE). Araç, iş akışı, sertifika ve çatal bildirimleri. Bildirimler hesap silmede silinir, dışa aktarmada yer alır.
 - **Yapılmadı:** FCM push (Firebase projesi gerekir), iOS Keychain ve iOS testi, App Links (alan adı gerekir), PDF paylaşımının cihazda denenmesi.
+
+## F6.5 PDF madde denetimi (24.11 02.10–03.35)
+Kullanıcı PDF'te açıkça yazan özelliklerin (ör. derse görsel ve video ekleme) eksik olduğunu bildirdi. **Doğru tespit:** ilerleme yalnız 8.3'teki 15 senaryoya göre ölçülmüştü; Bölüm 3–6'daki maddelerin bir kısmı hiç yoktu. PDF metne çevrildi (`pdftotext`) ve 76 madde kodda tek tek arandı. Kapatılanlar (her biri testli, commit'li):
+- **Ders medyası** (3f7a9a7): görsel (alt metin zorunlu), yüklenen video, dosya eki; bayttan tür denetimi, boyut sınırı, SVG/HTML yok; taslak medya üyeye kapalı (imzalı adres), yayından sonra açık. MediaIT, e2e media.spec.
+- **Bildirimler** (fc5715f): web bildirim merkezi, olay × kanal tercihleri, e-posta bildirimi; mobilde izin ilk çalıştırmada ve açıklamalı.
+- **Topluluk** (36167f9): herkese açık profil (parça parça görünürlük), takip ve akış, eğitim ve akış tartışması, puan verme, moderasyon (bildir, gizle, 30 günde 3 gizlemede 7 gün kısıt), rozetler ve günlük seri. CommunityIT, e2e community.spec.
+- **İş akışı** (22615f7): paralel adım grupları, eksik eşleme ve tür uyuşmazlığı denetimi, platform olayı tetikleyicisi, aylık yapay zekâ bütçesi, sağlayıcı ayarla (mock; ollama yazıldı **denenmedi**), canlı akış şeması.
+- **Kötüye kullanım** (22615f7): dersi açıp 5 sn içinde tamamlama reddi, boş ya da kopya araç puansız, çatal puanı üye başına bir kez, karşılıklı çatal puansız. AntiFarmingIT.
+- **Araçlar** (…, ca05808, 61c51be): seviyeye göre günlük kota, şemayı bozan sürüm işareti (üye ve CMS), araç paylaşma ve çatallama (sır kopyalanmaz), OAuth 2.0 client credentials, 50 MB'a kadar dosya çıktısı (7 gün saklama). ToolRulesIT, ToolIT +1.
+- **Raporlar** (715d78a): Journey raporu, bırakan üye ve en çok bırakılan öge, sürüm karşılaştırması, soru başına ortalama süre (yaklaşık), anonim ankette 5'ten az cevapta gizleme, araç ve akış kullanımı (hata oranı, süre, yapay zekâ maliyeti), yeni CSV'ler.
+- **Diğer** (dd96aab ve sonrası): quiz süre uzatma isteği, çalıştırma başlatmada hız sınırı, istek kimliğinin arka plan işlerine taşınması, kuyruk ölçümleri, Türkçe sıralama, mobilde "çevrimdışı için indir" ve görsel önbelleği, bileşen kataloğu (`/ui`), Maestro akış dosyası (**çalıştırılmadı**: Maestro kurulu değil).
+- **Hâlâ yapılmayan:** FCM push, iOS testi, OpenTelemetry (yalnız tasarımda), %80 kapsam eşiğinin CI'da zorlanması (F7'de ölçülecek).
 
 ## Çalıştırma notu
 Backend'i `tools/run/backend.jar` kopyasından çalıştırın (`java -jar tools\run\backend.jar`). `target/` altındaki jar çalışırken Windows dosyayı kilitliyor ve `mvnw verify` repackage adımında başarısız oluyor.

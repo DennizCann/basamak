@@ -156,6 +156,14 @@ erDiagram
   - **Kanıt:** `JourneyPolicyIT.publishedItemKeysCannotSilentlyDisappear`.
 - **Neden kilitleme yok, gerçek zamanlı ortak düzenleme yok:** Düşük çakışma oranında (20 kişilik ekip) iyimser kilit basittir ve veri kaybını önler. Ortak düzenleme (CRDT) bu kapsam için fazla karmaşık; §11'de ertelenenler arasında.
 
+### 3.5 Medya: görsel, video ve dosya ekleri (3.3, 3.4)
+- **Yükleme:** Yalnız içerik ekibi yükler (`POST /api/cms/media`). Tür, dosyanın **ilk baytlarından** belirlenir; istemcinin bildirdiği tür ve dosya adı dikkate alınmaz. SVG ve HTML kabul edilmez (görselin içinde betik). Sınırlar: görsel 5 MB, dosya 20 MB, video 100 MB.
+- **Sürümleme ve saklama maliyeti:** Dosyalar değişmezdir ve SHA-256 ile adreslenir; aynı dosya ikinci kez yüklense de diskte bir kez durur. Ders sürümü dosyaya kimlikle başvurur (`![alt](media:id)`, `video.mediaId`, `attachments`). Eski sürümler kendi dosyalarını göstermeye devam eder; hiçbir şeyin üstüne yazılmaz. Hiçbir sürümün başvurmadığı dosyaları silen bir temizlik işi henüz yok (§11).
+- **Erişim:** Üye bir dosyayı yalnız **yayındaki** bir sürüm ona başvururken okuyabilir; taslak medya hiçbir yoldan görünmez. CMS önizlemesi bir saatlik HMAC imzalı adres kullanır (`<img>` bearer jeton gönderemez). Cevaplarda `nosniff` ve `sandbox` CSP vardır. Video için HTTP Range desteklenir (ileri sarma).
+- **Erişilebilirlik:** Görselin alt metni zorunludur; kaydetmede denetlenir.
+- **Videolar (Sizin kararınız):** Bugün tek dosya MP4/WebM olarak saklanır ve tarayıcının oynatıcısıyla Range isteğiyle oynatılır. 2 TB ölçeğinde: yüklenen video bir iş olarak HLS'ye (ör. 360p/720p/1080p) dönüştürülür, parçalar nesne depolamada (S3 uyumlu) ve CDN arkasında tutulur, imzalı ve kısa ömürlü adreslerle dağıtılır. İzleme süresi bugünkü gibi sunucuda, duvar saatiyle sınırlanarak ölçülür; ileri sarmak süreyi artırmaz.
+- **Mobilde:** "Çevrimdışı için indir" eğitimin metnini, görsellerini ve eklerini cihaza (Cache Storage) kaydeder; videolar boyut nedeniyle indirilmez.
+
 ## 4. Araç ve iş akışı çalıştırma motoru
 
 ### 4.1 Araç modeli
@@ -168,6 +176,12 @@ erDiagram
   - Başlıklarda CR ve LF silinir.
   - JSON gövde metin birleştirmeyle değil Jackson ağacıyla üretilir.
   - Sırlar gövdede kullanılamaz.
+- **OAuth 2.0 istemci kimliği (client credentials):** Tanımda `auth.tokenUrl` (ve isteğe bağlı `scope`) verilir; istemci kimliği ve sırrı `clientId` ve `clientSecret` adlı şifreli sırlardır. İşçi jetonu jeton adresinden alır (aynı SSRF kuralları), süresi bitene kadar **yalnız bellekte** tutar ve `Authorization: Bearer` olarak gönderir. 401 gelirse jeton atılır, sonraki denemede yenisi alınır. Jeton hiçbir ekrana, kayda ya da API cevabına girmez (test edildi).
+- **Dosya çıktısı (50 MB):** JSON ya da metin olmayan cevaplar (PDF, görsel, ZIP…) belleğe alınmaz, diske akıtılır; 50 MB'ı aşarsa kesilir. Çalıştırma yalnız dosyanın adını, türünü ve boyutunu saklar. Dosya **7 gün** tutulur (saatlik temizlik işi), yalnız çalıştırmanın sahibi indirir.
+- **Şemayı bozan sürüm:** Yeni sürümde bir girdi kaldırılırsa, türü değişirse, yeni zorunlu girdi eklenirse ya da çıktı seçimi değişirse bu "bozucu değişiklik" olarak işaretlenir (`ToolCompat`). Üyeye kaydederken, CMS'te yayındaki sürümle karşılaştırılarak gösterilir. Eğitimler ve iş akışları sürüme sabitli olduğu için hiçbiri kendiliğinden bozulmaz.
+- **Günlük kota (seviyeyle artar):** Üye başına günlük araç çalıştırma hakkı Beginner'da 20, Expert'te 40, Master'da 60'tır (`TOOLS_DAILY_RUNS_PER_LEVEL`). Gün İstanbul saatiyle yenilenir. Ayrıca IP başına dakikada 30 çalıştırma başlatma sınırı vardır.
+- **Paylaşılan araç (Sizin kararınız: kimin kotası, kimin anahtarı):** Üye aracını toplulukla paylaşabilir; paylaşılan şey yalnız **tanımdır**. Başka üye aracı kendi listesine kopyalar (çatal) ve kendi anahtarını ekler. Çalıştırma, çalıştıranın kotasından düşer ve çalıştıranın anahtarını kullanır; kimse başkasının anahtarını ya da kotasını harcayamaz. Platform araçlarında anahtar ve maliyet platformundur.
+- **Kötü niyetli araç (Sizin kararınız):** İç ağa erişim UrlGuard ile kesin olarak engellenir. Başka sitelere saldırıya karşı: üye kotası, eşzamanlı 5 çalıştırma, IP başına hız sınırı ve 30 sn süre sınırı. İzleme (§9): hedef alan adı başına hata oranı ve hacim; eşik aşılınca araç ve sahibi otomatik askıya alınır, moderatöre düşer. Bu otomatik askıya alma **yapılmadı** (§11).
 
 ### 4.2 Çalıştırma (sıra şeması)
 ```mermaid
@@ -229,12 +243,17 @@ Yalnız JDK ile çalışan tek bir dosyadır (`java mock-api/MockApi.java`, :809
 - **Adım başına kayıt:** Her çalıştırma `workflow_step_run` tablosuna yazılır: girdi, çıktı, süre, token, maliyet, deneme sayısı ve alt akışın çalıştırma kimliği.
 - **Hatalı adımdan devam:** Devam edildiğinde aynı çalıştırma yeniden kuyruğa girer. Başarılı adımların son çıktıları kullanılır ve hatalı adımdan itibaren çalışılır. Geçmiş korunur: hatalı satır kalır, üzerine yeni satır eklenir. Sunucu çökerse yarıda kalan adım FAILED olarak kapatılır ve kira dolunca çalıştırma kaldığı yerden sürer.
 - **Çalışma sırasında aracın yeni sürümü yayınlanırsa:** Akış sabitlediği sürümü kullanmaya devam eder. Alt akışın yeni sürümü ise bir sonraki çağrıdan itibaren kullanılır. Hangi sürümün çalıştığı çalıştırma kaydında saklanır.
-- **Yapay zekâ:** `AiProvider` arayüzünün tek gerçeklemesi `MockAiProvider`'dır. Ücretsizdir ve deterministiktir. Token sayısı tahminidir (yaklaşık 4 karakter = 1 token), maliyet uydurma bir fiyat listesiyle hesaplanır ve arayüzde "benzetim" olarak etiketlenir. `[fail]` işareti bilerek hata üretir (devam etme senaryosunu göstermek için). Ollama gibi gerçek bir sağlayıcı **yazılmadı**.
+- **Yapay zekâ sağlayıcısı ayarla seçilir** (`AI_PROVIDER`): `mock` (varsayılan) ücretsiz ve deterministiktir; token sayısı tahmin, maliyet uydurma fiyat listesiyle hesaplanır ve arayüzde "benzetim" diye etiketlenir. `[fail]` işareti bilerek hata üretir. `ollama` ücretsiz yerel model sunucusu için yazıldı, **denenmedi** (makinede kurulu değil).
+- **Paralel adımlar:** `parallel: true` işaretli araç ya da yapay zekâ adımı, önceki adımla aynı anda çalışır (sanal iş parçacıkları). Bir paralel grubun adımları birbirinin çıktısını okuyamaz (kayıtta reddedilir); sonraki bir adım hepsinin çıktısını birleştirebilir (`{{steps.a.output}} {{steps.b.output}}`). Grup içinde bir adım hata verirse çalıştırma o adımda durur, başarılı kardeşler devam etmede yeniden çalışmaz.
+- **Kaydederken denetimler:** Aracın zorunlu girdisi eşlenmemişse ve tür uyuşmazlığı varsa (ör. sayı bekleyen girdiye yapay zekânın metin çıktısı) kayıt reddedilir. Türü bilinmeyen kaynaklar (araç çıktısı) çalışma anında araç girdisi doğrulamasından geçer.
+- **Aylık yapay zekâ bütçesi:** Üye başına takvim ayı (İstanbul) bütçesi (`AI_MONTHLY_BUDGET_USD`, varsayılan 1 USD). Bütçe dolunca yapay zekâ adımı olan yeni çalıştırma 402 ile reddedilir. Çalışan akış, yapay zekâ adımına gelince **harcamadan önce** durur; adım nedeni yazan bir hatayla kapanır, önceki sonuçlar kalır ve ay yenilenince "devam et" ile sürer. Kullanım çalıştırma panelinde gösterilir.
+- **Görsel kurucu:** Form tabanlı adım düzenleyicinin üstünde canlı bir akış şeması vardır: satırlar çalışma sırası, yan yana kutular paralel adımlar, düz oklar veri akışı, kesik oklar koşul dallarıdır. Şemanın metin karşılığı ekran okuyucuya verilir. Sürükle bırak düzenleme **yok**; adımlar formdan eklenir.
 - **İstem enjeksiyonu:** Yapay zekâ çıktısı yalnız veridir. Sonraki adımın metnine ve koşula girebilir, ama araç, URL, sır ya da adım seçemez. Sırlar istemlere hiç girmez; URL'nin sunucu adı sabittir ve UrlGuard'dan geçer. En kötü durumda üretilen metin yanıltıcı olur.
-- **Büyük çıktı:** Araç cevabı 1 MB ile sınırlıdır (§4.2).
+- **Büyük çıktı:** JSON ya da metin cevabı 1 MB ile sınırlıdır; daha büyük dosyalar dosya çıktısı olur (§4.1). Bir adımın büyük çıktısı sonraki adımın istemine kırpılmadan girer; istem 8.000 karakteri aşarsa yapay zekâ adımı kaydedilemez. Prod'da çıktı nesne depolamaya yazılır ve adımlara yalnız başvurusu geçer.
 
 ### 4.6 Tetikleyiciler (senaryo 9)
 - **Cron:** 5 alanlı, Europe/Istanbul saatiyle ve en sık dakikada bir. Zamanlayıcı 15 saniyede bir, vadesi gelen akışları `FOR UPDATE SKIP LOCKED` ile kilitler. İş anahtarı `cron:{akış}:{planlanan zaman}` olduğu için aynı tik iki kez ateşlense bile tek çalıştırma olur (test edildi).
+- **Platform olayı:** Üye akışını kendi öğrenme olaylarından birine bağlar (ders, eğitim ya da Journey tamamlama, quiz geçme). Olay commit edildikten sonra akış başlar; iş anahtarı `event:{olay anahtarı}:{akış}` olduğu için aynı olay iki kez gelse (yeniden deneme, mobil eşitleme) tek çalıştırma olur (test edildi). Araç ve iş akışı olayları tetikleyici olamaz, böylece bir akış kendini döngüyle tetikleyemez. Olay alanları (eventType, objectType, objectId, occurredAt) aynı adlı girdilere geçer.
 - **Webhook:** `POST /api/hooks/workflows/{token}`. Token rastgeledir, yalnız bir kez gösterilir ve SHA-256 özeti saklanır. `Idempotency-Key` başlığı (yoksa gövdenin özeti) iş anahtarına girer: aynı teslimat 200 ve aynı çalıştırma kimliğiyle cevaplanır, ilk teslimat 202 alır.
 
 ### 4.7 Paylaşım, çatallama ve sıralama (senaryo 11)
@@ -299,9 +318,15 @@ sequenceDiagram
   - Aynı dersi tekrar açmak: politika gereği tek puan.
   - Açıp hemen kapatmak: görüntüleme 1 puan, asıl puan tamamlamada; videolu derste izleme süresi sunucuda duvar saatiyle sınırlanır.
   - Döngüde çalıştırma: günlük tek puan.
-  - Boş, kopya ya da karşılıklı çatallama: F4'te.
+  - Açıp hemen kapatmak: ders açıldıktan sonra 5 saniye dolmadan tamamlanamaz (web; sunucu zamanıyla). Mobilde çevrimdışı eşitlemeyi bozmamak için bu kural uygulanmaz; puan zaten ders başına tektir.
+  - Boş ya da kopya araç: girdisi olmayan ya da başka bir üyenin tanımıyla aynı olan araç kaydedilir ama oluşturma puanı vermez (`TOOL_CREATED_NO_POINTS`).
+  - Çatallama: yazar aynı üyenin çatalından bir kez puan alır; iki üye 30 gün içinde birbirinin akışını ya da aracını çatallarsa (iki hesapla şişirme) puan verilmez (`SHARED_ITEM_FORKED_NO_POINTS`). Kanıt: `AntiFarmingIT`.
 - **Çevrimdışı aksiyon ve cihaz saati:** İstemcinin `occurredAt` değeri yalnız gösterim içindir. Günlük politika ve sıralama **sunucunun kabul anına** (`received_at`, İstanbul günü) göre hesaplanır; cihaz saatini ileri almak işe yaramaz.
 - **Sıralama tablosu (50.000 üye):** `user_score.total` aynı işlemde güncellenir ve indekslidir. Genel sıralama `ORDER BY total DESC LIMIT N` sorgusudur. Haftalık sıralama `point_ledger(created_at)` indeksiyle hesaplanır (F4'te ayrıntı ve ölçüm).
+
+### 5.3a Rozetler ve günlük seri
+- **Rozetler:** İlk ders, ilk quiz, ilk araç, ilk iş akışı, ilk paylaşım, ilk Journey, 3 ve 7 günlük seri. Saklanan olaylardan aynı işlemde türetilir; (üye, rozet) birincil anahtar olduğu için tekrar gelen olay ikinci rozet vermez. Rozet puan vermez (ayrı bir ödüldür) ve bildirimle duyurulur.
+- **Seri:** Görüntüleme değil, anlamlı bir aksiyon (tamamlama, geçme, çalıştırma, oluşturma) yapılan İstanbul günleri sayılır. Gün, **sunucunun olayı aldığı** zamana göre belirlenir; çevrimdışı yapılan iş eşitlendiği gün sayılır, cihaz saatini değiştirmek seri kazandırmaz.
 
 ### 5.4 Journey ve seviye kuralları
 - **Journey'in tamamlanması:** Journey, içindeki **o anki** bütün yayınlanmış eğitimler bitince tamamlanır. O anda sertifika verilir ve `JOURNEY_COMPLETED` kaydedilir.
@@ -424,7 +449,27 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Kapsam:** Eğitim başına tamamlama oranı ve ortalama süre, quiz başına geçme oranı ve ortalama puan, soru başına doğru oranı (her deneme kendi sürümünün sorularıyla değerlendirilir; açık uçlular hariç), anket sorusu başına dağılım (seçenek ya da 1-5 ölçek) ve isimsiz son 20 açık uçlu cevap.
 - **CSV:** UTF-8 BOM ve `;` ayırıcı kullanılır (Türkçe Excel için); ondalık ayracı virgüldür. Her hücre tırnak içindedir. `= + - @` ile başlayan değerin başına `'` eklenir (CSV ya da formül enjeksiyonu). Her dışa aktarım denetim kaydına yazılır.
 - **Yetki:** Editör, yayıncı ve yönetici görür; yazar göremez (test edildi).
-- **Ölçek:** Raporlar bugün işlem tablolarından anlık hesaplanır. Büyük hacimde etkinlik olaylarından beslenen ön-toplanmış okuma modellerine geçilir (§9).
+- **Eklenenler (3.12):** Journey başına başlayan, bitiren ve bırakan üye; eğitim başına bırakan üye ve **en çok bırakılan öge**; soru başına ortalama süre; eğitimin sürümlerine göre karşılaştırma (üye başladığı sürümü bitirdiği için her sürümün kendi oranı vardır); araç ve iş akışı başına çalıştırma, hata oranı, ortalama süre ve yapay zekâ maliyeti. Hepsi CSV olarak da iner.
+- **"Bıraktı" tanımı:** Başlamış, bitirmemiş ve 14 gündür hiç ilerlememiş üye. En çok bırakılan öge, bu üyelerin kaldığı ögedir.
+- **Soru başına süre:** Soru başına ayrı süre tutulmuyor; deneme süresi o denemedeki soru sayısına bölünerek **yaklaşık** hesaplanır ve ekranda böyle yazar. Gerçek süre için soru açılış ve cevap olayları kaydedilmelidir (§11).
+- **Anonim ankette gizlilik:** Anonim bir ankette 5'ten az cevap varsa dağılım ve açık uçlu cevaplar gösterilmez; az cevapta kimin ne dediği tahmin edilebilir. Anonim cevaplarda kullanıcı kimliği zaten saklanmaz.
+- **Canlı veritabanı mı, analitik depo mu? (Sizin kararınız):** Bugün işlem veritabanından anlık okunur; gecikme yoktur ve 20 kişilik içerik ekibi için yükü küçüktür. 50.000 üye ve kampanya yükünde raporlar okuma kopyasına (read replica) taşınır, ağır olanlar etkinlik olaylarından beslenen ön-toplanmış tablolara geçer. **Kabul edilebilir gecikme:** 15 dakika (rapor kararları saatlik ya da günlük alınır).
+
+### 7.8 Topluluk ve moderasyon (3.8)
+- **Profil:** Varsayılan olarak gizlidir; üye herkese açmayı kendisi seçer. Açıkken seviye ve puan, rozetler, tamamlanan Journey'ler ve paylaşılanlar ayrı ayrı gizlenebilir. Gizli profil 404 döner; varlığı bile sızmaz.
+- **Takip ve etkinlik akışı:** Yalnız profili açık üyeler takip edilebilir. Akış, takip edilenlerin anlamlı olaylarını (eğitim, Journey, quiz, paylaşım) gösterir; profil gizlenince akıştan da çıkar. **Ölçek (Sizin kararınız):** Bugün okuma anında birleştirme (fan-out on read) yapılır ve `activity_event(user_id, received_at)` indeksiyle hızlıdır. Takipçi sayısı yüksek üyelerde yazma anında kutulara dağıtım (fan-out on write) ile karışık bir modele geçilir; çok takipçili hesaplar okuma anında eklenir.
+- **Tartışma:** Eğitim başına ve paylaşılan iş akışı başına yorum ve tek seviye cevap. Cevap, yorum sahibine; akışa yazılan yorum akış sahibine bildirim olarak gider.
+- **Kişisel veri ve küfür (Sizin kararınız):** Kayıttan önce e-posta adresleri ve telefon numaraları "[gizlendi]" ile değiştirilir. Kısa bir küfür listesi yorumu nedenini söyleyerek reddeder (Türkçe küçük harf dönüşümüyle). Liste bilerek kısadır; prod'da bakımı yapılan bir sözlük ve bir sınıflandırıcı kullanılır. Üye başına 10 dakikada en çok 10 yorum (spam).
+- **Moderasyon:** Üye yorumu nedeniyle bildirir; CMS "Moderasyon" ekranında editör, yayıncı ya da yönetici gizler ya da kapatır. Gizlenen yorum "topluluk kuralları nedeniyle gizlendi" olarak görünür. Son 30 günde 3 yorumu gizlenen üye **7 gün** yorum yazamaz (otomatik); elle kısıtlama da vardır. Her işlem denetim kaydına yazılır.
+- **Puan verme:** Paylaşılan iş akışına 1–5 yıldız; üye başına bir puan (değiştirilebilir), kendi akışına verilemez.
+- **Silinen hesabın topluluk izi (Sizin kararınız):** Profili ve takipleri silinir. Yorumların metni silinir, yer tutucu "Bu yorum silindi" olarak kalır, böylece cevap zincirleri bozulmaz. Puanları anonim toplamda kalır. Paylaştığı akış ve araçlar paylaşımdan kalkar; başkalarının çatalları bağımsız kopya olarak yaşar. Sıralamadan çıkar (`user_score` silinir).
+
+### 7.9 Bildirimler (3.9)
+- **Kanallar:** Uygulama içi bildirim merkezi (zil ve /notifications, SSE ile canlı), e-posta ve mobil bildirim. Üye her olay türü için kanal seçer (`notification_pref`; varsayılanlar türe göre). E-posta, çağıran işlem commit edildikten sonra gönderilir.
+- **İki kez gitmesin:** Her bildirimin `dedup_key` alanı tekildir (ör. `tool-run:{id}`); yeniden denenen iş ikinci bildirimi üretmez. Mobil uygulama SSE'de son gördüğü kimliği tutar ve yeniden bağlanınca yalnız sonrasını alır.
+- **İzin:** Mobilde bildirim izni girişte değil, ilk araç ya da akış çalıştırmasında nedeni açıklanarak istenir; "hayır" hatırlanır.
+- **Sessiz saatler (Sizin kararınız):** Kodda **yok**. Tasarım: üye bir saat aralığı seçer (İstanbul); bu aralıkta push ve e-posta bekletilir ve aralık bitince tek bir özet olarak gönderilir, uygulama içi bildirim hemen yazılır. Seviye atlama gibi önemli olaylar da bekletilir; güvenlik bildirimleri (şifre, yeni cihaz) bekletilmez.
+- **FCM yok:** Uygulama kapalıyken push için Firebase projesi gerekir (§8.2).
 
 ## 8. Mobil *(F2.5 yazıldı; çevrimdışı, bildirim ve derin bağlantı F6'da)*
 
@@ -536,9 +581,12 @@ CMS bu kapsamın dışında: içerik ekibi her yeni oturumda TOTP kodu girer. CM
 - **Sonuçlar:** Çok uzun listelerde ve ağır animasyonlarda WebView, RN'nin gerisinde kalır; bu ürünün ekranları içerik ve form ağırlıklı olduğu için kabul edildi. Platforma özgü davranış `platform.ts` ve eklentilerle sınırlı tutulur. Soğuk açılış süresi F7'de ölçülecek.
 
 ## 11. İleriye bırakılanlar *(her fazda güncellenir)*
-- **Araçlarda devre kesici ve hedef başına hız sınırı:** Bugün işçi sayısı, süre sınırı ve üye başına 5 eşzamanlı çalıştırma var. Art arda hata veren bir hedefin geçici olarak atlanması yok.
-- **Araç çıktısı temizliği (90 gün) ve büyük dosya çıktısının diske akışı:** Çıktı 1 MB ile sınırlı.
-- **OAuth2 client credentials ile araç kimlik doğrulaması:** Yalnız başlıkta API anahtarı ya da bearer var.
+- **Araçlarda devre kesici ve hedef başına hız sınırı:** Bugün işçi sayısı, süre sınırı, üye başına 5 eşzamanlı çalıştırma, seviyeye göre günlük kota ve IP başına dakikalık sınır var. Art arda hata veren bir hedefin geçici olarak atlanması ve kötü niyetli aracın otomatik askıya alınması yok.
+- **Kullanılmayan medya dosyalarının temizliği:** Hiçbir sürümün başvurmadığı dosyalar silinmiyor (dosyalar tekilleştirilmiş olduğu için büyüme sınırlı).
+- **Sessiz saatler ve FCM push** (§7.9, §8.2), **iOS testi**.
+- **Soru başına gerçek süre ölçümü** (bugün deneme süresinden yaklaşık hesap, §7.7).
+- **Sürükle bırak iş akışı kurucusu:** Form tabanlı düzenleyici ve canlı şema var (§4.5).
+- **OpenTelemetry dağıtık izleme:** İstek kimliği HTTP'den arka plan işine taşınıyor ve JSON günlüklere yazılıyor; OTel tasarımı §9'da, kodda yok.
 - **Gerçek zamanlı ortak düzenleme (CRDT veya OT):** Yerine iyimser kilit ve çakışma ekranı kullanıldı (§3.4).
 - **TOTP kodunun tekrar kullanılmasının engellenmesi:** Aynı 30 saniyelik pencerede aynı kod ikinci kez kabul ediliyor. Çözüm: Son kabul edilen zaman adımını kullanıcıya yazmak.
 - **Çok düğümlü hız sınırı:** Bellek içi sayaç tek düğüm için yeterli. Çok düğümde Postgres ya da Redis sayacına geçilir.
@@ -563,7 +611,7 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 **3.3 Eğitim ve içerik**
 - ☑ Açık uçlu cevapları kim değerlendirir; üyenin itiraz yolu ne? → §5.6 (insan değerlendirmesi; akış ertelendi)
 - ☑ Quiz süresi dolarken bağlantı koparsa ne olur? → §5.6
-- ☐ Videolar nasıl saklanır ve oynatılır (HLS)? (izleme süresi kodda var; saklama ve dağıtım §9'da)
+- ☑ Videolar nasıl saklanır ve oynatılır (HLS)? → §3.5
 - ☑ Anonim anket gerçekten anonim mi? → §5.6
 
 **3.4 Sürüm ve yayın**
@@ -571,38 +619,38 @@ Her soru, cevaplandığı bölüme bağlanacak. Henüz cevaplanmamış sorular �
 - ☑ İç içe içerikte sürüm bağlama: eğitim aggregate'tir, araçlar sabitlenir; kendiliğinden güncelleme yoktur → §3.3
 - ☑ Eğitimin ortasındayken yeni sürüm yayınlanırsa ne olur; ilerleme nasıl taşınır? → §5.5
 - ☑ Yanlış yayın geri alınınca arada verilen cevaplar ve kazanılan puanlar ne olur? → §5.3, §5.5
-- ☑ Medya sürümleme ve saklama maliyeti: içerik adresli dosya anahtarlarıyla kopyalar arasında tekilleştirme → ADR-3
+- ☑ Medya sürümleme ve saklama maliyeti: değişmez, SHA-256 adresli dosyalar; sürüm dosyaya kimlikle başvurur → §3.5
 
 **3.5 Araçlar**
 - ☑ Kuyruk ve işçi mimarisi (ADR-2, §4.2) · ☑ Aynı işin iki kez çalışmasının önlenmesi → §4.2
 - ☑ Dış API yavaşlar ya da çökerse koruma: eşzamanlılık sınırı, süre sınırı, üye kotası (devre kesici ertelendi) → §4.2
-- ☑ Çıktıların saklanma süresi (öneri: 90 gün; temizlik işi yok) · ☐ Kötü niyetli araçların tespiti (SSRF engeli var; içerik taraması yok) · ☑ Şablon enjeksiyonu → §4.1
+- ☑ Çıktıların saklanma süresi: dosya çıktısı 7 gün (temizlik işi var), çalıştırma kaydı 90 gün önerisi → §4.1 · ☑ Kötü niyetli araçlar (engeller kodda, otomatik askıya alma tasarımda) → §4.1 · ☑ Şablon enjeksiyonu → §4.1
 
 **3.6 İş akışları**
 - ☑ Akış modeli ve çalıştırma motoru: kendi motorumuz → §4.5
 - ☑ Çalışma sırasında aracın ya da alt akışın yeni sürümü yayınlanırsa ne olur? → §4.5
-- ☑ İstem enjeksiyonu · ☑ Büyük çıktı · ☑ Sunucu yeniden başlarsa ne olur? → §4.5 · ☑ Aynı webhook iki kez gelirse? → §4.6
+- ☑ İstem enjeksiyonu · ☑ Büyük çıktı · ☑ Sunucu yeniden başlarsa ne olur? → §4.5 · ☑ Aynı webhook iki kez gelirse? → §4.6 · ☑ Paralel adım, bütçe, olay tetikleyicisi → §4.5, §4.6
 - ☑ Çatallanan akışın özgün sahibi akışını silerse ne olur? → §4.7
 
 **3.7 Oyunlaştırma**
 - ☑ Puan tablosu ve gerekçesi → §5.1 · ☑ Kural değişince geçmiş puanlar yeniden hesaplanır mı? Hayır → §5.3
 - ☑ Silinen araç ya da geri alınan yayın için puan geri alınır mı? → §5.3
-- ☐ 50.000 üyede sıralama tablosu (taslak §5.3; F4'te ölçümle) · ☑ Çevrimdışı aksiyon puanı ve cihaz saatiyle oynanması → §5.3
+- ☑ 50.000 üyede sıralama tablosu → §5.3, §9 · ☑ Çevrimdışı aksiyon puanı ve cihaz saatiyle oynanması → §5.3 · ☑ Rozet ve seri → §5.3a
 
 **3.8 Topluluk**
-- ☐ Yorumlarda kişisel veri ve küfür süzme · ☐ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? (☑ §4.7) · ☐ Etkinlik akışının ölçeklenmesi
+- ☑ Yorumlarda kişisel veri ve küfür süzme → §7.8 · ☑ Paylaşılan araç kimin kotasından düşer, kimin anahtarını kullanır? → §4.1, §4.7 · ☑ Etkinlik akışının ölçeklenmesi → §7.8
 
 **3.9 Bildirimler**
-- ☑ WebSocket mi, SSE mi? → ADR-6 · ☑ Kaçırılan olaylar → ADR-6 · ☐ Bildirimin iki kez gitmemesi · ☐ Sessiz saatler
+- ☑ WebSocket mi, SSE mi? → ADR-6 · ☑ Kaçırılan olaylar → ADR-6 · ☑ Bildirimin iki kez gitmemesi → §7.9 · ☑ Sessiz saatler (tasarımda, kodda yok) → §7.9
 
 **3.10 Geçmişim ve KVKK**
-- ☐ Olay kaydının yapısı ve saklama süresi (yapı: `activity_event`; saklama F5) · ☐ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri · ☑ Sertifika sahteciliği → §5.7
+- ☑ Olay kaydının yapısı ve saklama süresi → §7.6 (yapı `activity_event`; saklama: kişisel bağ silinince süresiz anonim, diğerleri 2 yıl önerisi) · ☑ Silinen hesabın paylaştıkları, yorumları ve sıralamadaki yeri → §7.8 · ☑ Sertifika sahteciliği → §5.7
 
 **3.11 Arama ve kurumsal kullanım**
 - ☐ Arama altyapısı · ☐ Eksik çeviri · ☐ Çok kiracılı veri ayrımı ve maliyeti
 
 **3.12 Raporlar**
-- ☐ Canlı veritabanı mı, analitik depo mu? · ☐ Kabul edilebilir gecikme
+- ☑ Canlı veritabanı mı, analitik depo mu? · ☑ Kabul edilebilir gecikme → §7.7
 
 **Bizim bulduğumuz ek kararlar**
 - ☑ Yayınlanmamış içeriğin sızmasını önleyen katman → §3.2 (`PublishedContent`)

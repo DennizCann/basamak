@@ -1,0 +1,44 @@
+# Maestro mobile end-to-end flow (section 6: "mobil için Maestro ... en az bir uçtan uca akış").
+# Scenario 14 core path on the Android app: sign in -> Journey -> lesson -> complete -> history.
+#
+# Run (Android emulator with the debug APK installed, backend + Mailpit running, demo data seeded):
+#   maestro test apps/mobile/maestro/member-lesson.yaml
+# The e-mailed sign-in code is read from Mailpit by scripts/maestro-code.js (runScript), never typed by hand.
+#
+# STATUS: written, NOT executed in this project. Maestro CLI is not installed on the development machine
+# (installing it is a download that needs the user's approval). See README "Mobil uçtan uca test".
+appId: com.basamak.app
+env:
+  EMAIL: member@basamak.local
+  PASSWORD: Basamak!2026
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Giriş yap"
+- tapOn: "E-posta"
+- inputText: ${EMAIL}
+- tapOn: "Şifre"
+- inputText: ${PASSWORD}
+- tapOn:
+    text: "Giriş yap"
+    index: 1
+- runScript:
+    file: scripts/maestro-code.js
+    env:
+      EMAIL: ${EMAIL}
+- tapOn: "Doğrulama kodu"
+- inputText: ${output.code}
+- tapOn: "Doğrula"
+- assertVisible: "Öğrenimim"
+- assertVisible: "Beginner"
+- tapOn: "Basamak'a Giriş"
+- tapOn: "Eğitime başla"
+- assertVisible: "Ders"
+- tapOn: "Dersi tamamladım"
+- assertVisible: "tamamlandı"
+- back
+- tapOn:
+    id: "account-menu"
+    optional: true
+- tapOn: "Geçmişim"
+- assertVisible: "Dersi tamamladın"
