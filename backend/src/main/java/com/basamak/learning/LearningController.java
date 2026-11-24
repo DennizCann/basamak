@@ -67,6 +67,11 @@ public class LearningController {
         return learning.startQuiz(p.userId(), id, key);
     }
 
+    @PostMapping("/api/quiz-attempts/{attemptId}/extend")
+    public Map<String, Object> extend(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID attemptId) {
+        return learning.extendQuiz(p.userId(), attemptId);
+    }
+
     @GetMapping("/api/trainings/{id}/items/{key}/attempts")
     public List<Map<String, Object>> reviewQuiz(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @PathVariable String key) {
         return learning.reviewAttempts(p.userId(), id, key);

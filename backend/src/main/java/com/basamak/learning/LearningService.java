@@ -191,7 +191,7 @@ public class LearningService {
 
         // resume an open attempt that is still within its time limit
         List<Map<String, Object>> open = jdbc.queryForList("""
-                SELECT id, attempt_no, questions::text AS questions, deadline_at FROM quiz_attempt
+                SELECT id, attempt_no, questions::text AS questions, deadline_at, extended_seconds FROM quiz_attempt
                 WHERE enrollment_id = ? AND item_key = ? AND submitted_at IS NULL ORDER BY attempt_no DESC LIMIT 1""", e.id(), key);
         if (!open.isEmpty()) {
             Timestamp dl = (Timestamp) open.get(0).get("deadline_at");
@@ -379,6 +379,28 @@ public class LearningService {
         jdbc.update("UPDATE quiz_attempt SET submitted_at = now(), score = 0, passed = false WHERE id = ? AND submitted_at IS NULL", attemptId);
     }
 
+    /**
+     * Time extension for a timed quiz (WCAG 2.2.1 "Timing Adjustable"): once per attempt, +50 % of the time limit
+     * (at least one minute), only while the attempt is open. Recorded on the attempt, so reports can see it.
+     */
+    @Transactional
+    public Map<String, Object> extendQuiz(UUID userId, UUID attemptId) {
+        Map<String, Object> a = jdbc.queryForList("SELECT * FROM quiz_attempt WHERE id = ? AND user_id = ? FOR UPDATE", attemptId, userId)
+                .stream().findFirst().orElseThrow(() -> ApiException.notFound("Quiz denemesi"));
+        if (a.get("submitted_at") != null) throw ApiException.conflict("already_submitted", "Bu deneme zaten gönderildi.", Map.of());
+        Timestamp dl = (Timestamp) a.get("deadline_at");
+        if (dl == null) throw ApiException.badRequest("no_time_limit", "Bu quiz'de süre sınırı yok.");
+        if (((Number) a.get("extended_seconds")).intValue() > 0) throw ApiException.conflict("already_extended", "Bu denemede ek süre zaten verildi.", Map.of());
+        if (Instant.now().isAfter(dl.toInstant().plus(QUIZ_GRACE))) throw ApiException.conflict("time_over", "Süre doldu; ek süre yalnız süre bitmeden istenebilir.", Map.of());
+        UUID trainingId = (UUID) a.get("training_id");
+        JsonNode quiz = TrainingSchema.findItem(published.pinned(trainingId, (Integer) a.get("training_version_no")).orElseThrow().body(), (String) a.get("item_key"));
+        int extra = Math.max(60, quiz.path("timeLimitSeconds").asInt(0) / 2);
+        jdbc.update("UPDATE quiz_attempt SET deadline_at = deadline_at + make_interval(secs => ?), extended_seconds = ? WHERE id = ?", extra, extra, attemptId);
+        Map<String, Object> out = new LinkedHashMap<>(attemptDto(jdbc.queryForMap("SELECT id, attempt_no, questions::text AS questions, deadline_at, extended_seconds FROM quiz_attempt WHERE id = ?", attemptId), quiz));
+        out.put("extendedSeconds", extra);
+        return out;
+    }
+
     private Map<String, Object> attemptDto(Map<String, Object> row, JsonNode quiz) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("attemptId", row.get("id"));
@@ -387,6 +409,8 @@ public class LearningService {
         Timestamp dl = (Timestamp) row.get("deadline_at");
         out.put("deadlineAt", dl == null ? null : dl.toInstant());
         out.put("questions", read(row.get("questions")));
+        Object ext = row.get("extended_seconds");
+        out.put("extended", ext != null && ((Number) ext).intValue() > 0);
         return out;
     }
 

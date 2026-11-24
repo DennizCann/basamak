@@ -31,10 +31,13 @@ public class JobWorker {
     private final boolean enabled;
     private final String workerId = ManagementFactory.getRuntimeMXBean().getName();
 
-    public JobWorker(JobQueue queue, List<JobHandler> handlers,
+    private final JobMetrics metrics;
+
+    public JobWorker(JobQueue queue, List<JobHandler> handlers, JobMetrics metrics,
                      @Value("${basamak.jobs.workers:4}") int workers,
                      @Value("${basamak.jobs.enabled:true}") boolean enabled) {
         this.queue = queue;
+        this.metrics = metrics;
         this.handlers = handlers.stream().collect(Collectors.toMap(JobHandler::kind, Function.identity()));
         this.enabled = enabled;
         this.pool = new ThreadPoolExecutor(workers, workers, 60, TimeUnit.SECONDS, new SynchronousQueue<>(), r -> {
@@ -59,20 +62,23 @@ public class JobWorker {
 
     private void run(JobQueue.Claimed job) {
         MDC.put("jobId", job.id().toString());
+        if (job.requestId() != null) MDC.put("requestId", job.requestId()); // the request that queued it: one id end to end
         try {
             JobHandler h = handlers.get(job.kind());
             if (h == null) { queue.dead(job.id(), "no handler for " + job.kind()); return; }
             switch (h.handle(job)) {
-                case JobHandler.Done d -> queue.done(job.id());
-                case JobHandler.Retry r -> queue.retry(job.id(), r.delay(), r.error());
-                case JobHandler.Dead d -> queue.dead(job.id(), d.error());
+                case JobHandler.Done d -> { queue.done(job.id()); metrics.finished(job.kind(), "done"); }
+                case JobHandler.Retry r -> { queue.retry(job.id(), r.delay(), r.error()); metrics.finished(job.kind(), "retry"); }
+                case JobHandler.Dead d -> { queue.dead(job.id(), d.error()); metrics.finished(job.kind(), "dead"); }
             }
         } catch (Exception e) {
             log.error("job {} failed unexpectedly", job.id(), e);
+            metrics.finished(job.kind(), "error");
             if (job.attempts() < job.maxAttempts()) queue.retry(job.id(), Duration.ofSeconds(2), e.getClass().getSimpleName());
             else queue.dead(job.id(), e.getClass().getSimpleName());
         } finally {
             MDC.remove("jobId");
+            MDC.remove("requestId");
         }
     }
 

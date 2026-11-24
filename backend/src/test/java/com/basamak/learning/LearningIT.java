@@ -168,6 +168,20 @@ class LearningIT extends IntegrationTest {
 
     // ---------------- helpers ----------------
 
+    @Test
+    void timedQuiz_memberCanAskForMoreTimeOnce() throws Exception {
+        String m = newMember("extend");
+        String intro = trainingId(getJson("/api/me/journeys", m).get(0), "Basamak'a Giriş");
+        postJson("/api/trainings/" + intro + "/enroll", null, m);
+        JsonNode a = postJson("/api/trainings/" + intro + "/items/giris-quiz/attempts", null, m);
+        java.time.Instant before = java.time.Instant.parse(a.get("deadlineAt").asText());
+        JsonNode ext = postJson("/api/quiz-attempts/" + a.get("attemptId").asText() + "/extend", null, m);
+        assertThat(java.time.Duration.between(before, java.time.Instant.parse(ext.get("deadlineAt").asText())).toSeconds()).isEqualTo(300); // 600 s limit -> +50 %
+        assertThat(ext.get("extended").asBoolean()).isTrue();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/quiz-attempts/" + a.get("attemptId").asText() + "/extend")
+                .header("Authorization", bearer(m))).andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict());
+    }
+
     private static String trainingId(JsonNode journey, String title) {
         for (JsonNode t : journey.get("trainings")) if (t.get("title").asText().equals(title)) return t.get("id").asText();
         throw new AssertionError("training not found: " + title);

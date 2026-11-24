@@ -218,7 +218,7 @@ function Lesson({ trainingId, item, onComplete }: { trainingId: string; item: Pl
   );
 }
 
-type Attempt = { attemptId: string; attemptNo: number; attemptsAllowed: number; deadlineAt: string | null; questions: Question[] };
+type Attempt = { attemptId: string; attemptNo: number; attemptsAllowed: number; deadlineAt: string | null; questions: Question[]; extended?: boolean };
 
 function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerItem; onDone: (r: QuizResultData & Outcome) => void }) {
   const [attempt, setAttempt] = useState<Attempt | null>(null);
@@ -274,6 +274,16 @@ function Quiz({ trainingId, item, onDone }: { trainingId: string; item: PlayerIt
       {!attempt && !item.completed && (
         <div><button className="btn btn-primary" disabled={used >= allowed} onClick={start}>{used === 0 ? "Quiz'e başla" : "Yeniden dene"}</button></div>
       )}
+      {attempt?.deadlineAt && !attempt.extended && left !== null && left > 0 && (
+        <p className="row" style={{ alignItems: "center" }}>
+          <button type="button" className="btn btn-sm" onClick={async () => {
+            try { const a = await api.post<Attempt>(`/api/quiz-attempts/${attempt.attemptId}/extend`); setAttempt({ ...attempt, deadlineAt: a.deadlineAt, extended: true }); }
+            catch (e) { setError(errorMessage(e)); }
+          }}>Ek süre iste</button>
+          <span className="hint-line">Süre yetmeyecekse bir kez ek süre isteyebilirsin (süre sınırının yarısı kadar).</span>
+        </p>
+      )}
+      {attempt?.extended && <p className="hint-line">Ek süre verildi.</p>}
       {attempt && <QuestionForm questions={attempt.questions} timeLeft={left} onSubmit={submit} />}
       {!attempt && used > 0 && !review && <div><button className="btn" onClick={loadReview}>Denemelerimi incele</button></div>}
       {review && (

@@ -14,5 +14,6 @@ basamak:
   cms-base-url: http://localhost:5184
   rate-limit:
     auth-per-minute: 200
+    runs-per-minute: 1000
   learning:
     min-lesson-seconds: 0

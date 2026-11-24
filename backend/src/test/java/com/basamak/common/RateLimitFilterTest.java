@@ -11,7 +11,7 @@ class RateLimitFilterTest {
 
     @Test
     void blocksLoginAfterLimitPerMinute() throws Exception {
-        RateLimitFilter f = new RateLimitFilter(3);
+        RateLimitFilter f = new RateLimitFilter(3, 100);
         int[] codes = new int[5];
         for (int i = 0; i < 5; i++) {
             MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/auth/login");
@@ -25,7 +25,7 @@ class RateLimitFilterTest {
 
     @Test
     void otherIpsAndGetRequestsAreNotAffected() throws Exception {
-        RateLimitFilter f = new RateLimitFilter(1);
+        RateLimitFilter f = new RateLimitFilter(1, 100);
         MockHttpServletRequest a = new MockHttpServletRequest("POST", "/api/auth/login");
         a.setRemoteAddr("10.0.0.1");
         f.doFilter(a, new MockHttpServletResponse(), new MockFilterChain());
@@ -39,5 +39,20 @@ class RateLimitFilterTest {
         MockHttpServletResponse rg = new MockHttpServletResponse();
         f.doFilter(g, rg, new MockFilterChain());
         assertThat(rg.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void runStartsShareOnePerMinuteBudgetPerIp() throws Exception {
+        RateLimitFilter f = new RateLimitFilter(100, 2);
+        String[] paths = {"/api/tool-runs", "/api/workflows/abc/runs", "/api/tool-runs"};
+        int[] codes = new int[3];
+        for (int i = 0; i < 3; i++) {
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", paths[i]);
+            req.setRemoteAddr("10.2.2.2");
+            MockHttpServletResponse res = new MockHttpServletResponse();
+            f.doFilter(req, res, new MockFilterChain());
+            codes[i] = res.getStatus();
+        }
+        assertThat(codes).containsExactly(200, 200, 429);
     }
 }
