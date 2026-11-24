@@ -44,6 +44,10 @@ public class ToolRunService implements JobHandler {
     private final GamificationService gamification;
     private final LearningService learning;
     private final com.basamak.notification.NotificationService notifications;
+    private final com.basamak.learning.JourneyProgressService journeys;
+    /** Daily tool runs per member at the first level; each further level (journey) adds the same amount again. */
+    @org.springframework.beans.factory.annotation.Value("${basamak.tools.daily-runs-per-level:20}")
+    private int dailyRunsPerLevel;
 
     public record Resolved(ToolSecrets.Scope scope, UUID toolId, int versionNo, String name, ToolDefinition def) {}
 
@@ -67,8 +71,28 @@ public class ToolRunService implements JobHandler {
         return start(userId, userTool(userId, toolId), null, null, input, clientRequestId);
     }
 
+    /** Today's (Europe/Istanbul) usage and limit; the limit grows with the member's level (Beginner < Expert < Master). */
+    public Map<String, Object> quota(UUID userId) {
+        var ps = journeys.forUser(userId);
+        String level = journeys.level(ps);
+        int idx = 0;
+        for (int i = 0; i < ps.size(); i++) if (ps.get(i).title().equals(level)) { idx = i; break; }
+        int limit = dailyRunsPerLevel * (idx + 1);
+        java.time.ZonedDateTime dayStart = java.time.LocalDate.now(GamificationService.ISTANBUL).atStartOfDay(GamificationService.ISTANBUL);
+        Integer used = jdbc.queryForObject("SELECT count(*) FROM tool_run WHERE user_id = ? AND created_at >= ?", Integer.class,
+                userId, java.sql.Timestamp.from(dayStart.toInstant()));
+        return Map.of("used", used == null ? 0 : used, "limit", limit, "level", level == null ? "" : level,
+                "resetsAt", dayStart.plusDays(1).toInstant().toString());
+    }
+
     private Map<String, Object> start(UUID userId, Resolved r, UUID trainingId, String itemKey, JsonNode rawInput, String clientRequestId) {
         JsonNode input = r.def().validateInput(rawInput, json);
+        Map<String, Object> q = quota(userId);
+        if ((Integer) q.get("used") >= (Integer) q.get("limit")) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "daily_quota",
+                    "Bugünkü araç çalıştırma hakkın doldu (" + q.get("limit") + " / gün, seviye: " + q.get("level")
+                            + "). Hak gece yarısı (İstanbul) yenilenir; seviye atladıkça günlük hakkın artar.", Map.of("limit", q.get("limit")));
+        }
         Integer active = jdbc.queryForObject("SELECT count(*) FROM tool_run WHERE user_id = ? AND status IN ('QUEUED','RUNNING','RETRYING')", Integer.class, userId);
         if (active != null && active >= MAX_ACTIVE_PER_USER) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "too_many_runs", "Aynı anda en fazla " + MAX_ACTIVE_PER_USER + " çalıştırmanız olabilir. Birinin bitmesini bekleyin.");

@@ -31,6 +31,27 @@ public class CmsToolController {
     private final ToolExecutor executor;
     private final AuditService audit;
     private final ObjectMapper json;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    /** Latest version vs the published one: which changes would break trainings/workflows that call this tool. */
+    @GetMapping("/api/cms/tools/{id}/compat")
+    public Map<String, Object> compat(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
+        if (p.roles().stream().noneMatch(Role.STAFF::contains)) throw ApiException.forbidden("Yalnız içerik ekibi.");
+        var rows = jdbc.queryForList("""
+                SELECT v.version_no, v.body::text AS body, (i.published_version_id = v.id) AS published
+                FROM content_item i JOIN content_version v ON v.item_id = i.id
+                WHERE i.id = ? AND i.type = 'TOOL' AND (v.id = i.published_version_id OR v.version_no = (SELECT max(version_no) FROM content_version WHERE item_id = i.id))""", id);
+        Map<String, Object> pub = rows.stream().filter(r -> Boolean.TRUE.equals(r.get("published"))).findFirst().orElse(null);
+        Map<String, Object> latest = rows.stream().max(Comparator.comparingInt(r -> ((Number) r.get("version_no")).intValue())).orElse(null);
+        if (pub == null || latest == null || pub == latest) return Map.of("breakingChanges", List.of(), "compared", false);
+        try {
+            List<String> changes = ToolCompat.breakingChanges(ToolDefinition.parse(json.readTree((String) pub.get("body"))),
+                    ToolDefinition.parse(json.readTree((String) latest.get("body"))));
+            return Map.of("breakingChanges", changes, "compared", true, "publishedVersionNo", pub.get("version_no"), "latestVersionNo", latest.get("version_no"));
+        } catch (Exception e) {
+            return Map.of("breakingChanges", List.of(), "compared", false);
+        }
+    }
 
     public record SecretReq(String value) {}
 

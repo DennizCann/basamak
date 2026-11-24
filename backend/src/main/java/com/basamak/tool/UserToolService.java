@@ -70,7 +70,8 @@ public class UserToolService {
 
     @Transactional
     public Map<String, Object> update(UUID owner, UUID id, String name, JsonNode definition, Map<String, String> secretValues) {
-        get(owner, id); // ownership
+        Map<String, Object> before = get(owner, id); // ownership
+        ToolDefinition oldDef = ToolDefinition.parse(json.valueToTree(before.get("definition")));
         String n = checkName(name);
         ToolDefinition def = validate(definition);
         Integer next;
@@ -83,7 +84,10 @@ public class UserToolService {
         }
         jdbc.update("INSERT INTO user_tool_version(tool_id, version_no, definition) VALUES (?, ?, CAST(? AS jsonb))", id, next, definition.toString());
         saveSecrets(owner, id, def, secretValues);
-        return get(owner, id);
+        Map<String, Object> out = new LinkedHashMap<>(get(owner, id));
+        // workflows keep the version they pinned; a breaking new version is flagged so the member knows to update them
+        out.put("breakingChanges", ToolCompat.breakingChanges(oldDef, def));
+        return out;
     }
 
     @Transactional

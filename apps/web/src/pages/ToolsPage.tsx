@@ -20,6 +20,8 @@ export function ToolsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<MyTool | "new" | null>(null);
   const [running, setRunning] = useState<MyTool | null>(null);
+  const [quota, setQuota] = useState<{ used: number; limit: number; level: string } | null>(null);
+  const [breaking, setBreaking] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -27,6 +29,7 @@ export function ToolsPage() {
       const [t, r] = await Promise.all([api.get<MyTool[]>("/api/my-tools"), api.get<ToolRun[]>("/api/tool-runs?limit=10")]);
       setTools(t);
       setRuns(r);
+      api.get<typeof quota>("/api/tool-runs/quota").then(setQuota).catch(() => {});
     } catch (e) { setError(errorMessage(e)); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -41,7 +44,14 @@ export function ToolsPage() {
         {!editing && <button className="btn btn-primary" onClick={() => { setEditing("new"); setRunning(null); }}>Yeni araç</button>}
       </div>
 
-      {editing && <ToolEditor tool={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {quota && <p className="hint-line">Bugünkü çalıştırma hakkın: {quota.used} / {quota.limit} (seviye: {quota.level || "—"}). Seviye atladıkça günlük hakkın artar; hak gece yarısı yenilenir.</p>}
+      {breaking.length > 0 && (
+        <Alert kind="warning">
+          <p><strong>Yeni sürüm şemayı bozuyor.</strong> Bu aracı kullanan iş akışların eski sürüme sabitli kalır ve çalışmaya devam eder; yeni sürümü kullanmak için akışı açıp yeniden kaydet ve eşlemeleri kontrol et.</p>
+          <ul>{breaking.map((b) => <li key={b}>{b}</li>)}</ul>
+        </Alert>
+      )}
+      {editing && <ToolEditor tool={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(b) => { setEditing(null); setBreaking(b); load(); }} />}
 
       {running && (
         <section className="card stack" aria-labelledby="run-title">
@@ -100,7 +110,7 @@ function hostOf(url: string) {
   try { return new URL(url).host; } catch { return url; }
 }
 
-function ToolEditor({ tool, onClose, onSaved }: { tool: MyTool | null; onClose: () => void; onSaved: () => void }) {
+function ToolEditor({ tool, onClose, onSaved }: { tool: MyTool | null; onClose: () => void; onSaved: (breakingChanges: string[]) => void }) {
   const [name, setName] = useState(tool?.name ?? "");
   const [def, setDef] = useState<Def>(tool?.definition ?? EMPTY);
   const headerEntry = Object.entries(def.request.headers ?? {}).find(([, v]) => v.includes(`{{secret.${SECRET}}}`));
@@ -126,9 +136,8 @@ function ToolEditor({ tool, onClose, onSaved }: { tool: MyTool | null; onClose: 
     setSaving(true);
     try {
       const payload = { name, definition, secrets: authHeader.trim() && secret ? { [SECRET]: secret } : undefined };
-      if (tool) await api.put(`/api/my-tools/${tool.id}`, payload);
-      else await api.post("/api/my-tools", payload);
-      onSaved();
+      if (tool) { const r = await api.put<{ breakingChanges?: string[] }>(`/api/my-tools/${tool.id}`, payload); onSaved(r.breakingChanges ?? []); }
+      else { await api.post("/api/my-tools", payload); onSaved([]); }
     } catch (err) {
       setError(errorMessage(err));
     } finally {

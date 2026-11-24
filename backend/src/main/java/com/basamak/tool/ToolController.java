@@ -68,6 +68,11 @@ public class ToolController {
         return runs.recent(p.userId(), limit);
     }
 
+    @GetMapping("/tool-runs/quota")
+    public Map<String, Object> quota(@AuthenticationPrincipal AuthPrincipal p) {
+        return runs.quota(p.userId());
+    }
+
     @GetMapping("/tool-runs/{id}")
     public Map<String, Object> get(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
         return runs.run(p.userId(), id);

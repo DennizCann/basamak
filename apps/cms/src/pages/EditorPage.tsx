@@ -140,6 +140,7 @@ export function EditorPage() {
       )}
       {tab === "history" && <History itemId={item.id} canPublish={can("PUBLISHER")} onChanged={load}
                                      titles={Object.fromEntries(trainings.map((t) => [t.id, t.latest.title]))} />}
+      {tab === "edit" && item.type === "TOOL" && <ToolCompatBanner itemId={item.id} key={`compat-${item.latest.id}`} />}
       {tab === "tool" && item.type === "TOOL" && <ToolConsole key={item.latest.id} itemId={item.id} versions={versions} canWrite={can("AUTHOR", "EDITOR")} dirty={dirty} />}
       {tab === "audit" && <Audit itemId={item.id} />}
     </main>
@@ -361,5 +362,19 @@ function Audit({ itemId }: { itemId: string }) {
         </table>
       </div>
     </StateView>
+  );
+}
+
+/** Breaking-change flag (section 3.5): latest draft vs the published version of this tool. */
+function ToolCompatBanner({ itemId }: { itemId: string }) {
+  const [c, setC] = useState<{ breakingChanges: string[]; compared: boolean; publishedVersionNo?: number; latestVersionNo?: number } | null>(null);
+  useEffect(() => { api.get<NonNullable<typeof c>>(`/api/cms/tools/${itemId}/compat`).then(setC).catch(() => {}); }, [itemId]);
+  if (!c || !c.compared) return null;
+  if (c.breakingChanges.length === 0) return <p className="hint">s{c.latestVersionNo}, yayındaki s{c.publishedVersionNo} ile uyumlu: girdi ve çıktı şeması bozulmuyor.</p>;
+  return (
+    <Alert kind="warning">
+      <p><strong>Şemayı bozan değişiklik (s{c.publishedVersionNo} → s{c.latestVersionNo}).</strong> Eğitimler ve iş akışları araç sürümüne sabitlidir; bu sürüm yayınlansa da onları kendiliğinden değiştirmez. Yeni sürümü kullanmak için eğitimdeki araç ögesini güncelleyin.</p>
+      <ul>{c.breakingChanges.map((b) => <li key={b}>{b}</li>)}</ul>
+    </Alert>
   );
 }
