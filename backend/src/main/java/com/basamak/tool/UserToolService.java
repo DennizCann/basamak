@@ -90,6 +90,71 @@ public class UserToolService {
         return out;
     }
 
+    // ------------------------------------------------------------------ community sharing
+
+    /** Share / unshare the definition (never the secrets). The first share is an activity event (points per rule). */
+    @Transactional
+    public Map<String, Object> share(UUID owner, UUID id, boolean shared) {
+        get(owner, id);
+        jdbc.update("UPDATE user_tool SET visibility = ?, updated_at = now() WHERE id = ?", shared ? "PUBLIC" : "PRIVATE", id);
+        if (shared) gamification.record(ActivityEvent.web(owner, "shared:tool:" + id, "ITEM_SHARED", "TOOL", id.toString(), null));
+        Map<String, Object> out = new LinkedHashMap<>(get(owner, id));
+        return out;
+    }
+
+    public List<Map<String, Object>> community(int limit) {
+        return jdbc.query("""
+                SELECT t.id, t.name, t.definition::text AS def, t.fork_count, t.owner_id, u.display_name FROM user_tool t JOIN users u ON u.id = t.owner_id
+                WHERE t.visibility = 'PUBLIC' AND t.deleted_at IS NULL AND u.status = 'ACTIVE' ORDER BY t.fork_count DESC, t.updated_at DESC LIMIT ?""",
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", rs.getObject("id", UUID.class));
+                    m.put("name", rs.getString("name"));
+                    m.put("ownerId", rs.getObject("owner_id", UUID.class));
+                    m.put("ownerName", rs.getString("display_name"));
+                    m.put("forkCount", rs.getInt("fork_count"));
+                    try {
+                        ToolDefinition d = ToolDefinition.parse(json.readTree(rs.getString("def")));
+                        m.put("description", d.description());
+                        m.put("inputs", d.inputs());
+                        m.put("method", d.method());
+                        m.put("host", java.net.URI.create(d.url().replaceAll("\\{\\{[^}]*}}", "x")).getHost());
+                        m.put("needsSecrets", !d.secretNames().isEmpty());
+                    } catch (Exception e) { /* skip details */ }
+                    return m;
+                }, Math.min(Math.max(limit, 1), 100));
+    }
+
+    /**
+     * Copies a shared tool into the member's own tools. Secrets are not copied: if the tool needs a key the member adds
+     * their own, so nobody spends another member's key or quota. The author earns fork points once per member, none
+     * for mutual forks (same rule as workflows).
+     */
+    @Transactional
+    public Map<String, Object> fork(UUID user, UUID sourceId) {
+        Map<String, Object> src = jdbc.query("SELECT owner_id, name, definition::text AS def FROM user_tool WHERE id = ? AND visibility = 'PUBLIC' AND deleted_at IS NULL",
+                rs -> rs.next() ? Map.<String, Object>of("owner", rs.getObject(1, UUID.class), "name", rs.getString(2), "def", rs.getString(3)) : null, sourceId);
+        if (src == null) throw ApiException.notFound("Paylaşılan araç");
+        UUID owner = (UUID) src.get("owner");
+        if (owner.equals(user)) throw ApiException.badRequest("own_tool", "Kendi aracını çatallayamazsın.");
+        JsonNode def;
+        try { def = json.readTree((String) src.get("def")); } catch (Exception e) { throw new IllegalStateException(e); }
+        Map<String, Object> created = create(user, cut((String) src.get("name") + " (çatal)", 120), def, null);
+        UUID id = (UUID) created.get("id");
+        jdbc.update("UPDATE user_tool SET forked_from = ? WHERE id = ?", sourceId, id);
+        jdbc.update("UPDATE user_tool SET fork_count = fork_count + 1 WHERE id = ?", sourceId);
+        boolean mutual = Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM user_tool f JOIN user_tool o ON o.id = f.forked_from
+                              WHERE f.owner_id = ? AND o.owner_id = ? AND f.created_at > now() - interval '30 days')""", Boolean.class, owner, user));
+        gamification.record(ActivityEvent.web(owner, "forked:tool:" + sourceId + ":by:" + user, mutual ? "SHARED_ITEM_FORKED_NO_POINTS" : "SHARED_ITEM_FORKED",
+                "TOOL", sourceId.toString(), null));
+        return get(user, id);
+    }
+
+    private static String cut(String s, int n) {
+        return s.length() > n ? s.substring(0, n) : s;
+    }
+
     @Transactional
     public void delete(UUID owner, UUID id) {
         get(owner, id);
@@ -135,6 +200,7 @@ public class UserToolService {
         }
         m.put("secrets", secrets.list(ToolSecrets.Scope.USER, id));
         m.put("versionNo", version);
+        m.put("visibility", jdbc.queryForObject("SELECT visibility FROM user_tool WHERE id = ?", String.class, id));
         m.put("updatedAt", updatedAt);
         return m;
     }

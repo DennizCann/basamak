@@ -123,6 +123,21 @@ public class ToolController {
         return userTools.update(p.userId(), id, r.name(), r.definition(), r.secrets());
     }
 
+    @PostMapping("/my-tools/{id}/share")
+    public Map<String, Object> share(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id, @RequestBody Map<String, Boolean> body) {
+        return userTools.share(p.userId(), id, Boolean.TRUE.equals(body.get("shared")));
+    }
+
+    @GetMapping("/community/tools")
+    public List<Map<String, Object>> communityTools(@RequestParam(defaultValue = "50") int limit) {
+        return userTools.community(limit);
+    }
+
+    @PostMapping("/community/tools/{id}/fork")
+    public Map<String, Object> forkTool(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
+        return userTools.fork(p.userId(), id);
+    }
+
     @DeleteMapping("/my-tools/{id}")
     public Map<String, Object> delete(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
         userTools.delete(p.userId(), id);

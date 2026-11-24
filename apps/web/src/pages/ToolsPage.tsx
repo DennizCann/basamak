@@ -7,7 +7,7 @@ type Def = {
   description?: string; inputs: ToolInput[]; request: { method: "GET" | "POST"; url: string; headers?: Record<string, string>; body?: unknown };
   timeoutSeconds: number; retries: number; outputPath?: string;
 };
-type MyTool = { id: string; name: string; definition: Def; secretNames: string[]; secrets: { name: string; updatedAt: string }[]; versionNo: number; updatedAt: string };
+type MyTool = { id: string; name: string; definition: Def; secretNames: string[]; secrets: { name: string; updatedAt: string }[]; versionNo: number; updatedAt: string; visibility?: "PRIVATE" | "PUBLIC" };
 
 const SECRET = "apiKey";
 const EMPTY: Def = { description: "", inputs: [{ name: "q", label: "Sorgu", type: "string", required: true, maxLength: 200 }],
@@ -73,12 +73,15 @@ export function ToolsPage() {
             <li key={t.id} className="card row space-between">
               <div>
                 <strong>{t.name}</strong>
-                <div className="hint-line">{t.definition.request.method} · {hostOf(t.definition.request.url)} · sürüm {t.versionNo}</div>
+                <div className="hint-line">{t.definition.request.method} · {hostOf(t.definition.request.url)} · sürüm {t.versionNo}{t.visibility === "PUBLIC" ? " · toplulukla paylaşıldı" : ""}</div>
                 {t.secretNames.some((n) => !t.secrets.find((s) => s.name === n)) && <div className="hint-line warn">Sırrı eksik: araç sahibi anahtarı eklemeli.</div>}
               </div>
               <div className="row">
                 <button className="btn btn-primary" onClick={() => { setRunning(t); setEditing(null); }}>Çalıştır</button>
                 <button className="btn" onClick={() => { setEditing(t); setRunning(null); }}>Düzenle</button>
+                <button className="btn" aria-pressed={t.visibility === "PUBLIC"} onClick={async () => {
+                  try { await api.post(`/api/my-tools/${t.id}/share`, { shared: t.visibility !== "PUBLIC" }); load(); } catch (e) { setError(errorMessage(e)); }
+                }} title="Paylaşınca yalnız tanım görünür; gizli anahtarın asla paylaşılmaz.">{t.visibility === "PUBLIC" ? "Paylaşımı kaldır" : "Paylaş"}</button>
                 <button className="btn btn-danger" onClick={async () => {
                   if (!window.confirm(`“${t.name}” silinsin mi?`)) return;
                   try { await api.del(`/api/my-tools/${t.id}`); load(); } catch (e) { setError(errorMessage(e)); }

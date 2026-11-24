@@ -50,4 +50,20 @@ class ToolRulesIT extends IntegrationTest {
         JsonNode broken = body(mvc.perform(jsonPut("/api/my-tools/" + tool, Map.of("name", "Sürüm 3", "definition", def(true, "data"))).header("Authorization", bearer(m))).andReturn());
         assertThat(broken.get("breakingChanges").toString()).contains("Yeni zorunlu girdi").contains("Çıktı seçimi değişti");
     }
+
+    @Test
+    void sharedToolIsForkedWithoutSecrets_andTheAuthorIsCreditedOnce() throws Exception {
+        String a = newMember("tsharea"), b = newMember("tshareb");
+        Map<String, Object> d = Map.of("inputs", List.of(Map.of("name", "q", "label", "Soru", "type", "string", "required", true)),
+                "request", Map.of("method", "GET", "url", "https://example.org/s?q={{input.q}}", "headers", Map.of("X-Api-Key", "{{secret.apiKey}}")));
+        String tool = postJson("/api/my-tools", Map.of("name", "Anahtarlı", "definition", d, "secrets", Map.of("apiKey", "gizli-deger-123")), a).get("id").asText();
+        mvc.perform(jsonPost("/api/community/tools/" + tool + "/fork", Map.of()).header("Authorization", bearer(b))).andExpect(status().isNotFound()); // not shared yet
+        assertThat(postJson("/api/my-tools/" + tool + "/share", Map.of("shared", true), a).get("visibility").asText()).isEqualTo("PUBLIC");
+        JsonNode community = getJson("/api/community/tools", b);
+        assertThat(community.toString()).contains(tool).doesNotContain("gizli-deger-123");
+        JsonNode fork = postJson("/api/community/tools/" + tool + "/fork", Map.of(), b);
+        assertThat(fork.get("secrets").toString()).doesNotContain("gizli-deger-123");
+        assertThat(fork.get("secrets").size()).isZero(); // no stored secret on the copy: the forker adds their own key
+        mvc.perform(jsonPost("/api/community/tools/" + tool + "/fork", Map.of()).header("Authorization", bearer(a))).andExpect(status().isBadRequest()); // own
+    }
 }

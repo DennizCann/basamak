@@ -154,6 +154,8 @@ public class CommunityService {
                 case "JOURNEY" -> published.get(uuid, ContentType.JOURNEY).map(v -> v.title()).orElse(null);
                 case "WORKFLOW" -> jdbc.query("SELECT name FROM workflow WHERE id = ? AND visibility = 'PUBLIC' AND deleted_at IS NULL",
                         (rs, i) -> rs.getString(1), uuid).stream().findFirst().orElse(null);
+                case "TOOL" -> jdbc.query("SELECT name FROM user_tool WHERE id = ? AND visibility = 'PUBLIC' AND deleted_at IS NULL",
+                        (rs, i) -> rs.getString(1), uuid).stream().findFirst().orElse(null);
                 default -> null;
             };
         } catch (IllegalArgumentException e) {
