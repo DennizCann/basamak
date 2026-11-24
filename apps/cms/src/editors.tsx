@@ -279,6 +279,19 @@ export function ToolForm({ body, onChange, disabled }: FormProps) {
         <TextField label="Yeniden deneme (0-3)" type="number" min={0} max={3} value={body.retries ?? 2} onChange={(e) => set("retries", Number(e.target.value))} />
         <TextField label="Sonuç alanı (isteğe bağlı)" placeholder="data.result" value={body.outputPath ?? ""} onChange={(e) => set("outputPath", e.target.value)} />
       </div>
+      <fieldset className="stack">
+        <legend>Kimlik doğrulama</legend>
+        <label className="choice"><input type="checkbox" checked={!!body.auth} onChange={(e) => set("auth", e.target.checked ? { type: "oauth2_client_credentials", tokenUrl: "", scope: "" } : undefined)} />
+          <span>OAuth 2.0 istemci kimliği (client credentials)</span></label>
+        {body.auth && (
+          <>
+            <TextField label="Jeton adresi (tokenUrl)" placeholder="https://auth.example.com/oauth/token" value={body.auth.tokenUrl ?? ""} onChange={(e) => set("auth", { ...body.auth, tokenUrl: e.target.value })} />
+            <TextField label="Kapsam (scope, isteğe bağlı)" value={body.auth.scope ?? ""} onChange={(e) => set("auth", { ...body.auth, scope: e.target.value })} />
+            <p className="hint">İstemci kimliği ve sırrı "Sırlar ve deneme" sekmesinde <code>clientId</code> ve <code>clientSecret</code> adıyla şifreli saklanır. Jeton her çağrıda otomatik alınır, süresi bitene kadar bellekte tutulur ve hiçbir yerde gösterilmez.</p>
+          </>
+        )}
+      </fieldset>
+      <p className="hint">JSON ya da metin dışındaki cevaplar (PDF, görsel, ZIP…) 50 MB'a kadar dosya çıktısı olarak saklanır (7 gün) ve üye çalıştırma ekranından indirir.</p>
     </fieldset>
   );
 }

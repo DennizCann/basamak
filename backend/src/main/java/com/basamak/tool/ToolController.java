@@ -25,6 +25,7 @@ public class ToolController {
     private final UserToolService userTools;
     private final PublishedContent published;
     private final JdbcTemplate jdbc;
+    private final ToolFiles toolFiles;
 
     public record RunReq(UUID trainingId, String itemKey, UUID userToolId, JsonNode input, String clientRequestId) {}
 
@@ -66,6 +67,22 @@ public class ToolController {
     @GetMapping("/tool-runs")
     public List<Map<String, Object>> recent(@AuthenticationPrincipal AuthPrincipal p, @RequestParam(defaultValue = "20") int limit) {
         return runs.recent(p.userId(), limit);
+    }
+
+    /** File output of a run (owner only). Served as a download with its detected type; never rendered inline. */
+    @GetMapping("/tool-runs/{id}/file")
+    public org.springframework.http.ResponseEntity<org.springframework.core.io.Resource> file(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
+        Map<String, Object> run = runs.run(p.userId(), id);
+        JsonNode f = new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(run.get("output")).path("file");
+        var path = toolFiles.find(f.path("fileId").asText(null))
+                .orElseThrow(() -> ApiException.notFound("Dosya (7 günlük saklama süresi dolmuş olabilir)"));
+        MediaType type;
+        try { type = MediaType.parseMediaType(f.path("contentType").asText("application/octet-stream")); } catch (Exception e) { type = MediaType.APPLICATION_OCTET_STREAM; }
+        return org.springframework.http.ResponseEntity.ok().contentType(type)
+                .header("Content-Disposition", org.springframework.http.ContentDisposition.attachment()
+                        .filename(f.path("name").asText("cikti.bin"), java.nio.charset.StandardCharsets.UTF_8).build().toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .body(new org.springframework.core.io.FileSystemResource(path));
     }
 
     @GetMapping("/tool-runs/quota")

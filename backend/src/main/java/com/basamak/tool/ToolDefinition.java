@@ -21,15 +21,20 @@ import java.util.regex.Pattern;
  *               "headers":{"X-Api-Key":"{{secret.apiKey}}"},
  *               "body":{"q":"{{input.city}}"}},            // JSON template, POST only
  *   "timeoutSeconds": 10, "retries": 2,                     // 1..30 s, 0..3 extra attempts
- *   "outputPath": "data.result" }                           // optional: pick a field of the JSON answer
+ *   "outputPath": "data.result",                            // optional: pick a field of the JSON answer
+ *   "auth": {"type":"oauth2_client_credentials","tokenUrl":"https://auth.example.com/token","scope":"read"} }
  * </pre>
+ * OAuth 2.0 client credentials: the client id and secret are the tool secrets {@code clientId} and {@code clientSecret};
+ * the executor fetches an access token from tokenUrl (same SSRF rules as the API URL), caches it until it expires and
+ * sends it as {@code Authorization: Bearer}. The token is never stored or shown.
+ * Non-JSON answers (PDF, image, ZIP, ...) are saved as a file output of up to 50 MB and downloaded from the run.
  * Templates: values are inserted, never evaluated. In the URL they are percent-encoded and only allowed after the
  * host (the host is fixed at save time and checked by UrlGuard); in headers CR/LF are stripped; in the JSON body a
  * value that is exactly one placeholder keeps its JSON type, otherwise it is inserted as a string by Jackson
  * (no string concatenation of JSON, so no JSON injection). Secrets exist only in headers and the URL query.
  */
 public record ToolDefinition(String description, List<Input> inputs, String method, String url, Map<String, String> headers,
-                             JsonNode body, int timeoutSeconds, int retries, String outputPath) {
+                             JsonNode body, int timeoutSeconds, int retries, String outputPath, String oauthTokenUrl, String oauthScope) {
 
     public record Input(String name, String label, String type, boolean required, int maxLength) {}
 
@@ -70,8 +75,17 @@ public record ToolDefinition(String description, List<Input> inputs, String meth
         if (timeout < 1 || timeout > 30) throw bad("Zaman aşımı 1 ile 30 saniye arasında olmalı.");
         int retries = b.path("retries").asInt(2);
         if (retries < 0 || retries > 3) throw bad("Yeniden deneme sayısı 0 ile 3 arasında olmalı.");
+        JsonNode auth = b.path("auth");
+        String tokenUrl = null, scope = null;
+        if (!auth.isMissingNode() && !auth.isNull()) {
+            if (!"oauth2_client_credentials".equals(auth.path("type").asText())) throw bad("Kimlik doğrulama türü yalnız oauth2_client_credentials olabilir.");
+            tokenUrl = auth.path("tokenUrl").asText("").trim();
+            if (!tokenUrl.startsWith("https://") && !tokenUrl.startsWith("http://")) throw bad("OAuth jeton adresi (tokenUrl) http(s) olmalı.");
+            if (tokenUrl.contains("{{")) throw bad("OAuth jeton adresi şablon içeremez.");
+            scope = auth.path("scope").asText("");
+        }
         ToolDefinition d = new ToolDefinition(b.path("description").asText(""), inputs, method, url, headers,
-                body.isMissingNode() || body.isNull() ? null : body, timeout, retries, b.path("outputPath").asText(""));
+                body.isMissingNode() || body.isNull() ? null : body, timeout, retries, b.path("outputPath").asText(""), tokenUrl, scope);
         d.checkPlaceholders(names);
         return d;
     }
@@ -115,6 +129,7 @@ public record ToolDefinition(String description, List<Input> inputs, String meth
             Matcher m = PLACEHOLDER.matcher(t);
             while (m.find()) if (m.group(1).equals("secret")) s.add(m.group(2));
         }
+        if (oauthTokenUrl != null) { s.add("clientId"); s.add("clientSecret"); }
         return s;
     }
 

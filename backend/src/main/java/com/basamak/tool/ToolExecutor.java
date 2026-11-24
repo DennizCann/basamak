@@ -32,13 +32,18 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Executes ONE attempt of a tool request. Retry policy belongs to the caller (job handler); this class only says
  * whether the failure is worth retrying.
- * Limits: total deadline = timeoutSeconds (enforced by aborting the request), 1 MB response cap, max 3 redirects
+ * Limits: total deadline = timeoutSeconds (enforced by aborting the request), 1 MB cap for JSON/text answers,
+ * 50 MB for file answers (streamed to disk, see ToolFiles), max 3 redirects
  * each re-validated by UrlGuard, no cookies, no proxy, secrets masked in everything returned or logged.
  */
 @Slf4j
 @Component
 public class ToolExecutor {
     public static final int MAX_BYTES = 1_000_000;
+    public static final long MAX_FILE_BYTES = 50L * 1024 * 1024;
+    private final ToolFiles files;
+    /** OAuth access tokens by (tokenUrl, clientId) until shortly before they expire. Memory only, never persisted. */
+    private final Map<String, Object[]> tokens = new ConcurrentHashMap<>();
     private static final int MAX_REDIRECTS = 3;
 
     public enum Outcome { SUCCEEDED, HTTP_ERROR, RETRYABLE, TIMED_OUT, BLOCKED, CANCELLED, FAILED }
@@ -59,9 +64,10 @@ public class ToolExecutor {
     private final Map<String, HttpUriRequestBase> live = new ConcurrentHashMap<>();
     private final Set<String> cancelled = ConcurrentHashMap.newKeySet();
 
-    public ToolExecutor(UrlGuard guard, ObjectMapper json) {
+    public ToolExecutor(UrlGuard guard, ObjectMapper json, ToolFiles files) {
         this.guard = guard;
         this.json = json;
+        this.files = files;
         this.trustedClient = client(host -> guard.isTrustedHostName(host) ? InetAddress.getAllByName(host) : guard.resolveChecked(host));
         this.memberClient = client(guard::resolveChecked);
     }
@@ -106,6 +112,11 @@ public class ToolExecutor {
             String method = def.method();
             String bodyText = body == null ? null : json.writeValueAsString(body);
             URI uri = guard.check(url, trusted);
+            if (def.oauthTokenUrl() != null) {
+                headers = new LinkedHashMap<>(headers);
+                headers.put("Authorization", "Bearer " + accessToken(def, secrets, trusted));
+            }
+            final Map<String, String> sendHeaders = headers;
             String originHost = UrlGuard.hostPort(uri);
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(def.timeoutSeconds());
 
@@ -114,7 +125,7 @@ public class ToolExecutor {
                 long remainingMs = Math.max(1, TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()));
                 req.setConfig(RequestConfig.custom().setResponseTimeout(Timeout.ofMilliseconds(remainingMs)).build());
                 boolean sameOrigin = UrlGuard.hostPort(uri).equals(originHost);
-                if (sameOrigin) headers.forEach(req::setHeader); // never forward secrets to another host on redirect
+                if (sameOrigin) sendHeaders.forEach(req::setHeader); // never forward secrets to another host on redirect
                 req.setHeader("Accept", "application/json, text/plain;q=0.9, */*;q=0.5");
                 if (bodyText != null) req.setEntity(new StringEntity(bodyText, ContentType.APPLICATION_JSON));
 
@@ -126,13 +137,22 @@ public class ToolExecutor {
                 try {
                     resp = (trusted ? trustedClient : memberClient).execute(req, r -> {
                         Header loc = r.getFirstHeader("Location");
-                        return new Response(r.getCode(), loc == null ? null : loc.getValue(), r.getEntity() == null ? new byte[0] : readCapped(r.getEntity().getContent()));
+                        if (r.getEntity() == null) return new Response(r.getCode(), loc == null ? null : loc.getValue(), new byte[0], null);
+                        String ct = r.getEntity().getContentType() == null ? "" : r.getEntity().getContentType().toLowerCase(Locale.ROOT);
+                        boolean textual = ct.isEmpty() || ct.contains("json") || ct.startsWith("text/") || ct.contains("xml");
+                        if (textual || r.getCode() >= 300) {
+                            return new Response(r.getCode(), loc == null ? null : loc.getValue(), readCapped(r.getEntity().getContent()), null);
+                        }
+                        Header cd = r.getFirstHeader("Content-Disposition");
+                        Map<String, Object> f = files.save(r.getEntity().getContent(), ct, cd == null ? null : cd.getValue(), MAX_FILE_BYTES);
+                        return new Response(r.getCode(), null, new byte[0], f);
                     });
                 } catch (IOException e) {
                     long ms = elapsed(start);
                     if (timedOut.get()) return new Result(Outcome.TIMED_OUT, null, null, "İstek " + def.timeoutSeconds() + " saniyede tamamlanmadı (zaman aşımı).", ms, preview);
                     if (req.isCancelled()) return new Result(Outcome.CANCELLED, null, null, "Çalıştırma iptal edildi.", ms, preview);
-                    if (e instanceof TooLarge) return new Result(Outcome.FAILED, null, null, "Cevap 1 MB sınırını aşıyor.", ms, preview);
+                    if (e instanceof TooLarge) return new Result(Outcome.FAILED, null, null, "JSON/metin cevabı 1 MB sınırını aşıyor.", ms, preview);
+                    if (e instanceof ToolFiles.FileTooLarge) return new Result(Outcome.FAILED, null, null, "Dosya çıktısı 50 MB sınırını aşıyor.", ms, preview);
                     return new Result(Outcome.RETRYABLE, null, null, "Bağlantı hatası: " + scrub(String.valueOf(e.getMessage()), secrets), ms, preview);
                 } finally {
                     killer.cancel(false);
@@ -146,7 +166,8 @@ public class ToolExecutor {
                     continue;
                 }
                 long ms = elapsed(start);
-                JsonNode out = parse(resp.body, def.outputPath());
+                if (resp.status == 401 && def.oauthTokenUrl() != null) tokens.remove(tokenKey(def, secrets)); // expired/revoked: fetch a new one next attempt
+                JsonNode out = resp.file != null ? json.createObjectNode().set("file", json.valueToTree(resp.file)) : parse(resp.body, def.outputPath());
                 if (resp.status >= 200 && resp.status < 300) return new Result(Outcome.SUCCEEDED, resp.status, out, null, ms, preview);
                 boolean retry = resp.status == 408 || resp.status == 425 || resp.status == 429 || resp.status >= 500;
                 String msg = "Dış servis " + resp.status + " döndü" + (retry ? " (geçici hata)." : ".");
@@ -163,7 +184,38 @@ public class ToolExecutor {
         }
     }
 
-    private record Response(int status, String location, byte[] body) {}
+    private record Response(int status, String location, byte[] body, Map<String, Object> file) {}
+
+    private static String tokenKey(ToolDefinition def, Map<String, String> secrets) {
+        return def.oauthTokenUrl() + "|" + secrets.getOrDefault("clientId", "");
+    }
+
+    /** OAuth 2.0 client credentials grant against tokenUrl (validated like any tool URL, no redirects followed). */
+    private String accessToken(ToolDefinition def, Map<String, String> secrets, boolean trusted) throws IOException {
+        String key = tokenKey(def, secrets);
+        Object[] cached = tokens.get(key);
+        if (cached != null && (long) cached[1] > System.currentTimeMillis()) return (String) cached[0];
+        String id = secrets.get("clientId"), secret = secrets.get("clientSecret");
+        if (id == null || secret == null) throw ApiException.badRequest("missing_secret", "OAuth için clientId ve clientSecret sırları kaydedilmeli.");
+        URI tokenUri = guard.check(def.oauthTokenUrl(), trusted);
+        var req = new org.apache.hc.client5.http.classic.methods.HttpPost(tokenUri);
+        req.setConfig(RequestConfig.custom().setResponseTimeout(Timeout.ofSeconds(10)).build());
+        String form = "grant_type=client_credentials&client_id=" + java.net.URLEncoder.encode(id, StandardCharsets.UTF_8)
+                + "&client_secret=" + java.net.URLEncoder.encode(secret, StandardCharsets.UTF_8)
+                + (def.oauthScope() == null || def.oauthScope().isBlank() ? "" : "&scope=" + java.net.URLEncoder.encode(def.oauthScope(), StandardCharsets.UTF_8));
+        req.setEntity(new StringEntity(form, ContentType.APPLICATION_FORM_URLENCODED));
+        req.setHeader("Accept", "application/json");
+        JsonNode r = (trusted ? trustedClient : memberClient).execute(req, res -> {
+            byte[] b = readCapped(res.getEntity() == null ? InputStream.nullInputStream() : res.getEntity().getContent());
+            if (res.getCode() != 200) throw new IOException("Jeton alınamadı (HTTP " + res.getCode() + ").");
+            return json.readTree(b);
+        });
+        String token = r.path("access_token").asText("");
+        if (token.isBlank()) throw new IOException("Jeton cevabında access_token yok.");
+        long ttl = Math.max(30, r.path("expires_in").asLong(300) - 30);
+        tokens.put(key, new Object[]{token, System.currentTimeMillis() + ttl * 1000});
+        return token;
+    }
 
     private static final class TooLarge extends IOException {}
 

@@ -274,6 +274,65 @@ class ToolIT extends IntegrationTest {
 
     // ------------------------------------------------------------------ helpers
 
+    @Test
+    void oauthClientCredentials_andFileOutputs() throws Exception {
+        String admin = cmsToken("admin@basamak.local");
+        HttpServer s = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger tokenCalls = new AtomicInteger();
+        s.createContext("/oauth/token", ex -> {
+            String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            boolean ok = body.contains("grant_type=client_credentials") && body.contains("client_id=demo-client") && body.contains("client_secret=demo-secret");
+            if (ok) tokenCalls.incrementAndGet();
+            raw(ex, ok ? 200 : 401, ok ? "{\"access_token\":\"tok-1\",\"expires_in\":300}" : "{}", "application/json");
+        });
+        s.createContext("/secure", ex -> raw(ex, "Bearer tok-1".equals(ex.getRequestHeaders().getFirst("Authorization")) ? 200 : 401, "{\"data\":{\"ok\":true}}", "application/json"));
+        s.createContext("/file", ex -> {
+            ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"rapor.pdf\"");
+            byte[] b = new byte[2 * 1024 * 1024];
+            b[0] = '%'; b[1] = 'P'; b[2] = 'D'; b[3] = 'F';
+            ex.getResponseHeaders().set("Content-Type", "application/pdf");
+            ex.sendResponseHeaders(200, b.length);
+            ex.getResponseBody().write(b);
+            ex.close();
+        });
+        s.start();
+        int p = s.getAddress().getPort();
+        guard.trustForTests("127.0.0.1:" + p);
+        try {
+            Map<String, Object> def = toolDef("http://127.0.0.1:" + p + "/secure?k={{input.k}}", 5, 0);
+            def.put("auth", Map.of("type", "oauth2_client_credentials", "tokenUrl", "http://127.0.0.1:" + p + "/oauth/token"));
+            String toolId = createContent(admin, "TOOL", "OAuth aracı", def).get("id").asText();
+            for (var e : Map.of("apiKey", "k", "clientId", "demo-client", "clientSecret", "demo-secret").entrySet()) {
+                mvc.perform(jsonPut("/api/cms/tools/" + toolId + "/secrets/" + e.getKey(), Map.of("value", e.getValue())).header("Authorization", bearer(admin))).andExpect(status().isOk());
+            }
+            JsonNode ok = postJson("/api/cms/tools/" + toolId + "/test", Map.of("input", Map.of("k", "a")), admin);
+            assertThat(ok.get("outcome").asText()).isEqualTo("SUCCEEDED");
+            assertThat(ok.toString()).doesNotContain("tok-1").doesNotContain("demo-secret");
+            postJson("/api/cms/tools/" + toolId + "/test", Map.of("input", Map.of("k", "b")), admin);
+            assertThat(tokenCalls.get()).isEqualTo(1); // cached until it expires
+
+            Map<String, Object> fileDef = toolDef("http://127.0.0.1:" + p + "/file?k={{input.k}}", 10, 0);
+            fileDef.remove("outputPath");
+            String fileTool = createContent(admin, "TOOL", "Dosya aracı", fileDef).get("id").asText();
+            mvc.perform(jsonPut("/api/cms/tools/" + fileTool + "/secrets/apiKey", Map.of("value", "k")).header("Authorization", bearer(admin))).andExpect(status().isOk());
+            JsonNode file = postJson("/api/cms/tools/" + fileTool + "/test", Map.of("input", Map.of("k", "a")), admin);
+            assertThat(file.get("outcome").asText()).isEqualTo("SUCCEEDED");
+            assertThat(file.at("/output/file/size").asLong()).isEqualTo(2L * 1024 * 1024);
+            assertThat(file.at("/output/file/name").asText()).isEqualTo("rapor.pdf");
+            assertThat(file.at("/output/file/contentType").asText()).isEqualTo("application/pdf");
+        } finally {
+            s.stop(0);
+        }
+    }
+
+    private static void raw(HttpExchange ex, int code, String body, String type) throws java.io.IOException {
+        byte[] b = body.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", type);
+        ex.sendResponseHeaders(code, b.length);
+        ex.getResponseBody().write(b);
+        ex.close();
+    }
+
     private static Map<String, Object> toolDef(String url, int timeout, int retries) {
         Map<String, Object> d = new LinkedHashMap<>();
         d.put("description", "Test aracı");

@@ -127,11 +127,33 @@ export function ToolRunner({ inputs, start, onFinished }: {
           {run.status === "SUCCEEDED" && run.output !== null && run.output !== undefined && (
             <>
               <h3 className="h-sub">Sonuç</h3>
-              <pre className="run-output" tabIndex={0}>{typeof run.output === "string" ? run.output : JSON.stringify(run.output, null, 2)}</pre>
+              {run.output && typeof run.output === "object" && "file" in run.output ? (
+                <FileOutput runId={run.id} file={(run.output as { file: FileMeta }).file} />
+              ) : (
+                <pre className="run-output" tabIndex={0}>{typeof run.output === "string" ? run.output : JSON.stringify(run.output, null, 2)}</pre>
+              )}
             </>
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+type FileMeta = { fileId: string; name: string; contentType: string; size: number; expiresAt: string };
+
+/** File output (up to 50 MB): downloaded with the session (web) or saved and shared natively (mobile). */
+function FileOutput({ runId, file }: { runId: string; file: FileMeta }) {
+  const [error, setError] = useState<string | null>(null);
+  const mb = file.size / 1024 / 1024;
+  return (
+    <div className="card stack run-output">
+      <p style={{ margin: 0 }}><strong>{file.name}</strong> <span className="muted">· {file.contentType} · {mb >= 1 ? `${mb.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} MB` : `${Math.max(1, Math.round(file.size / 1024)).toLocaleString("tr-TR")} KB`}</span></p>
+      <p className="hint-line" style={{ margin: 0 }}>Dosya {fmt.date(file.expiresAt)} tarihine kadar saklanır.</p>
+      <div><button className="btn btn-primary" onClick={async () => {
+        try { await api.download(`/api/tool-runs/${runId}/file`, file.name); setError(null); } catch (e) { setError(errorMessage(e)); }
+      }}>Dosyayı indir</button></div>
+      {error && <Alert kind="error"><p>{error}</p></Alert>}
     </div>
   );
 }

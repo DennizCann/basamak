@@ -20,10 +20,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   GET  /status/{code}           answers with that HTTP status
  *   GET  /redirect?to=URL         302 to URL (shows that redirects to internal addresses are blocked)
  *   POST /echo                    returns the JSON body it received
+ *   POST /oauth/token             OAuth 2.0 client credentials (client demo-client / demo-secret) -> access_token, 300 s
+ *   GET  /secure/report?q=x       needs Authorization: Bearer <token from /oauth/token>
+ *   GET  /file?mb=5               a PDF-typed file of the given size (shows file outputs up to 50 MB)
  *   GET  /health
  */
 public class MockApi {
     private static final Map<String, AtomicInteger> FLAKY = new ConcurrentHashMap<>();
+    private static final Set<String> TOKENS = ConcurrentHashMap.newKeySet();
 
     public static void main(String[] args) throws IOException {
         int port = Integer.parseInt(Optional.ofNullable(System.getenv("MOCK_API_PORT")).orElse("8090"));
@@ -68,6 +72,40 @@ public class MockApi {
             case "/redirect" -> {
                 ex.getResponseHeaders().set("Location", q.getOrDefault("to", "/health"));
                 ex.sendResponseHeaders(302, -1);
+                ex.close();
+            }
+            case "/oauth/token" -> {
+                Map<String, String> f = query(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                if (!"client_credentials".equals(f.get("grant_type")) || !"demo-client".equals(f.get("client_id")) || !"demo-secret".equals(f.get("client_secret"))) {
+                    send(ex, 401, "{\"error\":\"invalid_client\"}");
+                    return;
+                }
+                String t = "tok-" + UUID.randomUUID();
+                TOKENS.add(t);
+                send(ex, 200, "{\"access_token\":" + str(t) + ",\"token_type\":\"Bearer\",\"expires_in\":300}");
+            }
+            case "/secure/report" -> {
+                String auth = Optional.ofNullable(ex.getRequestHeaders().getFirst("Authorization")).orElse("");
+                if (!auth.startsWith("Bearer ") || !TOKENS.contains(auth.substring(7))) { send(ex, 401, "{\"error\":\"invalid_token\"}"); return; }
+                send(ex, 200, "{\"report\":" + str("Rapor: " + q.getOrDefault("q", "")) + ",\"authorized\":true}");
+            }
+            case "/file" -> {
+                long mb = Math.min(Long.parseLong(q.getOrDefault("mb", "1")), 60);
+                long size = mb * 1024 * 1024;
+                ex.getResponseHeaders().set("Content-Type", "application/pdf");
+                ex.getResponseHeaders().set("Content-Disposition", "attachment; filename=\"rapor-" + mb + "mb.pdf\"");
+                ex.sendResponseHeaders(200, size);
+                try (var out = ex.getResponseBody()) {
+                    byte[] chunk = new byte[64 * 1024];
+                    byte[] head = "%PDF-1.4\n".getBytes(StandardCharsets.US_ASCII);
+                    System.arraycopy(head, 0, chunk, 0, head.length);
+                    for (long sent = 0; sent < size; ) {
+                        int n = (int) Math.min(chunk.length, size - sent);
+                        out.write(chunk, 0, n);
+                        sent += n;
+                        if (sent == n) java.util.Arrays.fill(chunk, 0, head.length, (byte) 0);
+                    }
+                }
                 ex.close();
             }
             case "/echo" -> send(ex, 200, "{\"received\":" + new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8) + "}");

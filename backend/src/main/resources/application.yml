@@ -58,6 +58,8 @@ basamak:
   # uploaded lesson media (outside the repo; gitignored data/)
   media-dir: ${MEDIA_DIR:data/media}
   tools:
+    output-dir: ${TOOLS_OUTPUT_DIR:data/tool-outputs}
+    daily-runs-per-level: ${TOOLS_DAILY_RUNS_PER_LEVEL:20}
     # host:port pairs that STAFF (CMS) tools may call although they are local; never applies to member tools
     trusted-hosts: ${TOOLS_TRUSTED_HOSTS:localhost:8090,127.0.0.1:8090}
   jobs:

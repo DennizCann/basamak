@@ -34,7 +34,7 @@ public class CmsToolController {
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** Latest version vs the published one: which changes would break trainings/workflows that call this tool. */
-    @GetMapping("/api/cms/tools/{id}/compat")
+    @GetMapping("/{id}/compat")
     public Map<String, Object> compat(@AuthenticationPrincipal AuthPrincipal p, @PathVariable UUID id) {
         if (p.roles().stream().noneMatch(Role.STAFF::contains)) throw ApiException.forbidden("Yalnız içerik ekibi.");
         var rows = jdbc.queryForList("""
