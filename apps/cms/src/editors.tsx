@@ -1,4 +1,4 @@
-import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField } from "@basamak/ui";
+import { Alert, ITEM_TYPE_LABEL, SelectField, TextArea, TextField, trCompare } from "@basamak/ui";
 import type { Item, Json } from "./content";
 import { LessonMedia } from "./LessonMedia";
 
@@ -103,7 +103,7 @@ export function TrainingForm({ body, onChange, trainings, tools = [], disabled, 
       <TextArea label="Özet" rows={2} value={body.summary ?? ""} onChange={(e) => set("summary", e.target.value)} />
       <SelectField label="Ön koşul eğitimleri" multiple value={body.prerequisites ?? []} hint="Ctrl ile birden çok seçin. Döngü oluşturan seçim kaydedilmez."
                    onChange={(e) => set("prerequisites", Array.from(e.target.selectedOptions).map((o) => o.value))}>
-        {trainings.map((t) => <option key={t.id} value={t.id}>{t.latest.title}</option>)}
+        {[...trainings].sort((a, b) => trCompare(a.latest.title, b.latest.title)).map((t) => <option key={t.id} value={t.id}>{t.latest.title}</option>)}
       </SelectField>
       <h3>İçerik ögeleri</h3>
       {items.map((it, i) => (

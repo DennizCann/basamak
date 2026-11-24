@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { StateView, errorMessage, fmt } from "@basamak/ui";
+import { StateView, errorMessage, fmt, trCompare } from "@basamak/ui";
 import { api } from "../auth";
 
 type FeedItem = { id: number; type: string; objectType: string; objectId: string; objectTitle: string | null; at: string; userId: string; userName: string };
@@ -86,7 +86,7 @@ export function CommunityPage() {
         <h2 id="disc-h">Paylaşılan iş akışları</h2>
         {shared.length === 0 ? <p className="muted">Henüz paylaşılan iş akışı yok.</p> : (
           <ul className="card-list">
-            {shared.slice(0, 20).map((w) => (
+            {[...shared].sort((a, b) => b.forkCount - a.forkCount || trCompare(a.name, b.name)).slice(0, 20).map((w) => (
               <li key={w.id} className="row space-between">
                 <span><Link className="text-link" to={`/workflows/${w.id}`}>{w.name}</Link> <span className="muted">· <Link className="text-link" to={`/u/${w.ownerId}`}>{w.ownerName}</Link></span></span>
                 <span className="muted">{fmt.num(w.forkCount)} çatal</span>

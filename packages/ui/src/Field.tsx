@@ -58,6 +58,11 @@ export function ProgressBar({ value, max, label }: { value: number; max: number;
 }
 
 /** Turkish number/date formatting (1.250 puan, 23.11.2026). */
+const trCollator = new Intl.Collator("tr", { sensitivity: "base", numeric: true });
+
+/** Turkish alphabetical order (ç after c, ı before i, İ/i and I/ı handled): use for every name/title list. */
+export const trCompare = (a: string, b: string) => trCollator.compare(a, b);
+
 export const fmt = {
   num: (n: number) => new Intl.NumberFormat("tr-TR").format(n),
   date: (iso: string) => new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso)),

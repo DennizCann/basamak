@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { downloadForOffline, isDownloaded } from "../offlineMedia";
+import { isMobile } from "../platform";
 import { Comments } from "../components/Comments";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -120,6 +122,7 @@ export function TrainingPage() {
         <nav className="crumb" aria-label="Konum"><Link to="/">Öğrenimim</Link><span aria-hidden="true">›</span><span>Eğitim</span></nav>
         <h1>{t.title}</h1>
         {t.enrollment ? <Meter value={done} max={total} label="Eğitim ilerlemesi" /> : t.summary && <p className="lead" style={{ marginTop: 0 }}>{t.summary}</p>}
+        {isMobile && t.enrollment && <OfflineDownload trainingId={t.id} />}
       </div>
 
       {error && <Alert kind="error"><p>{error}</p></Alert>}
@@ -315,5 +318,26 @@ function TrainingTool({ trainingId, item, onSucceeded }: { trainingId: string; i
         start={(input, clientRequestId) => api.post<ToolRun>("/api/tool-runs", { trainingId, itemKey: item.key, input, clientRequestId })}
         onFinished={(r) => { if (r.status === "SUCCEEDED") onSucceeded(); }} />
     </div>
+  );
+}
+
+/** Mobile: save the training (texts, images, attachments) on the phone before going offline. */
+function OfflineDownload({ trainingId }: { trainingId: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => { isDownloaded(trainingId).then((d) => d && setState("done")).catch(() => {}); }, [trainingId]);
+  return (
+    <p className="row" style={{ alignItems: "center", margin: "8px 0 0" }}>
+      <button className="btn btn-sm" disabled={state === "busy"} onClick={async () => {
+        setState("busy");
+        try {
+          const r = await downloadForOffline(trainingId);
+          setState("done");
+          setMsg(`Çevrimdışı kullanıma hazır: ders metinleri ve ${r.files} dosya telefonda.${r.skippedVideos ? ` ${r.skippedVideos} video boyutu nedeniyle indirilmedi; izlemek için bağlantı gerekir.` : ""} Quiz'i başlatmak için bir kez bağlanman gerekir; cevaplar çevrimdışı verilebilir.`);
+        } catch (e) { setState("idle"); setMsg(errorMessage(e)); }
+      }}>{state === "busy" ? "İndiriliyor…" : state === "done" ? "Yeniden indir" : "Çevrimdışı için indir"}</button>
+      {state === "done" && !msg && <span className="hint-line">✓ Bu eğitim telefonda kayıtlı.</span>}
+      {msg && <span className="hint-line" role="status">{msg}</span>}
+    </p>
   );
 }
