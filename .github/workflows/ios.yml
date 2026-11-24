@@ -1,0 +1,60 @@
+# iOS check without a Mac: GitHub's free macOS runner generates the Capacitor iOS project, builds it for the
+# iPhone simulator (no signing), boots a simulator, installs and launches the app and saves screenshots
+# (light and dark) as a downloadable artifact. Proves "builds and opens on iOS"; there is no backend on the
+# runner, so the app stays on the sign-in screen. Uses free Actions minutes (macOS counts 10x); runs only when the
+# mobile shell or this file changes, or by hand (Actions > iOS simulator > Run workflow).
+name: iOS simulator
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ios.yml", "apps/mobile/**"]
+
+jobs:
+  ios-simulator:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Bundle the member web app for mobile
+        run: npm run build:mobile -w apps/web
+      - name: Generate the iOS project (not committed; created fresh on the runner)
+        working-directory: apps/mobile
+        run: |
+          npx cap add ios
+          npx cap sync ios
+      - name: Build for the iPhone simulator (no code signing)
+        working-directory: apps/mobile/ios/App
+        run: |
+          set -o pipefail
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO build | tail -n 40
+      - name: Boot a simulator, install, launch, screenshot (light + dark)
+        run: |
+          set -e
+          mkdir -p ios-shots
+          UDID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for k in sorted(d, reverse=True) if "iOS" in k for x in d[k] if x["name"].startswith("iPhone")))')
+          xcrun simctl list devices available | grep "$UDID" | tee ios-shots/device.txt
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          APP="$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/App.app"
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl ui "$UDID" appearance light
+          xcrun simctl launch "$UDID" com.basamak.app
+          sleep 20
+          xcrun simctl io "$UDID" screenshot ios-shots/ios-light.png
+          xcrun simctl terminate "$UDID" com.basamak.app || true
+          xcrun simctl ui "$UDID" appearance dark
+          xcrun simctl launch "$UDID" com.basamak.app
+          sleep 15
+          xcrun simctl io "$UDID" screenshot ios-shots/ios-dark.png
+          xcrun simctl spawn "$UDID" log show --last 2m --style compact --predicate 'process == "App"' > ios-shots/app-log.txt 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-screenshots
+          path: ios-shots/
+          retention-days: 7
