@@ -9,7 +9,7 @@ Mimari kararlar [TASARIM.md](TASARIM.md)'de, ölçümler [OLCUMLER.md](OLCUMLER.
 | `backend/` | Java 21 + Spring Boot 3.5 modüler monolit, Liquibase göçleri |
 | `apps/web` | Üye web uygulaması (React + TS + Vite, :5173) |
 | `apps/cms` | İçerik yönetim sistemi, ayrı uygulama (:5174) |
-| `apps/mobile` | Capacitor Android uygulaması (web kodunu paketler), iOS yapılandırması (test edilmedi), Maestro akışı |
+| `apps/mobile` | Capacitor Android uygulaması (web kodunu paketler), iOS (yalnız simülatörde derlenip açıldı), Maestro akışı |
 | `mock-api/` | Araçlar için sahte dış servis (tek dosya, yalnız JDK) |
 | `e2e/` | Playwright uçtan uca ve erişilebilirlik testleri |
 | `loadtest/` | Yük testi ve Lighthouse betikleri, ham sonuçlar |
@@ -111,7 +111,7 @@ cd apps/mobile; npx cap sync android; cd android; .\gradlew.bat assembleDebug
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 - Derin bağlantı denemesi: `adb shell am start -a android.intent.action.VIEW -d "basamak://trainings/<id>"`.
-- **iOS:** Yapılandırma hazır, **hiç test edilmedi** (Xcode macOS ister). macOS adımları TASARIM §8.3'te.
+- **iOS:** Mac olmadan GitHub'ın ücretsiz macOS makinesinde denendi: `.github/workflows/ios.yml` iOS projesini üretir, iPhone simülatörü için derler, simülatörü açar, uygulamayı kurup başlatır ve açık-koyu ekran görüntüsü alır (`docs/mobile/ios-*.png`). Sonuç: **derleniyor ve açılıyor**. İlk görüntü bir hatayı da gösterdi: üst çubuk iOS durum çubuğunun altına giriyordu (`docs/mobile/ios-before-safe-area.png`). Düzeltildi ve ikinci çalışmada doğrulandı. Sınırlar: Makinede backend yoktu, uygulama giriş ekranında kaldı. Giriş yapılmış tam bir tur, gerçek iPhone, iOS bildirimi (APNs, ücretli hesap) **denenmedi**. iOS'ta oturum jetonu Keychain'de değil, Capacitor Preferences'ta (düz) saklanıyor. Mac'te kendi denemeniz için adımlar TASARIM §8.3'te.
 - **Push:** FCM kurulmadı. Bildirimler uygulama açıkken ya da arka plandayken yerel bildirim olarak gelir. Uygulama tamamen kapalıyken bildirim yoktur.
 
 ## API
@@ -136,7 +136,7 @@ Durumlar yalnız gerçek test sonucuna göre yazıldı. "Kanıt" sütunu otomati
 | 11 | Canlı sıralama, çatal yazara puan | **Çalışıyor** (web) | `WorkflowIT.scenario11_*` | İki tarayıcı: biri akışı paylaşır, öbürü çatallar. Sıralama yenilemeden güncellenir |
 | 12 | Geçmişim, veri indirme, hesap silme | **Çalışıyor** | `PrivacyReportIT.scenario12_*`, `e2e/privacy.spec.ts` | Profil → Geçmişim (süzme, sayfalama). Hesap → Verilerimi indir (JSON) → Hesabımı sil |
 | 13 | CMS raporları ve CSV | **Çalışıyor** | `PrivacyReportIT.scenario13_*` | CMS → Raporlar → eğitim → soru başına doğru oranı, anket dağılımı → CSV |
-| 14 | Mobil | **Android'de çalışıyor** (emülatörde elle). FCM ve iOS yok | `docs/mobile/*.png`, `apps/mobile/maestro` (çalıştırılmadı) | Emülatörde giriş → Öğren → ders → uçak modunda ders ve quiz → çevrimiçi olunca eşitleme → araç çalıştırma → bildirime dokun → ilgili ekran → Profil → Geçmişim → `basamak://` bağlantısı |
+| 14 | Mobil | **Android'de çalışıyor** (emülatörde elle). iOS: simülatörde derlenip açıldı, tam tur yok. FCM yok | `docs/mobile/*.png`, `apps/mobile/maestro` (çalıştırılmadı) | Emülatörde giriş → Öğren → ders → uçak modunda ders ve quiz → çevrimiçi olunca eşitleme → araç çalıştırma → bildirime dokun → ilgili ekran → Profil → Geçmişim → `basamak://` bağlantısı |
 | 15 | 320 px, koyu tema, klavye | **Çalışıyor** | `e2e/quality.spec.ts` (21 ekran × 2 tema, 0 ihlal), `e2e/ux.spec.ts` | Tarayıcı 320 px, sistem koyu teması, yalnız klavye ile gezinme |
 
 Ölçümler (Lighthouse 100/100/100, yük testi p95, soğuk açılış, kapsam): [OLCUMLER.md](OLCUMLER.md).
@@ -156,7 +156,7 @@ Hazırlık: backend, web, CMS, Mailpit, sahte API ve Android emülatörü açık
 | 13:30–14:30 | Kalite (15) | 320 px ve koyu tema. OLCUMLER.md özeti. Yapılmayanlar |
 
 ## Yapılmayanlar ve test edilmeyenler
-- **iOS:** Hiç test edilmedi (macOS yok). **FCM push:** Yok, yalnız yerel bildirim var. **Gerçek Android cihaz:** Denenmedi, yalnız emülatör.
+- **iOS:** Yalnız simülatörde derlenip açıldı (giriş ekranı); giriş yapılmış tam tur ve gerçek iPhone denenmedi, oturum jetonu Keychain'de değil. **FCM push:** Yok, yalnız yerel bildirim var. **Gerçek Android cihaz:** Denenmedi, yalnız emülatör.
 - **Docker Compose:** Test edilmedi. **Maestro akışı:** Yazıldı, çalıştırılmadı. **Ollama yapay zekâ sağlayıcısı:** Yazıldı, denenmedi.
 - **Kodda olmayanlar (yalnız tasarımda):** Sessiz saatler, OpenTelemetry, sürükle bırak akış kurucusu, HLS video, arama ve çok dillilik (3.11), Content-Security-Policy başlığı, otomatik bağımlılık taraması. Ayrıntı: TASARIM §11.
 - **Figma:** Ekranlar geliştirici tarafından ayrıca hazırlanır; bağlantı teslim e-postasındadır.

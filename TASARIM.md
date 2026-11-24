@@ -34,7 +34,7 @@ Hangi senaryonun hangi durumda olduğu her zaman `README.md` ve `DURUM.md` için
 - **Journey seviyesi.** Üyenin seviyesi, açık olan ve henüz bitirmediği en düşük sıralı Journey'dir. Hiçbirini bitirmemişse Beginner'dır.
 
 **Yapmadıklarımız** (gerekçe ve alternatifler için bkz. §11)
-- iOS derlemesi ve simülatör testi: Windows makinede yapılamaz. Yapılandırma ve talimat hazırdır ama **test edilmemiştir**. APNs, ücretli Apple Developer hesabı gerektirir.
+- iOS: Windows'ta derlenemez. GitHub'ın ücretsiz macOS makinesinde simülatör için derlenip açıldı (§8.3); giriş yapılmış tam tur ve gerçek cihaz **denenmedi**. APNs, ücretli Apple Developer hesabı gerektirir.
 - Bölüm 3.11 (arama, çok dillilik, kurumsal alanlar): PDF'e göre kodda seçmeli; yalnız tasarımı yapıldı.
 - Topluluk özelliklerinin (takip, akış, yorum, moderasyon) arayüzleri ertelendi. Zorunlu senaryolarda yer almıyorlar; tasarım kararları §12'de.
 
@@ -395,7 +395,7 @@ OpenAPI 3.1 dosyası springdoc ile çalışan backend'den üretilir ve `docs/ope
 | İstemci | Access token | Refresh token |
 |---|---|---|
 | Web | JWT HS512, 15 dakika, bellekte tutulur, `aud=web` | Opak rastgele değer. HttpOnly, `SameSite=Strict`, `path=/api` cookie (`bsm_rt`). Her kullanımda döndürülür |
-| Mobil | JWT, `aud=mobile` | Gövdede döner. Android Keystore ve iOS Keychain'de saklanır |
+| Mobil | JWT, `aud=mobile` | Gövdede döner. Android'de Keystore'da saklanır. iOS'ta bugün Capacitor Preferences'ta (düz) saklanır; Keychain eklentisi yazılmadı (§11) |
 | CMS | JWT, `aud=cms`. **Yalnız şifre ve TOTP'den sonra** verilir | Ayrı cookie (`bsm_cms_rt`), 12 saat |
 
 - Refresh token'lar veritabanında yalnız SHA-256 özeti olarak tutulur (`refresh_sessions`). Her oturum bir cihazdır; üye açık oturumlarını görür ve kapatır.
@@ -551,7 +551,7 @@ Mobil uygulama web ekranlarını kullanır ama kabuğu Android uygulaması gibid
 
 ### 8.3 Doğrulama durumu
 - **Android:** Pixel 7 emülatöründe (API 35) debug APK kuruldu ve açıldı. Şifre, Mailpit'ten e-posta kodu ve Journey listesi çalışıyor. Uygulama kapatılıp açılınca oturum geri yükleniyor. F6'da emülatörde elle doğrulananlar: Keystore'a geçiş, derin bağlantı, çevrimdışı ders tamamlama ve eşitleme, bildirim ve dokununca ekran açılması, gizlilik ekranı (`docs/mobile/*.png`). Gerçek cihazda **denenmedi**. Araç ve iş akışı ekranları mobilde açılıyor (bildirimden açılan akış ekranı), ama mobilde tam bir çalıştırma ekranı turu yapılmadı.
-- **iOS:** `@capacitor/ios` bağımlılığı ve `capacitor.config.ts` hazır. Xcode yalnız macOS'ta çalıştığı için iOS projesi üretilmedi ve **hiç test edilmedi**. macOS'ta yapılacaklar: `npm run build:mobile -w apps/web`, `cd apps/mobile`, `npx cap add ios`, `npx cap open ios`. API adresi simülatörde `http://localhost:8080` olur; bunun için Info.plist'e geliştirme amaçlı bir ATS istisnası gerekir.
+- **iOS:** Windows'ta Xcode olmadığı için GitHub Actions'ın ücretsiz macOS makinesi kullanıldı (`.github/workflows/ios.yml`). İş, iOS projesini her seferinde sıfırdan üretir (`npx cap add ios`), iPhone simülatörü için imzasız derler, iPhone 17 Pro simülatörünü açar, uygulamayı kurup başlatır ve açık-koyu temada ekran görüntüsü alır. **Sonuç:** derleniyor ve açılıyor (`docs/mobile/ios-light.png`, `ios-dark.png`). İlk görüntü üst çubuğun iOS durum çubuğu ve Dynamic Island altına girdiğini gösterdi; `env(safe-area-inset-*)` ile düzeltildi (web ve Android'de değer 0, Android'de yeniden doğrulandı). **Denenmeyenler:** Makinede backend olmadığı için uygulama giriş ekranında kaldı; giriş yapılmış tam tur, gerçek iPhone ve APNs (ücretli hesap) yok. iOS'ta jeton Keychain'de değil Preferences'ta. Mac'te elle: `npm run build:mobile -w apps/web`, `cd apps/mobile`, `npx cap add ios`, `npx cap open ios`; simülatörde API adresi `http://localhost:8080` olur ve Info.plist'e geliştirme amaçlı bir ATS istisnası gerekir.
 
 ## 9. Ölçeklenme, izleme ve hata yönetimi
 Sayılar `OLCUMLER.md`'deki gerçek ölçümlerden alınmıştır: tek geliştirici makinesi, tek uygulama düğümü, yerel PostgreSQL 18.
@@ -673,7 +673,7 @@ Sayılar `OLCUMLER.md`'deki gerçek ölçümlerden alınmıştır: tek geliştir
 ## 11. İleriye bırakılanlar *(her fazda güncellenir)*
 - **Araçlarda devre kesici ve hedef başına hız sınırı:** Bugün işçi sayısı, süre sınırı, üye başına 5 eşzamanlı çalıştırma, seviyeye göre günlük kota ve IP başına dakikalık sınır var. Art arda hata veren bir hedefin geçici olarak atlanması ve kötü niyetli aracın otomatik askıya alınması yok.
 - **Kullanılmayan medya dosyalarının temizliği:** Hiçbir sürümün başvurmadığı dosyalar silinmiyor (dosyalar tekilleştirilmiş olduğu için büyüme sınırlı).
-- **Sessiz saatler ve FCM push** (§7.9, §8.2), **iOS testi**.
+- **Sessiz saatler ve FCM push** (§7.9, §8.2). **iOS:** gerçek cihaz ve giriş yapılmış tam tur testi, Keychain'de jeton saklama (bugün Preferences), APNs.
 - **Soru başına gerçek süre ölçümü** (bugün deneme süresinden yaklaşık hesap, §7.7).
 - **Sürükle bırak iş akışı kurucusu:** Form tabanlı düzenleyici ve canlı şema var (§4.5).
 - **OpenTelemetry dağıtık izleme:** İstek kimliği HTTP'den arka plan işine taşınıyor ve JSON günlüklere yazılıyor; OTel tasarımı §9'da, kodda yok.
